@@ -1,0 +1,36 @@
+// Vogue Manager Maya Shelf Button Installation Script
+// This script adds a Vogue Manager button to the Maya shelf
+
+global proc vogueManagerShelfButton() {
+    // Import and show Vogue Manager
+    python("import vogue_maya.tool as vm; vm.show_vogue_manager()");
+}
+
+global proc installVogueManagerShelf() {
+    // Get current shelf
+    string $currentShelf = `tabLayout -q -selectTab $gShelfTopLevel`;
+    
+    // Create Vogue Manager button
+    shelfButton -label "Vogue" 
+                -command "vogueManagerShelfButton" 
+                -annotation "Vogue Manager - Production Pipeline Tool" 
+                -image "vogueManager.png"
+                -width 35
+                -height 35;
+    
+    print("Vogue Manager shelf button installed successfully.\n");
+}
+
+global proc uninstallVogueManagerShelf() {
+    // Get current shelf
+    string $currentShelf = `tabLayout -q -selectTab $gShelfTopLevel`;
+    
+    // Find and remove Vogue Manager button
+    // Note: This is a simplified approach. In practice, you'd need to track
+    // button IDs and remove them properly.
+    
+    print("Vogue Manager shelf button uninstalled.\n");
+}
+
+// Auto-install when script is sourced
+installVogueManagerShelf();

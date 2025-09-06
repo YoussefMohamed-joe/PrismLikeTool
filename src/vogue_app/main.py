@@ -1,0 +1,87 @@
+"""
+
+
+Bootstrap the PySide2 application and show the main window.
+"""
+
+import sys
+import os
+from pathlib import Path
+
+# Add src to path for imports
+src_path = Path(__file__).parent.parent
+sys.path.insert(0, str(src_path))
+
+try:
+    from PyQt6.QtWidgets import QApplication, QMessageBox
+    from PyQt6.QtCore import Qt
+    PYSIDE2_AVAILABLE = True
+except ImportError:
+    try:
+        from PySide2.QtWidgets import QApplication, QMessageBox
+        from PySide2.QtCore import Qt
+        PYSIDE2_AVAILABLE = True
+    except ImportError:
+        try:
+            from PyQt5.QtWidgets import QApplication, QMessageBox
+            from PyQt5.QtCore import Qt
+            PYSIDE2_AVAILABLE = True
+        except ImportError:
+            PYSIDE2_AVAILABLE = False
+
+from vogue_core.logging_utils import setup_logging, get_logger
+from vogue_app.controller import VogueController
+
+
+def main():
+    """Main entry point for Vogue Manager desktop application"""
+    
+    # Check if Qt is available
+    if not PYSIDE2_AVAILABLE:
+        print("Error: PySide2 or PyQt5 is required but not installed.")
+        print("Please install PySide2: pip install PySide2")
+        sys.exit(1)
+    
+    # Set up logging
+    setup_logging(level="INFO")
+    logger = get_logger("Main")
+    
+    logger.info("Starting Vogue Manager Desktop Application")
+    
+    # Create QApplication
+    app = QApplication(sys.argv)
+    app.setApplicationName("Vogue Manager")
+    app.setApplicationVersion("1.0.0")
+    app.setOrganizationName("Vogue Manager Team")
+    
+    # Set application style
+    app.setStyle('Fusion')  # Use Fusion style for better cross-platform appearance
+    
+    try:
+        # Create and show main controller
+        controller = VogueController()
+        controller.show()
+        
+        logger.info("Vogue Manager started successfully")
+        
+        # Run application
+        sys.exit(app.exec())
+        
+    except Exception as e:
+        logger.error(f"Failed to start Vogue Manager: {e}")
+        
+        # Show error message
+        if 'app' in locals():
+            QMessageBox.critical(
+                None, 
+                "Startup Error", 
+                f"Failed to start Vogue Manager:\n\n{str(e)}"
+            )
+        else:
+            print(f"Failed to start Vogue Manager: {e}")
+        
+        sys.exit(1)
+
+
+if __name__ == "__main__":
+    main()

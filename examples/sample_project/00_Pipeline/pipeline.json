@@ -1,0 +1,219 @@
+{
+  "name": "SampleProject",
+  "path": "D:/VogueProjects/SampleProject",
+  "fps": 24,
+  "resolution": [1920, 1080],
+  "departments": ["Model", "Rig", "Anim", "LookDev", "FX", "Lighting", "Comp"],
+  "tasks": ["WIP", "Review", "Final"],
+  "assets": [
+    {
+      "name": "char_A",
+      "type": "Characters",
+      "path": "D:/VogueProjects/SampleProject/01_Assets/Characters/char_A",
+      "meta": {
+        "notes": "Main character - hero",
+        "priority": "high",
+        "description": "The protagonist of our story"
+      }
+    },
+    {
+      "name": "char_B",
+      "type": "Characters",
+      "path": "D:/VogueProjects/SampleProject/01_Assets/Characters/char_B",
+      "meta": {
+        "notes": "Secondary character",
+        "priority": "medium"
+      }
+    },
+    {
+      "name": "prop_sword",
+      "type": "Props",
+      "path": "D:/VogueProjects/SampleProject/01_Assets/Props/prop_sword",
+      "meta": {
+        "notes": "Hero's weapon",
+        "category": "weapon"
+      }
+    },
+    {
+      "name": "env_forest",
+      "type": "Environments",
+      "path": "D:/VogueProjects/SampleProject/01_Assets/Environments/env_forest",
+      "meta": {
+        "notes": "Main forest environment",
+        "lighting": "day"
+      }
+    }
+  ],
+  "shots": [
+    {
+      "sequence": "sq01",
+      "name": "sh010",
+      "path": "D:/VogueProjects/SampleProject/02_Shots/sq01/sh010",
+      "meta": {
+        "notes": "Opening shot - establishing",
+        "duration": 120,
+        "description": "Wide shot of the forest"
+      }
+    },
+    {
+      "sequence": "sq01",
+      "name": "sh020",
+      "path": "D:/VogueProjects/SampleProject/02_Shots/sq01/sh020",
+      "meta": {
+        "notes": "Character introduction",
+        "duration": 90,
+        "description": "Close-up of char_A entering"
+      }
+    },
+    {
+      "sequence": "sq01",
+      "name": "sh030",
+      "path": "D:/VogueProjects/SampleProject/02_Shots/sq01/sh030",
+      "meta": {
+        "notes": "Action sequence",
+        "duration": 180,
+        "description": "Fight scene between char_A and char_B"
+      }
+    },
+    {
+      "sequence": "sq02",
+      "name": "sh010",
+      "path": "D:/VogueProjects/SampleProject/02_Shots/sq02/sh010",
+      "meta": {
+        "notes": "Resolution shot",
+        "duration": 150,
+        "description": "Final confrontation"
+      }
+    }
+  ],
+  "versions": {
+    "char_A": [
+      {
+        "version": "v001",
+        "user": "youssef",
+        "date": "2025-01-15T10:30:00",
+        "comment": "Initial model",
+        "path": "D:/VogueProjects/SampleProject/06_Scenes/Assets/Characters/char_A/char_A_v001.ma",
+        "thumbnail": "D:/VogueProjects/SampleProject/06_Scenes/Assets/Characters/char_A/char_A_v001.jpg"
+      },
+      {
+        "version": "v002",
+        "user": "youssef",
+        "date": "2025-01-16T14:20:00",
+        "comment": "Added details and textures",
+        "path": "D:/VogueProjects/SampleProject/06_Scenes/Assets/Characters/char_A/char_A_v002.ma",
+        "thumbnail": "D:/VogueProjects/SampleProject/06_Scenes/Assets/Characters/char_A/char_A_v002.jpg"
+      },
+      {
+        "version": "v003",
+        "user": "mona",
+        "date": "2025-01-17T09:15:00",
+        "comment": "Rigging complete",
+        "path": "D:/VogueProjects/SampleProject/06_Scenes/Assets/Characters/char_A/char_A_v003.ma",
+        "thumbnail": "D:/VogueProjects/SampleProject/06_Scenes/Assets/Characters/char_A/char_A_v003.jpg"
+      }
+    ],
+    "char_B": [
+      {
+        "version": "v001",
+        "user": "youssef",
+        "date": "2025-01-18T11:45:00",
+        "comment": "Initial model",
+        "path": "D:/VogueProjects/SampleProject/06_Scenes/Assets/Characters/char_B/char_B_v001.ma",
+        "thumbnail": "D:/VogueProjects/SampleProject/06_Scenes/Assets/Characters/char_B/char_B_v001.jpg"
+      }
+    ],
+    "prop_sword": [
+      {
+        "version": "v001",
+        "user": "youssef",
+        "date": "2025-01-19T16:30:00",
+        "comment": "Initial model",
+        "path": "D:/VogueProjects/SampleProject/06_Scenes/Assets/Props/prop_sword/prop_sword_v001.ma",
+        "thumbnail": "D:/VogueProjects/SampleProject/06_Scenes/Assets/Props/prop_sword/prop_sword_v001.jpg"
+      },
+      {
+        "version": "v002",
+        "user": "youssef",
+        "date": "2025-01-20T13:10:00",
+        "comment": "Added materials and textures",
+        "path": "D:/VogueProjects/SampleProject/06_Scenes/Assets/Props/prop_sword/prop_sword_v002.ma",
+        "thumbnail": "D:/VogueProjects/SampleProject/06_Scenes/Assets/Props/prop_sword/prop_sword_v002.jpg"
+      }
+    ],
+    "env_forest": [
+      {
+        "version": "v001",
+        "user": "youssef",
+        "date": "2025-01-21T08:20:00",
+        "comment": "Initial environment setup",
+        "path": "D:/VogueProjects/SampleProject/06_Scenes/Assets/Environments/env_forest/env_forest_v001.ma",
+        "thumbnail": "D:/VogueProjects/SampleProject/06_Scenes/Assets/Environments/env_forest/env_forest_v001.jpg"
+      }
+    ],
+    "sq01/sh010": [
+      {
+        "version": "v001",
+        "user": "mona",
+        "date": "2025-01-22T10:00:00",
+        "comment": "Initial layout",
+        "path": "D:/VogueProjects/SampleProject/06_Scenes/Shots/sq01/sh010/sh010_v001.ma",
+        "thumbnail": "D:/VogueProjects/SampleProject/06_Scenes/Shots/sq01/sh010/sh010_v001.jpg"
+      },
+      {
+        "version": "v002",
+        "user": "mona",
+        "date": "2025-01-23T15:30:00",
+        "comment": "Added animation",
+        "path": "D:/VogueProjects/SampleProject/06_Scenes/Shots/sq01/sh010/sh010_v002.ma",
+        "thumbnail": "D:/VogueProjects/SampleProject/06_Scenes/Shots/sq01/sh010/sh010_v002.jpg"
+      }
+    ],
+    "sq01/sh020": [
+      {
+        "version": "v001",
+        "user": "mona",
+        "date": "2025-01-24T09:45:00",
+        "comment": "Character animation",
+        "path": "D:/VogueProjects/SampleProject/06_Scenes/Shots/sq01/sh020/sh020_v001.ma",
+        "thumbnail": "D:/VogueProjects/SampleProject/06_Scenes/Shots/sq01/sh020/sh020_v001.jpg"
+      }
+    ],
+    "sq01/sh030": [
+      {
+        "version": "v001",
+        "user": "mona",
+        "date": "2025-01-25T11:20:00",
+        "comment": "Action sequence layout",
+        "path": "D:/VogueProjects/SampleProject/06_Scenes/Shots/sq01/sh030/sh030_v001.ma",
+        "thumbnail": "D:/VogueProjects/SampleProject/06_Scenes/Shots/sq01/sh030/sh030_v001.jpg"
+      },
+      {
+        "version": "v002",
+        "user": "mona",
+        "date": "2025-01-26T14:15:00",
+        "comment": "Refined animation",
+        "path": "D:/VogueProjects/SampleProject/06_Scenes/Shots/sq01/sh030/sh030_v002.ma",
+        "thumbnail": "D:/VogueProjects/SampleProject/06_Scenes/Shots/sq01/sh030/sh030_v002.jpg"
+      },
+      {
+        "version": "v003",
+        "user": "mona",
+        "date": "2025-01-27T16:40:00",
+        "comment": "Final animation pass",
+        "path": "D:/VogueProjects/SampleProject/06_Scenes/Shots/sq01/sh030/sh030_v003.ma",
+        "thumbnail": "D:/VogueProjects/SampleProject/06_Scenes/Shots/sq01/sh030/sh030_v003.jpg"
+      }
+    ],
+    "sq02/sh010": [
+      {
+        "version": "v001",
+        "user": "mona",
+        "date": "2025-01-28T12:30:00",
+        "comment": "Final shot layout",
+        "path": "D:/VogueProjects/SampleProject/06_Scenes/Shots/sq02/sh010/sh010_v001.ma",
+        "thumbnail": "D:/VogueProjects/SampleProject/06_Scenes/Shots/sq02/sh010/sh010_v001.jpg"
+      }
+    ]
+  }
+}

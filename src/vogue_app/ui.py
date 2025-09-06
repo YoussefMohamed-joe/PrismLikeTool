@@ -1,0 +1,807 @@
+"""
+Prism-like UI components for Vogue Manager
+
+Complete Prism interface clone with all standard Prism functionalities.
+"""
+
+import os
+from pathlib import Path
+from typing import List, Dict, Any, Optional
+
+# Import PyQt6 directly for better compatibility
+from PyQt6.QtWidgets import (
+    QMainWindow, QWidget, QVBoxLayout, QHBoxLayout, QGridLayout,
+    QTabWidget, QTreeWidget, QTreeWidgetItem, QTableWidget, QTableWidgetItem,
+    QPlainTextEdit, QPushButton, QLabel, QSplitter, QGroupBox,
+    QMenuBar, QMenu, QToolBar, QStatusBar, QFileDialog, QMessageBox,
+    QHeaderView, QAbstractItemView, QProgressBar, QLineEdit, QComboBox,
+    QListWidget, QListWidgetItem, QCheckBox, QSpinBox, QDoubleSpinBox,
+    QSlider, QScrollArea, QFrame, QDockWidget, QTextEdit, QCompleter,
+    QButtonGroup, QRadioButton, QToolButton, QSizePolicy, QSpacerItem
+)
+from PyQt6.QtCore import Qt, QTimer, QThread, pyqtSignal, QSize, QRect
+from PyQt6.QtGui import QFont, QIcon, QPixmap, QAction, QPalette, QColor, QPainter
+
+from .colors import COLORS
+from .qss import build_qss
+
+
+class PrismStyleWidget(QWidget):
+    """Base widget with Prism styling"""
+    
+    def __init__(self, parent=None):
+        super().__init__(parent)
+        self.setStyleSheet(build_qss())
+
+
+class ProjectBrowser(PrismStyleWidget):
+    """Project browser widget - main left panel"""
+    
+    def __init__(self, parent=None):
+        super().__init__(parent)
+        self.setup_ui()
+    
+    def setup_ui(self):
+        layout = QVBoxLayout(self)
+        layout.setContentsMargins(5, 5, 5, 5)
+        
+        # Project info header
+        header_frame = QFrame()
+        header_frame.setFrameStyle(QFrame.Shape.Box)
+        header_frame.setStyleSheet("QFrame { background-color: #404040; border: 1px solid #555555; }")
+        header_layout = QVBoxLayout(header_frame)
+        
+        self.project_name_label = QLabel("No Project")
+        self.project_name_label.setProperty("class", "title")
+        self.project_name_label.setAlignment(Qt.AlignmentFlag.AlignCenter)
+        header_layout.addWidget(self.project_name_label)
+        
+        self.project_path_label = QLabel("")
+        self.project_path_label.setProperty("class", "muted")
+        self.project_path_label.setAlignment(Qt.AlignmentFlag.AlignCenter)
+        self.project_path_label.setWordWrap(True)
+        header_layout.addWidget(self.project_path_label)
+        
+        layout.addWidget(header_frame)
+        
+        # Browse button
+        self.browse_btn = QPushButton("Browse Project...")
+        self.browse_btn.setProperty("class", "primary")
+        layout.addWidget(self.browse_btn)
+        
+        # Recent projects
+        recent_group = QGroupBox("Recent Projects")
+        recent_layout = QVBoxLayout(recent_group)
+        
+        self.recent_list = QListWidget()
+        self.recent_list.setMaximumHeight(100)
+        recent_layout.addWidget(self.recent_list)
+        
+        layout.addWidget(recent_group)
+        
+        # Main content area
+        content_splitter = QSplitter(Qt.Orientation.Vertical)
+        
+        # Assets section
+        assets_group = QGroupBox("Assets")
+        assets_layout = QVBoxLayout(assets_group)
+        
+        # Asset type filter
+        filter_layout = QHBoxLayout()
+        self.asset_type_combo = QComboBox()
+        self.asset_type_combo.addItems(["All", "Characters", "Props", "Environments"])
+        filter_layout.addWidget(QLabel("Type:"))
+        filter_layout.addWidget(self.asset_type_combo)
+        filter_layout.addStretch()
+        assets_layout.addLayout(filter_layout)
+        
+        # Asset tree
+        self.asset_tree = QTreeWidget()
+        self.asset_tree.setHeaderLabels(["Name", "Type", "Versions"])
+        self.asset_tree.setRootIsDecorated(True)
+        self.asset_tree.setAlternatingRowColors(True)
+        self.asset_tree.setSortingEnabled(True)
+        assets_layout.addWidget(self.asset_tree)
+        
+        # Asset buttons
+        asset_btn_layout = QHBoxLayout()
+        self.add_asset_btn = QPushButton("Add Asset")
+        self.refresh_assets_btn = QPushButton("Refresh")
+        asset_btn_layout.addWidget(self.add_asset_btn)
+        asset_btn_layout.addWidget(self.refresh_assets_btn)
+        asset_btn_layout.addStretch()
+        assets_layout.addLayout(asset_btn_layout)
+        
+        content_splitter.addWidget(assets_group)
+        
+        # Shots section
+        shots_group = QGroupBox("Shots")
+        shots_layout = QVBoxLayout(shots_group)
+        
+        # Shot filter
+        shot_filter_layout = QHBoxLayout()
+        self.sequence_combo = QComboBox()
+        self.sequence_combo.addItems(["All Sequences"])
+        shot_filter_layout.addWidget(QLabel("Sequence:"))
+        shot_filter_layout.addWidget(self.sequence_combo)
+        shot_filter_layout.addStretch()
+        shots_layout.addLayout(shot_filter_layout)
+        
+        # Shot tree
+        self.shot_tree = QTreeWidget()
+        self.shot_tree.setHeaderLabels(["Shot", "Sequence", "Versions"])
+        self.shot_tree.setRootIsDecorated(True)
+        self.shot_tree.setAlternatingRowColors(True)
+        self.shot_tree.setSortingEnabled(True)
+        shots_layout.addWidget(self.shot_tree)
+        
+        # Shot buttons
+        shot_btn_layout = QHBoxLayout()
+        self.add_shot_btn = QPushButton("Add Shot")
+        self.refresh_shots_btn = QPushButton("Refresh")
+        shot_btn_layout.addWidget(self.add_shot_btn)
+        shot_btn_layout.addWidget(self.refresh_shots_btn)
+        shot_btn_layout.addStretch()
+        shots_layout.addLayout(shot_btn_layout)
+        
+        content_splitter.addWidget(shots_group)
+        
+        # Set splitter proportions
+        content_splitter.setSizes([300, 300])
+        layout.addWidget(content_splitter)
+
+
+class PipelinePanel(PrismStyleWidget):
+    """Pipeline panel widget - shows pipeline status and tools"""
+    
+    def __init__(self, parent=None):
+        super().__init__(parent)
+        self.setup_ui()
+    
+    def setup_ui(self):
+        layout = QVBoxLayout(self)
+        layout.setContentsMargins(5, 5, 5, 5)
+        
+        # Pipeline status
+        status_group = QGroupBox("Pipeline Status")
+        status_layout = QVBoxLayout(status_group)
+        
+        self.pipeline_status_label = QLabel("Pipeline: Ready")
+        self.pipeline_status_label.setProperty("class", "title")
+        status_layout.addWidget(self.pipeline_status_label)
+        
+        self.active_tools_label = QLabel("Active Tools: None")
+        self.active_tools_label.setProperty("class", "muted")
+        status_layout.addWidget(self.active_tools_label)
+        
+        layout.addWidget(status_group)
+        
+        # Quick actions
+        actions_group = QGroupBox("Quick Actions")
+        actions_layout = QVBoxLayout(actions_group)
+        
+        self.validate_btn = QPushButton("Validate Project")
+        self.validate_btn.setProperty("class", "primary")
+        actions_layout.addWidget(self.validate_btn)
+        
+        self.optimize_btn = QPushButton("Optimize Project")
+        actions_layout.addWidget(self.optimize_btn)
+        
+        self.cleanup_btn = QPushButton("Cleanup Project")
+        actions_layout.addWidget(self.cleanup_btn)
+        
+        layout.addWidget(actions_group)
+        
+        # Integration status
+        integration_group = QGroupBox("Software Integration")
+        integration_layout = QVBoxLayout(integration_group)
+        
+        self.maya_status = QLabel("Maya: Not Connected")
+        self.houdini_status = QLabel("Houdini: Not Connected")
+        self.blender_status = QLabel("Blender: Not Connected")
+        
+        integration_layout.addWidget(self.maya_status)
+        integration_layout.addWidget(self.houdini_status)
+        integration_layout.addWidget(self.blender_status)
+        
+        layout.addWidget(integration_group)
+        
+        # Add stretch to push everything to top
+        layout.addStretch()
+
+
+class VersionManager(PrismStyleWidget):
+    """Version manager widget - main right panel"""
+    
+    def __init__(self, parent=None):
+        super().__init__(parent)
+        self.setup_ui()
+    
+    def setup_ui(self):
+        layout = QVBoxLayout(self)
+        layout.setContentsMargins(5, 5, 5, 5)
+        
+        # Header with entity info
+        header_frame = QFrame()
+        header_frame.setFrameStyle(QFrame.Shape.Box)
+        header_frame.setStyleSheet("QFrame { background-color: #404040; border: 1px solid #555555; }")
+        header_layout = QVBoxLayout(header_frame)
+        
+        self.entity_name_label = QLabel("No Selection")
+        self.entity_name_label.setProperty("class", "title")
+        self.entity_name_label.setAlignment(Qt.AlignmentFlag.AlignCenter)
+        header_layout.addWidget(self.entity_name_label)
+        
+        self.entity_type_label = QLabel("")
+        self.entity_type_label.setProperty("class", "muted")
+        self.entity_type_label.setAlignment(Qt.AlignmentFlag.AlignCenter)
+        header_layout.addWidget(self.entity_type_label)
+        
+        layout.addWidget(header_frame)
+        
+        # Version controls
+        controls_layout = QHBoxLayout()
+        
+        self.publish_btn = QPushButton("Publish")
+        self.publish_btn.setProperty("class", "primary")
+        self.publish_btn.setEnabled(False)
+        
+        self.import_btn = QPushButton("Import")
+        self.import_btn.setEnabled(False)
+        
+        self.export_btn = QPushButton("Export")
+        self.export_btn.setEnabled(False)
+        
+        controls_layout.addWidget(self.publish_btn)
+        controls_layout.addWidget(self.import_btn)
+        controls_layout.addWidget(self.export_btn)
+        controls_layout.addStretch()
+        
+        layout.addLayout(controls_layout)
+        
+        # Version table
+        self.version_table = QTableWidget()
+        self.version_table.setColumnCount(6)
+        self.version_table.setHorizontalHeaderLabels([
+            "Version", "User", "Date", "Comment", "Status", "Path"
+        ])
+        self.version_table.horizontalHeader().setStretchLastSection(True)
+        self.version_table.setSelectionBehavior(QAbstractItemView.SelectionBehavior.SelectRows)
+        self.version_table.setAlternatingRowColors(True)
+        self.version_table.setSortingEnabled(True)
+        
+        # Set column widths
+        header = self.version_table.horizontalHeader()
+        header.resizeSection(0, 80)   # Version
+        header.resizeSection(1, 100)  # User
+        header.resizeSection(2, 120)  # Date
+        header.resizeSection(3, 200)  # Comment
+        header.resizeSection(4, 80)   # Status
+        
+        layout.addWidget(self.version_table)
+        
+        # Version info panel
+        info_group = QGroupBox("Version Info")
+        info_layout = QVBoxLayout(info_group)
+        
+        # Version details
+        details_layout = QGridLayout()
+        
+        details_layout.addWidget(QLabel("Version:"), 0, 0)
+        self.version_label = QLabel("-")
+        details_layout.addWidget(self.version_label, 0, 1)
+        
+        details_layout.addWidget(QLabel("User:"), 1, 0)
+        self.user_label = QLabel("-")
+        details_layout.addWidget(self.user_label, 1, 1)
+        
+        details_layout.addWidget(QLabel("Date:"), 2, 0)
+        self.date_label = QLabel("-")
+        details_layout.addWidget(self.date_label, 2, 1)
+        
+        details_layout.addWidget(QLabel("Comment:"), 3, 0)
+        self.comment_label = QLabel("-")
+        self.comment_label.setWordWrap(True)
+        details_layout.addWidget(self.comment_label, 3, 1)
+        
+        info_layout.addLayout(details_layout)
+        
+        # Action buttons
+        action_layout = QHBoxLayout()
+        
+        self.open_btn = QPushButton("Open")
+        self.open_btn.setEnabled(False)
+        
+        self.copy_btn = QPushButton("Copy")
+        self.copy_btn.setEnabled(False)
+        
+        self.delete_btn = QPushButton("Delete")
+        self.delete_btn.setEnabled(False)
+        self.delete_btn.setProperty("class", "danger")
+        
+        action_layout.addWidget(self.open_btn)
+        action_layout.addWidget(self.copy_btn)
+        action_layout.addWidget(self.delete_btn)
+        action_layout.addStretch()
+        
+        info_layout.addLayout(action_layout)
+        
+        layout.addWidget(info_group)
+
+
+class PublishDialog(QWidget):
+    """Publish dialog widget"""
+    
+    def __init__(self, parent=None):
+        super().__init__(parent)
+        self.setup_ui()
+    
+    def setup_ui(self):
+        layout = QVBoxLayout(self)
+        layout.setContentsMargins(20, 20, 20, 20)
+        
+        # Title
+        title_label = QLabel("Publish Version")
+        title_label.setProperty("class", "title")
+        title_label.setAlignment(Qt.AlignmentFlag.AlignCenter)
+        layout.addWidget(title_label)
+        
+        # Entity info
+        info_group = QGroupBox("Entity Information")
+        info_layout = QGridLayout(info_group)
+        
+        info_layout.addWidget(QLabel("Entity:"), 0, 0)
+        self.entity_label = QLabel("-")
+        info_layout.addWidget(self.entity_label, 0, 1)
+        
+        info_layout.addWidget(QLabel("Type:"), 1, 0)
+        self.type_label = QLabel("-")
+        info_layout.addWidget(self.type_label, 1, 1)
+        
+        layout.addWidget(info_group)
+        
+        # Publish options
+        options_group = QGroupBox("Publish Options")
+        options_layout = QVBoxLayout(options_group)
+        
+        # Version number
+        version_layout = QHBoxLayout()
+        version_layout.addWidget(QLabel("Version:"))
+        self.version_spin = QSpinBox()
+        self.version_spin.setMinimum(1)
+        self.version_spin.setMaximum(999)
+        self.version_spin.setValue(1)
+        version_layout.addWidget(self.version_spin)
+        version_layout.addStretch()
+        options_layout.addLayout(version_layout)
+        
+        # Comment
+        comment_layout = QVBoxLayout()
+        comment_layout.addWidget(QLabel("Comment:"))
+        self.comment_text = QTextEdit()
+        self.comment_text.setMaximumHeight(80)
+        comment_layout.addWidget(self.comment_text)
+        options_layout.addLayout(comment_layout)
+        
+        # Options
+        self.create_thumbnail_cb = QCheckBox("Create Thumbnail")
+        self.create_thumbnail_cb.setChecked(True)
+        options_layout.addWidget(self.create_thumbnail_cb)
+        
+        self.open_after_publish_cb = QCheckBox("Open after Publish")
+        self.open_after_publish_cb.setChecked(False)
+        options_layout.addWidget(self.open_after_publish_cb)
+        
+        layout.addWidget(options_group)
+        
+        # Buttons
+        button_layout = QHBoxLayout()
+        
+        self.publish_btn = QPushButton("Publish")
+        self.publish_btn.setProperty("class", "primary")
+        
+        self.cancel_btn = QPushButton("Cancel")
+        
+        button_layout.addStretch()
+        button_layout.addWidget(self.publish_btn)
+        button_layout.addWidget(self.cancel_btn)
+        
+        layout.addLayout(button_layout)
+
+
+class PrismMainWindow(QMainWindow):
+    """Main Prism-like window"""
+    
+    def __init__(self):
+        super().__init__()
+        self.setWindowTitle("Vogue Manager - Prism Interface")
+        self.setMinimumSize(1400, 900)
+        
+        # Apply Prism-like styling
+        self.setStyleSheet(build_qss())
+        
+        self.setup_ui()
+        self.setup_menu()
+        self.setup_toolbar()
+        self.setup_statusbar()
+        self.setup_docks()
+    
+    def setup_ui(self):
+        """Set up the main UI layout"""
+        # Create central widget with splitter
+        central_widget = QWidget()
+        self.setCentralWidget(central_widget)
+        
+        layout = QHBoxLayout(central_widget)
+        layout.setContentsMargins(0, 0, 0, 0)
+        
+        # Main splitter
+        main_splitter = QSplitter(Qt.Orientation.Horizontal)
+        
+        # Left panel - Project Browser
+        self.project_browser = ProjectBrowser()
+        main_splitter.addWidget(self.project_browser)
+        
+        # Center panel - Version Manager
+        self.version_manager = VersionManager()
+        main_splitter.addWidget(self.version_manager)
+        
+        # Right panel - Pipeline Panel
+        self.pipeline_panel = PipelinePanel()
+        main_splitter.addWidget(self.pipeline_panel)
+        
+        # Set splitter proportions (30% left, 50% center, 20% right)
+        main_splitter.setSizes([420, 700, 280])
+        layout.addWidget(main_splitter)
+    
+    def setup_menu(self):
+        """Set up the menu bar"""
+        menubar = self.menuBar()
+        
+        # File menu
+        file_menu = menubar.addMenu("&File")
+        
+        # Project submenu
+        project_menu = file_menu.addMenu("&Project")
+        
+        browse_action = QAction("&Browse Project...", self)
+        browse_action.setShortcut("Ctrl+O")
+        project_menu.addAction(browse_action)
+        
+        new_action = QAction("&New Project...", self)
+        new_action.setShortcut("Ctrl+N")
+        project_menu.addAction(new_action)
+        
+        open_action = QAction("&Open Project...", self)
+        open_action.setShortcut("Ctrl+Shift+O")
+        project_menu.addAction(open_action)
+        
+        project_menu.addSeparator()
+        
+        # Prism-specific project actions
+        import_project_action = QAction("&Import Project...", self)
+        project_menu.addAction(import_project_action)
+        
+        export_project_action = QAction("&Export Project...", self)
+        project_menu.addAction(export_project_action)
+        
+        project_menu.addSeparator()
+        
+        project_settings_action = QAction("&Project Settings...", self)
+        project_settings_action.setShortcut("Ctrl+Shift+P")
+        project_menu.addAction(project_settings_action)
+        
+        file_menu.addSeparator()
+        
+        save_action = QAction("&Save Project", self)
+        save_action.setShortcut("Ctrl+S")
+        file_menu.addAction(save_action)
+        
+        save_as_action = QAction("Save &As...", self)
+        save_as_action.setShortcut("Ctrl+Shift+S")
+        file_menu.addAction(save_as_action)
+        
+        file_menu.addSeparator()
+        
+        # Recent files submenu
+        recent_menu = file_menu.addMenu("&Recent Projects")
+        self.recent_menu = recent_menu
+        
+        file_menu.addSeparator()
+        
+        exit_action = QAction("E&xit", self)
+        exit_action.setShortcut("Ctrl+Q")
+        file_menu.addAction(exit_action)
+        
+        # Edit menu
+        edit_menu = menubar.addMenu("&Edit")
+        
+        refresh_action = QAction("&Refresh", self)
+        refresh_action.setShortcut("F5")
+        edit_menu.addAction(refresh_action)
+        
+        scan_action = QAction("&Scan Filesystem", self)
+        edit_menu.addAction(scan_action)
+        
+        edit_menu.addSeparator()
+        
+        settings_action = QAction("&Settings...", self)
+        settings_action.setShortcut("Ctrl+,")
+        edit_menu.addAction(settings_action)
+        
+        # Assets menu
+        assets_menu = menubar.addMenu("&Assets")
+        
+        add_asset_action = QAction("&Add Asset...", self)
+        add_asset_action.setShortcut("Ctrl+A")
+        assets_menu.addAction(add_asset_action)
+        
+        import_asset_action = QAction("&Import Asset...", self)
+        import_asset_action.setShortcut("Ctrl+I")
+        assets_menu.addAction(import_asset_action)
+        
+        # Shots menu
+        shots_menu = menubar.addMenu("&Shots")
+        
+        add_shot_action = QAction("&Add Shot...", self)
+        add_shot_action.setShortcut("Ctrl+Shift+A")
+        shots_menu.addAction(add_shot_action)
+        
+        # Publish menu
+        publish_menu = menubar.addMenu("&Publish")
+        
+        publish_action = QAction("&Publish Version...", self)
+        publish_action.setShortcut("Ctrl+P")
+        publish_menu.addAction(publish_action)
+        
+        batch_publish_action = QAction("&Batch Publish...", self)
+        batch_publish_action.setShortcut("Ctrl+Shift+P")
+        publish_menu.addAction(batch_publish_action)
+        
+        # Tools menu
+        tools_menu = menubar.addMenu("&Tools")
+        
+        # Prism-specific tools
+        thumbnail_action = QAction("&Generate Thumbnails", self)
+        tools_menu.addAction(thumbnail_action)
+        
+        cleanup_action = QAction("&Cleanup Project", self)
+        tools_menu.addAction(cleanup_action)
+        
+        tools_menu.addSeparator()
+        
+        # Prism pipeline tools
+        validate_action = QAction("&Validate Project", self)
+        tools_menu.addAction(validate_action)
+        
+        optimize_action = QAction("&Optimize Project", self)
+        tools_menu.addAction(optimize_action)
+        
+        tools_menu.addSeparator()
+        
+        # Integration tools
+        maya_action = QAction("&Launch Maya", self)
+        tools_menu.addAction(maya_action)
+        
+        houdini_action = QAction("&Launch Houdini", self)
+        tools_menu.addAction(houdini_action)
+        
+        blender_action = QAction("&Launch Blender", self)
+        tools_menu.addAction(blender_action)
+        
+        tools_menu.addSeparator()
+        
+        # System tools
+        api_action = QAction("&Start API Server", self)
+        tools_menu.addAction(api_action)
+        
+        logs_action = QAction("&View Logs", self)
+        tools_menu.addAction(logs_action)
+        
+        # Help menu
+        help_menu = menubar.addMenu("&Help")
+        
+        about_action = QAction("&About Vogue Manager", self)
+        help_menu.addAction(about_action)
+        
+        documentation_action = QAction("&Documentation", self)
+        help_menu.addAction(documentation_action)
+    
+    def setup_toolbar(self):
+        """Set up the toolbar"""
+        toolbar = self.addToolBar("Main")
+        toolbar.setMovable(False)
+        toolbar.setToolButtonStyle(Qt.ToolButtonStyle.ToolButtonTextBesideIcon)
+        toolbar.setStyleSheet("""
+            QToolBar {
+                background-color: #2b2b2b;
+                border: none;
+                spacing: 2px;
+                padding: 4px;
+            }
+            QToolBar QToolButton {
+                background-color: transparent;
+                border: 1px solid transparent;
+                border-radius: 4px;
+                padding: 6px 12px;
+                margin: 2px;
+                color: #cccccc;
+                font-size: 11px;
+                font-weight: 500;
+            }
+            QToolBar QToolButton:hover {
+                background-color: #404040;
+                border: 1px solid #555555;
+            }
+            QToolBar QToolButton:pressed {
+                background-color: #505050;
+                border: 1px solid #666666;
+            }
+            QToolBar QToolButton[class="primary"] {
+                background-color: #0078d4;
+                color: white;
+            }
+            QToolBar QToolButton[class="primary"]:hover {
+                background-color: #106ebe;
+            }
+            QToolBar QToolButton[class="primary"]:pressed {
+                background-color: #005a9e;
+            }
+            QToolBar::separator {
+                background-color: #555555;
+                width: 1px;
+                margin: 4px 8px;
+            }
+        """)
+        
+        # Project actions
+        browse_action = QAction("Browse", self)
+        browse_action.setToolTip("Browse for project")
+        browse_action.setShortcut("Ctrl+O")
+        toolbar.addAction(browse_action)
+        
+        new_action = QAction("New", self)
+        new_action.setToolTip("Create new project")
+        new_action.setShortcut("Ctrl+N")
+        toolbar.addAction(new_action)
+        
+        toolbar.addSeparator()
+        
+        # Asset actions
+        add_asset_action = QAction("Add Asset", self)
+        add_asset_action.setToolTip("Add new asset")
+        add_asset_action.setShortcut("Ctrl+A")
+        toolbar.addAction(add_asset_action)
+        
+        add_shot_action = QAction("Add Shot", self)
+        add_shot_action.setToolTip("Add new shot")
+        add_shot_action.setShortcut("Ctrl+Shift+A")
+        toolbar.addAction(add_shot_action)
+        
+        toolbar.addSeparator()
+        
+        # Publish actions
+        publish_action = QAction("Publish", self)
+        publish_action.setToolTip("Publish current selection")
+        publish_action.setShortcut("Ctrl+P")
+        publish_action.setProperty("class", "primary")
+        toolbar.addAction(publish_action)
+        
+        toolbar.addSeparator()
+        
+        # Utility actions
+        refresh_action = QAction("Refresh", self)
+        refresh_action.setToolTip("Refresh project data")
+        refresh_action.setShortcut("F5")
+        toolbar.addAction(refresh_action)
+        
+        scan_action = QAction("Scan", self)
+        scan_action.setToolTip("Scan filesystem")
+        scan_action.setShortcut("Ctrl+Shift+S")
+        toolbar.addAction(scan_action)
+    
+    def setup_statusbar(self):
+        """Set up the status bar"""
+        self.status_bar = self.statusBar()
+        
+        # Project status
+        self.project_status_label = QLabel("No project loaded")
+        self.status_bar.addWidget(self.project_status_label)
+        
+        # Progress bar
+        self.progress_bar = QProgressBar()
+        self.progress_bar.setVisible(False)
+        self.progress_bar.setMaximumWidth(200)
+        self.status_bar.addPermanentWidget(self.progress_bar)
+        
+        # User info
+        self.user_label = QLabel("User: Unknown")
+        self.status_bar.addPermanentWidget(self.user_label)
+        
+        # Version info
+        self.version_label = QLabel("v1.0.0")
+        self.status_bar.addPermanentWidget(self.version_label)
+    
+    def setup_docks(self):
+        """Set up dock widgets"""
+        # Log dock
+        self.log_dock = QDockWidget("Log", self)
+        self.log_dock.setAllowedAreas(Qt.DockWidgetArea.BottomDockWidgetArea)
+        
+        log_widget = QWidget()
+        log_layout = QVBoxLayout(log_widget)
+        
+        # Log controls
+        log_controls = QHBoxLayout()
+        clear_log_btn = QPushButton("Clear")
+        log_level_combo = QComboBox()
+        log_level_combo.addItems(["Debug", "Info", "Warning", "Error"])
+        log_level_combo.setCurrentText("Info")
+        
+        log_controls.addWidget(QLabel("Level:"))
+        log_controls.addWidget(log_level_combo)
+        log_controls.addStretch()
+        log_controls.addWidget(clear_log_btn)
+        
+        log_layout.addLayout(log_controls)
+        
+        # Log text
+        log_text = QPlainTextEdit()
+        log_text.setReadOnly(True)
+        log_text.setMaximumBlockCount(1000)
+        log_layout.addWidget(log_text)
+        
+        # Store references in the log widget
+        log_widget.clear_log_btn = clear_log_btn
+        log_widget.log_text = log_text
+        log_widget.log_level_combo = log_level_combo
+        
+        self.log_dock.setWidget(log_widget)
+        self.addDockWidget(Qt.DockWidgetArea.BottomDockWidgetArea, self.log_dock)
+        
+        # Initially hide the log dock
+        self.log_dock.hide()
+    
+    def show_log_dock(self):
+        """Show the log dock widget"""
+        self.log_dock.show()
+    
+    def hide_log_dock(self):
+        """Hide the log dock widget"""
+        self.log_dock.hide()
+    
+    def add_log_message(self, message: str, level: str = "Info"):
+        """Add a message to the log"""
+        from datetime import datetime
+        timestamp = datetime.now().strftime("%H:%M:%S")
+        formatted_message = f"[{timestamp}] [{level}] {message}"
+        
+        log_widget = self.log_dock.widget()
+        if log_widget and hasattr(log_widget, 'log_text'):
+            log_widget.log_text.appendPlainText(formatted_message)
+            
+            # Auto-scroll to bottom
+            cursor = log_widget.log_text.textCursor()
+            cursor.movePosition(cursor.MoveOperation.End)
+            log_widget.log_text.setTextCursor(cursor)
+    
+    def update_project_status(self, project_name: str, project_path: str):
+        """Update the project status in the status bar"""
+        self.project_status_label.setText(f"Project: {project_name}")
+        self.project_browser.project_name_label.setText(project_name)
+        self.project_browser.project_path_label.setText(project_path)
+    
+    def update_user(self, username: str):
+        """Update the user in the status bar"""
+        self.user_label.setText(f"User: {username}")
+    
+    def show_progress(self, message: str = "Processing..."):
+        """Show progress bar with message"""
+        self.progress_bar.setVisible(True)
+        self.progress_bar.setRange(0, 0)  # Indeterminate progress
+        self.status_bar.showMessage(message)
+    
+    def hide_progress(self):
+        """Hide progress bar"""
+        self.progress_bar.setVisible(False)
+        self.status_bar.clearMessage()
