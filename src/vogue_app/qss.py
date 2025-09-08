@@ -23,7 +23,7 @@ def build_qss(colors: dict = None) -> str:
     qss = f"""
     /* Main Window */
     QMainWindow {{
-        background: linear-gradient(135deg, {colors['bg']} 0%, {colors['panel']} 100%);
+        background-color: {colors['bg']};
         color: {colors['fg']};
     }}
 
@@ -213,8 +213,8 @@ def build_qss(colors: dict = None) -> str:
     }}
 
     QPushButton[class="danger"]:hover {{
-        background-color: #d32f2f;
-        border-color: #d32f2f;
+        background-color: {colors['error']};
+        border-color: {colors['error']};
         border-width: 2px;
     }}
     
