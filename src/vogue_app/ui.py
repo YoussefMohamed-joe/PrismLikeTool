@@ -44,14 +44,33 @@ class ProjectBrowser(PrismStyleWidget):
     def setup_ui(self):
         layout = QVBoxLayout(self)
         layout.setContentsMargins(5, 5, 5, 5)
-        
-        # Main content area with tabs only
+
+        # Create horizontal splitter for tabs + tasks
+        self.horizontal_splitter = QSplitter(Qt.Orientation.Horizontal)
+
+        # Left side: Asset/Shot tabs
+        self.setup_tabs_section()
+        self.horizontal_splitter.addWidget(self.tabs_widget)
+
+        # Right side: Tasks section
+        self.setup_tasks_section()
+        self.horizontal_splitter.addWidget(self.tasks_widget)
+
+        # Set splitter proportions (50% tabs, 50% tasks+departments)
+        self.horizontal_splitter.setSizes([400, 400])
+
+        layout.addWidget(self.horizontal_splitter)
+
+    def setup_tabs_section(self):
+        """Setup the tabs section (Assets/Shots)"""
+        self.tabs_widget = QWidget()
+        tabs_layout = QVBoxLayout(self.tabs_widget)
+        tabs_layout.setContentsMargins(5, 5, 5, 5)
+
+        # Main content area with tabs
         self.tab_widget = QTabWidget()
         self.tab_widget.setTabPosition(QTabWidget.TabPosition.North)
         self.tab_widget.setDocumentMode(True)  # Modern tab style
-
-        # Set the tab widget to take full space
-        layout.addWidget(self.tab_widget)
 
         # Assets tab
         assets_tab = QWidget()
@@ -122,42 +141,23 @@ class ProjectBrowser(PrismStyleWidget):
         shots_layout.addLayout(shot_btn_layout)
         
         self.tab_widget.addTab(shots_tab, "Shots")
-        
-        layout.addWidget(self.tab_widget)
 
+        # Add the tab widget to the tabs layout
+        tabs_layout.addWidget(self.tab_widget)
 
-class PrismRightPanel(PrismStyleWidget):
-    """Prism-style right panel with Tasks, Departments, and Asset Info"""
-    
-    def __init__(self, parent=None):
-        super().__init__(parent)
-        self.setup_ui()
-    
-    def setup_ui(self):
-        layout = QVBoxLayout(self)
-        layout.setContentsMargins(5, 5, 5, 5)
-        
-        # Create tab widget for different sections
-        self.tab_widget = QTabWidget()
-        self.tab_widget.setTabPosition(QTabWidget.TabPosition.North)
-        self.tab_widget.setDocumentMode(True)
-
-        # Tasks Tab
-        self.setup_tasks_tab()
-
-        # Departments Tab
-        self.setup_departments_tab()
-
-        # Asset Info Tab
-        self.setup_asset_info_tab()
-
-        layout.addWidget(self.tab_widget)
-
-    def setup_tasks_tab(self):
-        """Setup the Tasks tab similar to Prism"""
-        tasks_tab = QWidget()
-        tasks_layout = QVBoxLayout(tasks_tab)
+    def setup_tasks_section(self):
+        """Setup the Tasks section with project info, tasks, and departments underneath"""
+        self.tasks_widget = QWidget()
+        tasks_layout = QVBoxLayout(self.tasks_widget)
         tasks_layout.setContentsMargins(5, 5, 5, 5)
+
+        # Project Info Section
+        self.setup_project_info_section()
+        tasks_layout.addWidget(self.project_info_widget)
+
+        # Tasks Section
+        tasks_group = QGroupBox("Tasks")
+        tasks_section_layout = QVBoxLayout(tasks_group)
 
         # Task Filter
         filter_layout = QHBoxLayout()
@@ -166,29 +166,30 @@ class PrismRightPanel(PrismStyleWidget):
         self.task_filter_combo.addItems(["All Tasks", "My Tasks", "Active", "Completed", "Pending"])
         filter_layout.addWidget(self.task_filter_combo)
         filter_layout.addStretch()
-        tasks_layout.addLayout(filter_layout)
+        tasks_section_layout.addLayout(filter_layout)
 
         # Tasks List
-        tasks_group = QGroupBox("Current Tasks")
-        tasks_list_layout = QVBoxLayout(tasks_group)
-
         self.tasks_list = QListWidget()
         self.tasks_list.setAlternatingRowColors(True)
-        self.tasks_list.setMaximumHeight(200)
+        # Removed maximum height restriction to allow full vertical expansion
 
         # Add some sample tasks
         sample_tasks = [
             "Model high poly character - In Progress",
             "Texture character materials - Pending",
             "Rig character skeleton - Not Started",
-            "Create character animations - Not Started"
+            "Create character animations - Not Started",
+            "Create character lighting setup - Not Started",
+            "Render character turntable - Not Started",
+            "Create character walk cycle - Not Started",
+            "Optimize character geometry - Pending"
         ]
 
         for task in sample_tasks:
             item = QListWidgetItem(task)
             self.tasks_list.addItem(item)
 
-        tasks_list_layout.addWidget(self.tasks_list)
+        tasks_section_layout.addWidget(self.tasks_list)
 
         # Task Actions
         task_actions_layout = QHBoxLayout()
@@ -202,44 +203,16 @@ class PrismRightPanel(PrismStyleWidget):
         task_actions_layout.addWidget(self.complete_task_btn)
         task_actions_layout.addStretch()
 
-        tasks_list_layout.addLayout(task_actions_layout)
+        tasks_section_layout.addLayout(task_actions_layout)
         tasks_layout.addWidget(tasks_group)
 
-        # Task Statistics
-        stats_group = QGroupBox("Task Statistics")
-        stats_layout = QGridLayout(stats_group)
-
-        self.total_tasks_label = QLabel("Total: 4")
-        self.active_tasks_label = QLabel("Active: 1")
-        self.completed_tasks_label = QLabel("Completed: 0")
-        self.overdue_tasks_label = QLabel("Overdue: 0")
-
-        stats_layout.addWidget(QLabel("Total:"), 0, 0)
-        stats_layout.addWidget(self.total_tasks_label, 0, 1)
-        stats_layout.addWidget(QLabel("Active:"), 1, 0)
-        stats_layout.addWidget(self.active_tasks_label, 1, 1)
-        stats_layout.addWidget(QLabel("Completed:"), 0, 2)
-        stats_layout.addWidget(self.completed_tasks_label, 0, 3)
-        stats_layout.addWidget(QLabel("Overdue:"), 1, 2)
-        stats_layout.addWidget(self.overdue_tasks_label, 1, 3)
-
-        tasks_layout.addWidget(stats_group)
-        tasks_layout.addStretch()
-
-        self.tab_widget.addTab(tasks_tab, "Tasks")
-
-    def setup_departments_tab(self):
-        """Setup the Departments tab similar to Prism"""
-        dept_tab = QWidget()
-        dept_layout = QVBoxLayout(dept_tab)
-        dept_layout.setContentsMargins(5, 5, 5, 5)
-
-        # Department List
+        # Departments Section (underneath tasks)
         dept_group = QGroupBox("Departments")
-        dept_list_layout = QVBoxLayout(dept_group)
+        dept_layout = QVBoxLayout(dept_group)
 
         self.departments_list = QListWidget()
         self.departments_list.setAlternatingRowColors(True)
+        # Removed maximum height restriction to allow full vertical expansion
 
         # Add default departments
         departments = [
@@ -248,15 +221,17 @@ class PrismRightPanel(PrismStyleWidget):
             "Rigging - Active",
             "Animation - Active",
             "Lighting - Standby",
-            "Rendering - Standby",
-            "Compositing - Standby"
+            "Rendering - Standby"
         ]
 
         for dept in departments:
             item = QListWidgetItem(dept)
             self.departments_list.addItem(item)
 
-        dept_list_layout.addWidget(self.departments_list)
+        dept_layout.addWidget(self.departments_list)
+
+        # Add stretch to allow departments list to expand
+        dept_layout.addStretch()
 
         # Department Actions
         dept_actions_layout = QHBoxLayout()
@@ -270,44 +245,55 @@ class PrismRightPanel(PrismStyleWidget):
         dept_actions_layout.addWidget(self.remove_dept_btn)
         dept_actions_layout.addStretch()
 
-        dept_list_layout.addLayout(dept_actions_layout)
-        dept_layout.addWidget(dept_group)
+        dept_layout.addLayout(dept_actions_layout)
+        tasks_layout.addWidget(dept_group)
 
-        # Department Status
-        status_group = QGroupBox("Department Status")
-        status_layout = QVBoxLayout(status_group)
-        
-        self.dept_status_text = QTextEdit()
-        self.dept_status_text.setPlainText("All departments are operational.\n\nModeling: 2 artists active\nTexturing: 1 artist active\nRigging: 1 artist active\nAnimation: 2 artists active\n\nFarm Status: Online")
-        self.dept_status_text.setMaximumHeight(120)
-        self.dept_status_text.setReadOnly(True)
+        tasks_layout.addStretch()
 
-        status_layout.addWidget(self.dept_status_text)
-        dept_layout.addWidget(status_group)
+    def setup_project_info_section(self):
+        """Setup the Project Info section above tasks"""
+        self.project_info_widget = QWidget()
+        info_layout = QVBoxLayout(self.project_info_widget)
+        info_layout.setContentsMargins(5, 5, 5, 5)
 
-        # Department Tools
-        tools_group = QGroupBox("Department Tools")
-        tools_layout = QVBoxLayout(tools_group)
+        # Project info group
+        project_group = QGroupBox("Project Info")
+        project_layout = QVBoxLayout(project_group)
 
-        self.launch_maya_btn = QPushButton("Launch Maya")
-        self.launch_houdini_btn = QPushButton("Launch Houdini")
-        self.launch_blender_btn = QPushButton("Launch Blender")
-        self.open_farm_monitor_btn = QPushButton("Farm Monitor")
+        # Project name and path display
+        self.project_name_label = QLabel("Project: No Project Loaded")
+        self.project_name_label.setStyleSheet("font-weight: bold; color: #73C2FB;")
+        project_layout.addWidget(self.project_name_label)
 
-        tools_layout.addWidget(self.launch_maya_btn)
-        tools_layout.addWidget(self.launch_houdini_btn)
-        tools_layout.addWidget(self.launch_blender_btn)
-        tools_layout.addWidget(self.open_farm_monitor_btn)
+        self.project_path_label = QLabel("Path: Not Available")
+        self.project_path_label.setStyleSheet("font-size: 10px; color: #788490;")
+        self.project_path_label.setWordWrap(True)
+        project_layout.addWidget(self.project_path_label)
 
-        dept_layout.addWidget(tools_group)
-        dept_layout.addStretch()
+        info_layout.addWidget(project_group)
 
-        self.tab_widget.addTab(dept_tab, "Departments")
 
-    def setup_asset_info_tab(self):
-        """Setup the Asset Info tab like Prism VFX"""
-        info_tab = QWidget()
-        info_layout = QVBoxLayout(info_tab)
+class PrismRightPanel(PrismStyleWidget):
+    """Prism-style right panel with Tasks, Departments, and Asset Info"""
+    
+    def __init__(self, parent=None):
+        super().__init__(parent)
+        self.setup_ui()
+    
+    def setup_ui(self):
+        layout = QVBoxLayout(self)
+        layout.setContentsMargins(5, 5, 5, 5)
+
+        # Asset Info section (full width since departments moved to left panel)
+        self.setup_asset_info_widget()
+        layout.addWidget(self.asset_info_widget)
+
+
+
+    def setup_asset_info_widget(self):
+        """Setup the Asset Info widget like Prism VFX"""
+        self.asset_info_widget = QWidget()
+        info_layout = QVBoxLayout(self.asset_info_widget)
         info_layout.setContentsMargins(5, 5, 5, 5)
 
         # Current Asset Info
@@ -337,7 +323,7 @@ class PrismRightPanel(PrismStyleWidget):
 
         self.asset_preview_label = QLabel("No Preview Available")
         self.asset_preview_label.setAlignment(Qt.AlignmentFlag.AlignCenter)
-        self.asset_preview_label.setMinimumHeight(150)
+        self.asset_preview_label.setMinimumHeight(120)
         self.asset_preview_label.setStyleSheet(f"""
             QLabel {{
                 background-color: {COLORS['panel']};
@@ -356,7 +342,7 @@ class PrismRightPanel(PrismStyleWidget):
 
         self.asset_metadata_text = QTextEdit()
         self.asset_metadata_text.setPlainText("No metadata available")
-        self.asset_metadata_text.setMaximumHeight(100)
+        self.asset_metadata_text.setMaximumHeight(80)
         self.asset_metadata_text.setReadOnly(True)
 
         metadata_layout.addWidget(self.asset_metadata_text)
@@ -379,8 +365,6 @@ class PrismRightPanel(PrismStyleWidget):
 
         info_layout.addWidget(actions_group)
         info_layout.addStretch()
-
-        self.tab_widget.addTab(info_tab, "Asset Info")
 
 
 class VersionManager(PrismStyleWidget):
@@ -626,9 +610,9 @@ class PrismMainWindow(QMainWindow):
         self.right_panel = PrismRightPanel()
         main_splitter.addWidget(self.right_panel)
         
-        # Set splitter proportions (25% left, 55% center, 20% right)
-        # Optimized for cleaner left panel with just tabs
-        main_splitter.setSizes([350, 770, 280])
+        # Set splitter proportions (40% left, 50% center, 10% right)
+        # Optimized for left panel with tabs+tasks+departments, center version manager, right asset info only
+        main_splitter.setSizes([560, 700, 140])
         layout.addWidget(main_splitter)
     
     def setup_menu(self):

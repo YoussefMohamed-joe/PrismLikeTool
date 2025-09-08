@@ -105,113 +105,19 @@ class VogueController(PrismMainWindow):
             self.on_version_double_clicked
         )
         
-        # Menu actions
-        menubar = self.menuBar()
-        
-        # File menu
-        file_menu = menubar.actions()[0].menu()
-        project_menu = file_menu.actions()[0].menu()
-        
-        # Connect project menu actions
-        for action in project_menu.actions():
-            if "Browse" in action.text():
-                action.triggered.connect(self.browse_project)
-            elif "New" in action.text():
-                action.triggered.connect(self.new_project)
-            elif "Open" in action.text():
-                action.triggered.connect(self.open_project)
-            elif "Import" in action.text():
-                action.triggered.connect(self.import_project)
-            elif "Export" in action.text():
-                action.triggered.connect(self.export_project)
-            elif "Settings" in action.text():
-                action.triggered.connect(self.project_settings)
-        
-        # Connect file menu actions
-        for action in file_menu.actions():
-            if "Save" in action.text() and "As" not in action.text():
-                action.triggered.connect(self.save_project)
-            elif "Save As" in action.text():
-                action.triggered.connect(self.save_as_project)
-            elif "Exit" in action.text():
-                action.triggered.connect(self.close)
-        
-        # Edit menu
-        edit_menu = menubar.actions()[1].menu()
-        for action in edit_menu.actions():
-            if "Refresh" in action.text():
-                action.triggered.connect(self.refresh_project)
-            elif "Scan" in action.text():
-                action.triggered.connect(self.scan_filesystem)
-            elif "Settings" in action.text():
-                action.triggered.connect(self.show_settings)
-        
-        # Assets menu
-        assets_menu = menubar.actions()[2].menu()
-        for action in assets_menu.actions():
-            if "Add Asset" in action.text():
-                action.triggered.connect(self.add_asset)
-            elif "Import Asset" in action.text():
-                action.triggered.connect(self.import_asset)
-        
-        # Shots menu
-        shots_menu = menubar.actions()[3].menu()
-        for action in shots_menu.actions():
-            if "Add Shot" in action.text():
-                action.triggered.connect(self.add_shot)
-        
-        # Publish menu
-        publish_menu = menubar.actions()[4].menu()
-        for action in publish_menu.actions():
-            if "Publish Version" in action.text():
-                action.triggered.connect(self.publish_selection)
-            elif "Batch Publish" in action.text():
-                action.triggered.connect(self.batch_publish)
-        
-        # Tools menu
-        tools_menu = menubar.actions()[5].menu()
-        for action in tools_menu.actions():
-            if "Thumbnails" in action.text():
-                action.triggered.connect(self.generate_thumbnails)
-            elif "Cleanup" in action.text():
-                action.triggered.connect(self.cleanup_project)
-            elif "Validate" in action.text():
-                action.triggered.connect(self.validate_project)
-            elif "Optimize" in action.text():
-                action.triggered.connect(self.optimize_project)
-            elif "Maya" in action.text():
-                action.triggered.connect(self.launch_maya)
-            elif "Houdini" in action.text():
-                action.triggered.connect(self.launch_houdini)
-            elif "Blender" in action.text():
-                action.triggered.connect(self.launch_blender)
-            elif "API Server" in action.text():
-                action.triggered.connect(self.start_api_server)
-            elif "Logs" in action.text():
-                action.triggered.connect(self.view_logs)
-        
-        # Status menu
-        status_menu = menubar.actions()[6].menu()
-        for action in status_menu.actions():
-            if "System Information" in action.text():
-                action.triggered.connect(self.show_system_info)
-        
-        # Right panel connections
+        # Connect menu actions using object names (more robust than indexing)
+        self._connect_menu_actions()
+
+        # Left panel task connections (moved from right panel)
         # Task buttons
-        self.right_panel.new_task_btn.clicked.connect(self.new_task)
-        self.right_panel.assign_task_btn.clicked.connect(self.assign_task)
-        self.right_panel.complete_task_btn.clicked.connect(self.complete_task)
+        self.project_browser.new_task_btn.clicked.connect(self.new_task)
+        self.project_browser.assign_task_btn.clicked.connect(self.assign_task)
+        self.project_browser.complete_task_btn.clicked.connect(self.complete_task)
 
-        # Department buttons
-        self.right_panel.add_dept_btn.clicked.connect(self.add_department)
-        self.right_panel.edit_dept_btn.clicked.connect(self.edit_department)
-        self.right_panel.remove_dept_btn.clicked.connect(self.remove_department)
-
-        # Department tools
-        self.right_panel.launch_maya_btn.clicked.connect(self.launch_maya)
-        self.right_panel.launch_houdini_btn.clicked.connect(self.launch_houdini)
-        self.right_panel.launch_blender_btn.clicked.connect(self.launch_blender)
-        self.right_panel.open_farm_monitor_btn.clicked.connect(self.open_farm_monitor)
+        # Department buttons (moved to left panel)
+        self.project_browser.add_dept_btn.clicked.connect(self.add_department)
+        self.project_browser.edit_dept_btn.clicked.connect(self.edit_department)
+        self.project_browser.remove_dept_btn.clicked.connect(self.remove_department)
 
         # Asset info buttons
         self.right_panel.open_asset_btn.clicked.connect(self.open_selected_version)
@@ -369,11 +275,179 @@ class VogueController(PrismMainWindow):
         self.update_ui_state()
         self.logger.info("Filesystem scan completed")
         self.add_log_message("Filesystem scan completed")
-    
+
+        # Clean up the worker thread to prevent memory leaks
+        self._cleanup_worker_thread()
+
     def on_scan_error(self, error_msg: str):
         """Handle filesystem scan error"""
         self.logger.error(f"Filesystem scan error: {error_msg}")
         QMessageBox.critical(self, "Scan Error", f"Filesystem scan failed: {error_msg}")
+
+        # Clean up the worker thread to prevent memory leaks
+        self._cleanup_worker_thread()
+
+    def _cleanup_worker_thread(self):
+        """Clean up worker thread and disconnect signals"""
+        if hasattr(self, 'worker_thread') and self.worker_thread:
+            try:
+                # Disconnect all signals
+                self.worker_thread.finished.disconnect()
+                self.worker_thread.error.disconnect()
+
+                # Wait for thread to finish if it's still running
+                if self.worker_thread.isRunning():
+                    self.worker_thread.wait(3000)  # Wait up to 3 seconds
+
+                # Mark for deletion
+                self.worker_thread.deleteLater()
+                self.worker_thread = None
+
+            except Exception as e:
+                self.logger.warning(f"Error cleaning up worker thread: {e}")
+
+    def _connect_menu_actions(self):
+        """Connect menu actions using object names (robust method)"""
+        try:
+            menubar = self.menuBar()
+            if not menubar:
+                return
+
+            # Find menus by traversing all actions
+            for action in menubar.actions():
+                menu = action.menu()
+                if not menu:
+                    continue
+
+                menu_name = menu.objectName() or menu.title()
+
+                # Connect file menu actions
+                if "File" in menu_name or "&File" in menu_name:
+                    self._connect_file_menu_actions(menu)
+                # Connect edit menu actions
+                elif "Edit" in menu_name or "&Edit" in menu_name:
+                    self._connect_edit_menu_actions(menu)
+                # Connect assets menu actions
+                elif "Assets" in menu_name or "&Assets" in menu_name:
+                    self._connect_assets_menu_actions(menu)
+                # Connect shots menu actions
+                elif "Shots" in menu_name or "&Shots" in menu_name:
+                    self._connect_shots_menu_actions(menu)
+                # Connect publish menu actions
+                elif "Publish" in menu_name or "&Publish" in menu_name:
+                    self._connect_publish_menu_actions(menu)
+                # Connect tools menu actions
+                elif "Tools" in menu_name or "&Tools" in menu_name:
+                    self._connect_tools_menu_actions(menu)
+                # Connect status menu actions
+                elif "Status" in menu_name or "&Status" in menu_name:
+                    self._connect_status_menu_actions(menu)
+
+        except Exception as e:
+            self.logger.error(f"Error connecting menu actions: {e}")
+
+    def _connect_file_menu_actions(self, file_menu):
+        """Connect file menu actions"""
+        for action in file_menu.actions():
+            text = action.text()
+            if "Save" in text and "As" not in text:
+                action.triggered.connect(self.save_project)
+            elif "Save As" in text:
+                action.triggered.connect(self.save_as_project)
+            elif "Exit" in text:
+                action.triggered.connect(self.close)
+
+            # Handle submenus
+            submenu = action.menu()
+            if submenu:
+                submenu_name = submenu.objectName() or submenu.title()
+                if "Project" in submenu_name:
+                    self._connect_project_menu_actions(submenu)
+
+    def _connect_project_menu_actions(self, project_menu):
+        """Connect project submenu actions"""
+        for action in project_menu.actions():
+            text = action.text()
+            if "Browse" in text:
+                action.triggered.connect(self.browse_project)
+            elif "New" in text:
+                action.triggered.connect(self.new_project)
+            elif "Open" in text:
+                action.triggered.connect(self.open_project)
+            elif "Import" in text:
+                action.triggered.connect(self.import_project)
+            elif "Export" in text:
+                action.triggered.connect(self.export_project)
+            elif "Settings" in text:
+                action.triggered.connect(self.project_settings)
+            elif "Recent" in text:
+                action.triggered.connect(self.show_recent_projects_dialog)
+
+    def _connect_edit_menu_actions(self, edit_menu):
+        """Connect edit menu actions"""
+        for action in edit_menu.actions():
+            text = action.text()
+            if "Refresh" in text:
+                action.triggered.connect(self.refresh_project)
+            elif "Scan" in text:
+                action.triggered.connect(self.scan_filesystem)
+            elif "Settings" in text:
+                action.triggered.connect(self.show_settings)
+
+    def _connect_assets_menu_actions(self, assets_menu):
+        """Connect assets menu actions"""
+        for action in assets_menu.actions():
+            text = action.text()
+            if "Add Asset" in text:
+                action.triggered.connect(self.add_asset)
+            elif "Import Asset" in text:
+                action.triggered.connect(self.import_asset)
+
+    def _connect_shots_menu_actions(self, shots_menu):
+        """Connect shots menu actions"""
+        for action in shots_menu.actions():
+            text = action.text()
+            if "Add Shot" in text:
+                action.triggered.connect(self.add_shot)
+
+    def _connect_publish_menu_actions(self, publish_menu):
+        """Connect publish menu actions"""
+        for action in publish_menu.actions():
+            text = action.text()
+            if "Publish Version" in text:
+                action.triggered.connect(self.publish_selection)
+            elif "Batch Publish" in text:
+                action.triggered.connect(self.batch_publish)
+
+    def _connect_tools_menu_actions(self, tools_menu):
+        """Connect tools menu actions"""
+        for action in tools_menu.actions():
+            text = action.text()
+            if "Thumbnails" in text:
+                action.triggered.connect(self.generate_thumbnails)
+            elif "Cleanup" in text:
+                action.triggered.connect(self.cleanup_project)
+            elif "Validate" in text:
+                action.triggered.connect(self.validate_project)
+            elif "Optimize" in text:
+                action.triggered.connect(self.optimize_project)
+            elif "Maya" in text:
+                action.triggered.connect(self.launch_maya)
+            elif "Houdini" in text:
+                action.triggered.connect(self.launch_houdini)
+            elif "Blender" in text:
+                action.triggered.connect(self.launch_blender)
+            elif "API Server" in text:
+                action.triggered.connect(self.start_api_server)
+            elif "Logs" in text:
+                action.triggered.connect(self.view_logs)
+
+    def _connect_status_menu_actions(self, status_menu):
+        """Connect status menu actions"""
+        for action in status_menu.actions():
+            text = action.text()
+            if "System Information" in text:
+                action.triggered.connect(self.show_system_info)
     
     def new_project(self):
         """Create a new project"""
@@ -1223,6 +1297,18 @@ class VogueController(PrismMainWindow):
             self.status_bar.showMessage(f"Project: {path}")
         else:
             self.status_bar.showMessage("No project loaded")
+
+        # Update project info labels in the browser
+        if hasattr(self, 'project_browser') and hasattr(self.project_browser, 'project_name_label'):
+            if name and name != "No Project":
+                self.project_browser.project_name_label.setText(f"Project: {name}")
+            else:
+                self.project_browser.project_name_label.setText("Project: No Project Loaded")
+
+            if path:
+                self.project_browser.project_path_label.setText(f"Path: {path}")
+            else:
+                self.project_browser.project_path_label.setText("Path: Not Available")
 
         # Call parent method for any additional updates
         super().update_project_status(name, path)
