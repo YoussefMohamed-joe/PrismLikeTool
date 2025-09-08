@@ -10,7 +10,7 @@ from typing import List, Dict, Any, Optional
 
 # Import PyQt6 directly for better compatibility
 from PyQt6.QtWidgets import (
-    QMainWindow, QWidget, QVBoxLayout, QHBoxLayout, QGridLayout,
+    QMainWindow, QWidget, QVBoxLayout, QHBoxLayout, QGridLayout, QFormLayout,
     QTabWidget, QTreeWidget, QTreeWidgetItem, QTableWidget, QTableWidgetItem,
     QPlainTextEdit, QPushButton, QLabel, QSplitter, QGroupBox,
     QMenuBar, QMenu, QToolBar, QStatusBar, QFileDialog, QMessageBox,
@@ -44,7 +44,7 @@ class ProjectBrowser(PrismStyleWidget):
     def setup_ui(self):
         layout = QVBoxLayout(self)
         layout.setContentsMargins(5, 5, 5, 5)
-
+        
         # Main content area with tabs only
         self.tab_widget = QTabWidget()
         self.tab_widget.setTabPosition(QTabWidget.TabPosition.North)
@@ -57,7 +57,7 @@ class ProjectBrowser(PrismStyleWidget):
         assets_tab = QWidget()
         assets_layout = QVBoxLayout(assets_tab)
         assets_layout.setContentsMargins(5, 5, 5, 5)
-
+        
         # Asset type filter
         filter_layout = QHBoxLayout()
         self.asset_type_combo = QComboBox()
@@ -66,7 +66,7 @@ class ProjectBrowser(PrismStyleWidget):
         filter_layout.addWidget(self.asset_type_combo)
         filter_layout.addStretch()
         assets_layout.addLayout(filter_layout)
-
+        
         # Asset tree
         self.asset_tree = QTreeWidget()
         self.asset_tree.setHeaderLabels(["Name", "Type", "Versions"])
@@ -75,7 +75,7 @@ class ProjectBrowser(PrismStyleWidget):
         self.asset_tree.setSortingEnabled(True)
         self.asset_tree.setMinimumHeight(300)
         assets_layout.addWidget(self.asset_tree)
-
+        
         # Asset buttons
         asset_btn_layout = QHBoxLayout()
         self.add_asset_btn = QPushButton("Add Asset")
@@ -85,14 +85,14 @@ class ProjectBrowser(PrismStyleWidget):
         asset_btn_layout.addWidget(self.refresh_assets_btn)
         asset_btn_layout.addStretch()
         assets_layout.addLayout(asset_btn_layout)
-
+        
         self.tab_widget.addTab(assets_tab, "Assets")
 
         # Shots tab
         shots_tab = QWidget()
         shots_layout = QVBoxLayout(shots_tab)
         shots_layout.setContentsMargins(5, 5, 5, 5)
-
+        
         # Shot filter
         shot_filter_layout = QHBoxLayout()
         self.sequence_combo = QComboBox()
@@ -101,7 +101,7 @@ class ProjectBrowser(PrismStyleWidget):
         shot_filter_layout.addWidget(self.sequence_combo)
         shot_filter_layout.addStretch()
         shots_layout.addLayout(shot_filter_layout)
-
+        
         # Shot tree
         self.shot_tree = QTreeWidget()
         self.shot_tree.setHeaderLabels(["Shot", "Sequence", "Versions"])
@@ -110,7 +110,7 @@ class ProjectBrowser(PrismStyleWidget):
         self.shot_tree.setSortingEnabled(True)
         self.shot_tree.setMinimumHeight(300)
         shots_layout.addWidget(self.shot_tree)
-
+        
         # Shot buttons
         shot_btn_layout = QHBoxLayout()
         self.add_shot_btn = QPushButton("Add Shot")
@@ -120,14 +120,14 @@ class ProjectBrowser(PrismStyleWidget):
         shot_btn_layout.addWidget(self.refresh_shots_btn)
         shot_btn_layout.addStretch()
         shots_layout.addLayout(shot_btn_layout)
-
+        
         self.tab_widget.addTab(shots_tab, "Shots")
-
+        
         layout.addWidget(self.tab_widget)
 
 
-class PipelinePanel(PrismStyleWidget):
-    """Pipeline panel widget - shows pipeline status and tools"""
+class PrismRightPanel(PrismStyleWidget):
+    """Prism-style right panel with Tasks, Departments, and Asset Info"""
     
     def __init__(self, parent=None):
         super().__init__(parent)
@@ -137,52 +137,250 @@ class PipelinePanel(PrismStyleWidget):
         layout = QVBoxLayout(self)
         layout.setContentsMargins(5, 5, 5, 5)
         
-        # Pipeline status
-        status_group = QGroupBox("Pipeline Status")
+        # Create tab widget for different sections
+        self.tab_widget = QTabWidget()
+        self.tab_widget.setTabPosition(QTabWidget.TabPosition.North)
+        self.tab_widget.setDocumentMode(True)
+
+        # Tasks Tab
+        self.setup_tasks_tab()
+
+        # Departments Tab
+        self.setup_departments_tab()
+
+        # Asset Info Tab
+        self.setup_asset_info_tab()
+
+        layout.addWidget(self.tab_widget)
+
+    def setup_tasks_tab(self):
+        """Setup the Tasks tab similar to Prism"""
+        tasks_tab = QWidget()
+        tasks_layout = QVBoxLayout(tasks_tab)
+        tasks_layout.setContentsMargins(5, 5, 5, 5)
+
+        # Task Filter
+        filter_layout = QHBoxLayout()
+        filter_layout.addWidget(QLabel("Filter:"))
+        self.task_filter_combo = QComboBox()
+        self.task_filter_combo.addItems(["All Tasks", "My Tasks", "Active", "Completed", "Pending"])
+        filter_layout.addWidget(self.task_filter_combo)
+        filter_layout.addStretch()
+        tasks_layout.addLayout(filter_layout)
+
+        # Tasks List
+        tasks_group = QGroupBox("Current Tasks")
+        tasks_list_layout = QVBoxLayout(tasks_group)
+
+        self.tasks_list = QListWidget()
+        self.tasks_list.setAlternatingRowColors(True)
+        self.tasks_list.setMaximumHeight(200)
+
+        # Add some sample tasks
+        sample_tasks = [
+            "Model high poly character - In Progress",
+            "Texture character materials - Pending",
+            "Rig character skeleton - Not Started",
+            "Create character animations - Not Started"
+        ]
+
+        for task in sample_tasks:
+            item = QListWidgetItem(task)
+            self.tasks_list.addItem(item)
+
+        tasks_list_layout.addWidget(self.tasks_list)
+
+        # Task Actions
+        task_actions_layout = QHBoxLayout()
+        self.new_task_btn = QPushButton("New Task")
+        self.new_task_btn.setProperty("class", "primary")
+        self.assign_task_btn = QPushButton("Assign")
+        self.complete_task_btn = QPushButton("Complete")
+
+        task_actions_layout.addWidget(self.new_task_btn)
+        task_actions_layout.addWidget(self.assign_task_btn)
+        task_actions_layout.addWidget(self.complete_task_btn)
+        task_actions_layout.addStretch()
+
+        tasks_list_layout.addLayout(task_actions_layout)
+        tasks_layout.addWidget(tasks_group)
+
+        # Task Statistics
+        stats_group = QGroupBox("Task Statistics")
+        stats_layout = QGridLayout(stats_group)
+
+        self.total_tasks_label = QLabel("Total: 4")
+        self.active_tasks_label = QLabel("Active: 1")
+        self.completed_tasks_label = QLabel("Completed: 0")
+        self.overdue_tasks_label = QLabel("Overdue: 0")
+
+        stats_layout.addWidget(QLabel("Total:"), 0, 0)
+        stats_layout.addWidget(self.total_tasks_label, 0, 1)
+        stats_layout.addWidget(QLabel("Active:"), 1, 0)
+        stats_layout.addWidget(self.active_tasks_label, 1, 1)
+        stats_layout.addWidget(QLabel("Completed:"), 0, 2)
+        stats_layout.addWidget(self.completed_tasks_label, 0, 3)
+        stats_layout.addWidget(QLabel("Overdue:"), 1, 2)
+        stats_layout.addWidget(self.overdue_tasks_label, 1, 3)
+
+        tasks_layout.addWidget(stats_group)
+        tasks_layout.addStretch()
+
+        self.tab_widget.addTab(tasks_tab, "Tasks")
+
+    def setup_departments_tab(self):
+        """Setup the Departments tab similar to Prism"""
+        dept_tab = QWidget()
+        dept_layout = QVBoxLayout(dept_tab)
+        dept_layout.setContentsMargins(5, 5, 5, 5)
+
+        # Department List
+        dept_group = QGroupBox("Departments")
+        dept_list_layout = QVBoxLayout(dept_group)
+
+        self.departments_list = QListWidget()
+        self.departments_list.setAlternatingRowColors(True)
+
+        # Add default departments
+        departments = [
+            "Modeling - Active",
+            "Texturing - Active",
+            "Rigging - Active",
+            "Animation - Active",
+            "Lighting - Standby",
+            "Rendering - Standby",
+            "Compositing - Standby"
+        ]
+
+        for dept in departments:
+            item = QListWidgetItem(dept)
+            self.departments_list.addItem(item)
+
+        dept_list_layout.addWidget(self.departments_list)
+
+        # Department Actions
+        dept_actions_layout = QHBoxLayout()
+        self.add_dept_btn = QPushButton("Add Dept")
+        self.add_dept_btn.setProperty("class", "primary")
+        self.edit_dept_btn = QPushButton("Edit")
+        self.remove_dept_btn = QPushButton("Remove")
+
+        dept_actions_layout.addWidget(self.add_dept_btn)
+        dept_actions_layout.addWidget(self.edit_dept_btn)
+        dept_actions_layout.addWidget(self.remove_dept_btn)
+        dept_actions_layout.addStretch()
+
+        dept_list_layout.addLayout(dept_actions_layout)
+        dept_layout.addWidget(dept_group)
+
+        # Department Status
+        status_group = QGroupBox("Department Status")
         status_layout = QVBoxLayout(status_group)
         
-        self.pipeline_status_label = QLabel("Pipeline: Ready")
-        self.pipeline_status_label.setProperty("class", "title")
-        status_layout.addWidget(self.pipeline_status_label)
-        
-        self.active_tools_label = QLabel("Active Tools: None")
-        self.active_tools_label.setProperty("class", "muted")
-        status_layout.addWidget(self.active_tools_label)
-        
-        layout.addWidget(status_group)
-        
-        # Quick actions
-        actions_group = QGroupBox("Quick Actions")
+        self.dept_status_text = QTextEdit()
+        self.dept_status_text.setPlainText("All departments are operational.\n\nModeling: 2 artists active\nTexturing: 1 artist active\nRigging: 1 artist active\nAnimation: 2 artists active\n\nFarm Status: Online")
+        self.dept_status_text.setMaximumHeight(120)
+        self.dept_status_text.setReadOnly(True)
+
+        status_layout.addWidget(self.dept_status_text)
+        dept_layout.addWidget(status_group)
+
+        # Department Tools
+        tools_group = QGroupBox("Department Tools")
+        tools_layout = QVBoxLayout(tools_group)
+
+        self.launch_maya_btn = QPushButton("Launch Maya")
+        self.launch_houdini_btn = QPushButton("Launch Houdini")
+        self.launch_blender_btn = QPushButton("Launch Blender")
+        self.open_farm_monitor_btn = QPushButton("Farm Monitor")
+
+        tools_layout.addWidget(self.launch_maya_btn)
+        tools_layout.addWidget(self.launch_houdini_btn)
+        tools_layout.addWidget(self.launch_blender_btn)
+        tools_layout.addWidget(self.open_farm_monitor_btn)
+
+        dept_layout.addWidget(tools_group)
+        dept_layout.addStretch()
+
+        self.tab_widget.addTab(dept_tab, "Departments")
+
+    def setup_asset_info_tab(self):
+        """Setup the Asset Info tab like Prism VFX"""
+        info_tab = QWidget()
+        info_layout = QVBoxLayout(info_tab)
+        info_layout.setContentsMargins(5, 5, 5, 5)
+
+        # Current Asset Info
+        asset_group = QGroupBox("Current Asset")
+        asset_info_layout = QFormLayout(asset_group)
+
+        self.asset_name_label = QLabel("No Selection")
+        self.asset_name_label.setProperty("class", "title")
+        self.asset_type_label = QLabel("-")
+        self.asset_path_label = QLabel("-")
+        self.asset_status_label = QLabel("-")
+        self.asset_artist_label = QLabel("-")
+        self.asset_date_label = QLabel("-")
+
+        asset_info_layout.addRow("Name:", self.asset_name_label)
+        asset_info_layout.addRow("Type:", self.asset_type_label)
+        asset_info_layout.addRow("Path:", self.asset_path_label)
+        asset_info_layout.addRow("Status:", self.asset_status_label)
+        asset_info_layout.addRow("Artist:", self.asset_artist_label)
+        asset_info_layout.addRow("Modified:", self.asset_date_label)
+
+        info_layout.addWidget(asset_group)
+
+        # Asset Preview
+        preview_group = QGroupBox("Preview")
+        preview_layout = QVBoxLayout(preview_group)
+
+        self.asset_preview_label = QLabel("No Preview Available")
+        self.asset_preview_label.setAlignment(Qt.AlignmentFlag.AlignCenter)
+        self.asset_preview_label.setMinimumHeight(150)
+        self.asset_preview_label.setStyleSheet(f"""
+            QLabel {{
+                background-color: {COLORS['panel']};
+                border: 2px dashed {COLORS['border']};
+                border-radius: 4px;
+                color: {COLORS['muted']};
+            }}
+        """)
+
+        preview_layout.addWidget(self.asset_preview_label)
+        info_layout.addWidget(preview_group)
+
+        # Asset Metadata
+        metadata_group = QGroupBox("Metadata")
+        metadata_layout = QVBoxLayout(metadata_group)
+
+        self.asset_metadata_text = QTextEdit()
+        self.asset_metadata_text.setPlainText("No metadata available")
+        self.asset_metadata_text.setMaximumHeight(100)
+        self.asset_metadata_text.setReadOnly(True)
+
+        metadata_layout.addWidget(self.asset_metadata_text)
+        info_layout.addWidget(metadata_group)
+
+        # Asset Actions
+        actions_group = QGroupBox("Asset Actions")
         actions_layout = QVBoxLayout(actions_group)
-        
-        self.validate_btn = QPushButton("Validate Project")
-        self.validate_btn.setProperty("class", "primary")
-        actions_layout.addWidget(self.validate_btn)
-        
-        self.optimize_btn = QPushButton("Optimize Project")
-        actions_layout.addWidget(self.optimize_btn)
-        
-        self.cleanup_btn = QPushButton("Cleanup Project")
-        actions_layout.addWidget(self.cleanup_btn)
-        
-        layout.addWidget(actions_group)
-        
-        # Integration status
-        integration_group = QGroupBox("Software Integration")
-        integration_layout = QVBoxLayout(integration_group)
-        
-        self.maya_status = QLabel("Maya: Not Connected")
-        self.houdini_status = QLabel("Houdini: Not Connected")
-        self.blender_status = QLabel("Blender: Not Connected")
-        
-        integration_layout.addWidget(self.maya_status)
-        integration_layout.addWidget(self.houdini_status)
-        integration_layout.addWidget(self.blender_status)
-        
-        layout.addWidget(integration_group)
-        
-        # Add stretch to push everything to top
-        layout.addStretch()
+
+        self.open_asset_btn = QPushButton("Open Asset")
+        self.open_asset_btn.setProperty("class", "primary")
+        self.copy_path_btn = QPushButton("Copy Path")
+        self.show_in_explorer_btn = QPushButton("Show in Explorer")
+        self.asset_properties_btn = QPushButton("Properties")
+
+        actions_layout.addWidget(self.open_asset_btn)
+        actions_layout.addWidget(self.copy_path_btn)
+        actions_layout.addWidget(self.show_in_explorer_btn)
+        actions_layout.addWidget(self.asset_properties_btn)
+
+        info_layout.addWidget(actions_group)
+        info_layout.addStretch()
+
+        self.tab_widget.addTab(info_tab, "Asset Info")
 
 
 class VersionManager(PrismStyleWidget):
@@ -391,13 +589,13 @@ class PrismMainWindow(QMainWindow):
         super().__init__()
         self.setWindowTitle("Vogue Manager - Prism Interface")
         self.setMinimumSize(1600, 1000)  # Larger size for better layout
-
+        
         # Apply Prism-like styling with enhanced design
         self.setStyleSheet(build_qss())
 
         # Set window properties for better appearance
         self.setWindowIconText("Vogue Manager")
-
+        
         self.setup_ui()
         self.setup_menu()
         self.setup_toolbar()
@@ -424,9 +622,9 @@ class PrismMainWindow(QMainWindow):
         self.version_manager = VersionManager()
         main_splitter.addWidget(self.version_manager)
         
-        # Right panel - Pipeline Panel
-        self.pipeline_panel = PipelinePanel()
-        main_splitter.addWidget(self.pipeline_panel)
+        # Right panel - Prism-style Tasks/Departments/Asset Info
+        self.right_panel = PrismRightPanel()
+        main_splitter.addWidget(self.right_panel)
         
         # Set splitter proportions (25% left, 55% center, 20% right)
         # Optimized for cleaner left panel with just tabs
@@ -461,9 +659,9 @@ class PrismMainWindow(QMainWindow):
         self.recent_projects_action = QAction("&Recent Projects...", self)
         self.recent_projects_action.setShortcut("Ctrl+R")
         project_menu.addAction(self.recent_projects_action)
-
+        
         project_menu.addSeparator()
-
+        
         # Prism-specific project actions
         import_project_action = QAction("&Import Project...", self)
         project_menu.addAction(import_project_action)
@@ -705,7 +903,7 @@ class PrismMainWindow(QMainWindow):
         browse_action.setToolTip("Browse for project")
         browse_action.setShortcut("Ctrl+O")
         toolbar.addAction(browse_action)
-
+        
         new_action = QAction("New", self)
         new_action.setToolTip("Create new project")
         new_action.setShortcut("Ctrl+N")
@@ -829,7 +1027,7 @@ class PrismMainWindow(QMainWindow):
         # Update status menu
         self.project_status_action.setText(f"Project: {project_name}")
         self.project_status_action.setEnabled(True)
-
+        
         # Update status bar message
         self.status_message_label.setText(f"Project loaded: {project_name}")
     
@@ -925,13 +1123,13 @@ Project Information:
         except Exception as e:
             from PyQt6.QtWidgets import QMessageBox
             QMessageBox.warning(self, "Error", f"Failed to load project: {e}")
-
+    
     def show_progress(self, message: str = "Processing..."):
         """Show progress bar with message"""
         self.progress_bar.setVisible(True)
         self.progress_bar.setRange(0, 0)  # Indeterminate progress
         self.status_message_label.setText(message)
-
+    
     def hide_progress(self):
         """Hide progress bar"""
         self.progress_bar.setVisible(False)

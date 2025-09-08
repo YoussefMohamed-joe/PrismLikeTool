@@ -196,10 +196,28 @@ class VogueController(PrismMainWindow):
             if "System Information" in action.text():
                 action.triggered.connect(self.show_system_info)
         
-        # Pipeline panel connections
-        self.pipeline_panel.validate_btn.clicked.connect(self.validate_project)
-        self.pipeline_panel.optimize_btn.clicked.connect(self.optimize_project)
-        self.pipeline_panel.cleanup_btn.clicked.connect(self.cleanup_project)
+        # Right panel connections
+        # Task buttons
+        self.right_panel.new_task_btn.clicked.connect(self.new_task)
+        self.right_panel.assign_task_btn.clicked.connect(self.assign_task)
+        self.right_panel.complete_task_btn.clicked.connect(self.complete_task)
+
+        # Department buttons
+        self.right_panel.add_dept_btn.clicked.connect(self.add_department)
+        self.right_panel.edit_dept_btn.clicked.connect(self.edit_department)
+        self.right_panel.remove_dept_btn.clicked.connect(self.remove_department)
+
+        # Department tools
+        self.right_panel.launch_maya_btn.clicked.connect(self.launch_maya)
+        self.right_panel.launch_houdini_btn.clicked.connect(self.launch_houdini)
+        self.right_panel.launch_blender_btn.clicked.connect(self.launch_blender)
+        self.right_panel.open_farm_monitor_btn.clicked.connect(self.open_farm_monitor)
+
+        # Asset info buttons
+        self.right_panel.open_asset_btn.clicked.connect(self.open_selected_version)
+        self.right_panel.copy_path_btn.clicked.connect(self.copy_asset_path)
+        self.right_panel.show_in_explorer_btn.clicked.connect(self.show_in_explorer)
+        self.right_panel.asset_properties_btn.clicked.connect(self.show_asset_properties)
         
         # Log dock connections
         log_widget = self.log_dock.widget()
@@ -991,10 +1009,13 @@ class VogueController(PrismMainWindow):
         # Update entity info
         self.version_manager.entity_name_label.setText(asset.name)
         self.version_manager.entity_type_label.setText(f"Asset - {asset.type}")
-        
+
         # Update versions table
         self.update_versions_table(asset.versions)
-        
+
+        # Update asset info panel
+        self.update_asset_info(asset)
+
         # Enable publish button
         self.version_manager.publish_btn.setEnabled(True)
     
@@ -1017,10 +1038,13 @@ class VogueController(PrismMainWindow):
         # Update entity info
         self.version_manager.entity_name_label.setText(shot.name)
         self.version_manager.entity_type_label.setText(f"Shot - {shot.sequence}")
-        
+
         # Update versions table
         self.update_versions_table(shot.versions)
-        
+
+        # Update asset info panel (show shot info)
+        self.update_asset_info(shot)
+
         # Enable publish button
         self.version_manager.publish_btn.setEnabled(True)
     
@@ -1153,12 +1177,9 @@ class VogueController(PrismMainWindow):
     
     def update_recent_projects(self):
         """Update the recent projects list"""
-        self.project_browser.recent_list.clear()
-        
-        recent_projects = settings.get_recent_projects()
-        for project_path in recent_projects[:5]:  # Show only last 5
-            item = QListWidgetItem(str(project_path))
-            self.project_browser.recent_list.addItem(item)
+        # Recent projects are now handled through the menu system
+        # No longer need to update a widget in the left panel
+        pass
     
     def update_versions_table(self, versions):
         """Update the versions table with the given versions"""
@@ -1216,6 +1237,120 @@ class VogueController(PrismMainWindow):
                 log_widget.log_text.verticalScrollBar().maximum()
             )
     
+    # Task management methods
+    def new_task(self):
+        """Create a new task"""
+        QMessageBox.information(self, "New Task", "Task creation functionality will be implemented.")
+
+    def assign_task(self):
+        """Assign a task to someone"""
+        QMessageBox.information(self, "Assign Task", "Task assignment functionality will be implemented.")
+
+    def complete_task(self):
+        """Mark a task as completed"""
+        QMessageBox.information(self, "Complete Task", "Task completion functionality will be implemented.")
+
+    # Department management methods
+    def add_department(self):
+        """Add a new department"""
+        QMessageBox.information(self, "Add Department", "Department creation functionality will be implemented.")
+
+    def edit_department(self):
+        """Edit an existing department"""
+        QMessageBox.information(self, "Edit Department", "Department editing functionality will be implemented.")
+
+    def remove_department(self):
+        """Remove a department"""
+        QMessageBox.information(self, "Remove Department", "Department removal functionality will be implemented.")
+
+    # Department tools methods
+    def open_farm_monitor(self):
+        """Open the farm monitor"""
+        QMessageBox.information(self, "Farm Monitor", "Farm monitor functionality will be implemented.")
+
+    # Asset info methods
+    def copy_asset_path(self):
+        """Copy the current asset path to clipboard"""
+        current_item = self.version_manager.version_table.currentItem()
+        if current_item:
+            row = current_item.row()
+            path_item = self.version_manager.version_table.item(row, 5)  # Path column
+            if path_item:
+                from PyQt6.QtWidgets import QApplication
+                QApplication.clipboard().setText(path_item.text())
+                self.add_log_message("Asset path copied to clipboard")
+
+    def show_in_explorer(self):
+        """Show the current asset in file explorer"""
+        current_item = self.version_manager.version_table.currentItem()
+        if current_item:
+            row = current_item.row()
+            path_item = self.version_manager.version_table.item(row, 5)  # Path column
+            if path_item:
+                asset_path = path_item.text()
+                try:
+                    import os
+                    if os.name == 'nt':  # Windows
+                        os.startfile(os.path.dirname(asset_path))
+                    else:  # macOS/Linux
+                        import subprocess
+                        subprocess.run(['open' if os.uname().sysname == 'Darwin' else 'xdg-open', os.path.dirname(asset_path)])
+                    self.add_log_message(f"Opened in explorer: {os.path.dirname(asset_path)}")
+                except Exception as e:
+                    QMessageBox.warning(self, "Error", f"Could not open in explorer: {e}")
+
+    def show_asset_properties(self):
+        """Show properties of the current asset"""
+        current_item = self.version_manager.version_table.currentItem()
+        if current_item:
+            row = current_item.row()
+            path_item = self.version_manager.version_table.item(row, 5)  # Path column
+            if path_item:
+                asset_path = path_item.text()
+                import os
+                file_size = "Unknown"
+                try:
+                    if os.path.exists(asset_path):
+                        size_bytes = os.path.getsize(asset_path)
+                        # Convert to human readable format
+                        for unit in ['B', 'KB', 'MB', 'GB']:
+                            if size_bytes < 1024.0:
+                                file_size = ".1f"
+                                break
+                            size_bytes /= 1024.0
+                except:
+                    pass
+
+                QMessageBox.information(self, "Asset Properties",
+                                      f"Path: {asset_path}\nSize: {file_size}")
+
+    # Update asset info display methods
+    def update_asset_info(self, asset=None):
+        """Update the asset info panel with current selection"""
+        if hasattr(self, 'right_panel'):
+            if asset:
+                self.right_panel.asset_name_label.setText(asset.name or "Unknown")
+                self.right_panel.asset_type_label.setText(asset.type or "Unknown")
+                self.right_panel.asset_path_label.setText(asset.path or "Unknown")
+                self.right_panel.asset_status_label.setText("Published")
+                self.right_panel.asset_artist_label.setText(asset.meta.get('artist', 'Unknown') if hasattr(asset, 'meta') else 'Unknown')
+                self.right_panel.asset_date_label.setText("Recent")
+
+                # Update metadata
+                metadata = []
+                if hasattr(asset, 'meta'):
+                    for key, value in asset.meta.items():
+                        metadata.append(f"{key}: {value}")
+                self.right_panel.asset_metadata_text.setPlainText("\n".join(metadata) if metadata else "No metadata available")
+            else:
+                self.right_panel.asset_name_label.setText("No Selection")
+                self.right_panel.asset_type_label.setText("-")
+                self.right_panel.asset_path_label.setText("-")
+                self.right_panel.asset_status_label.setText("-")
+                self.right_panel.asset_artist_label.setText("-")
+                self.right_panel.asset_date_label.setText("-")
+                self.right_panel.asset_metadata_text.setPlainText("No metadata available")
+
     def show(self):
         """Show the main window"""
         super().show()
