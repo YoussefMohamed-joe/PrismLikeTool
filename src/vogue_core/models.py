@@ -18,6 +18,23 @@ class Department:
     color: str = "#3498db"
 
 
+@dataclass
+class Folder:
+    """Represents a folder in the project hierarchy"""
+    name: str
+    type: str  # "asset" or "shot"
+    parent: Optional[str] = None  # Parent folder name, None for root folders
+    assets: List[str] = field(default_factory=list)  # Asset names in this folder
+    shots: List[str] = field(default_factory=list)   # Shot names in this folder
+
+    def __post_init__(self):
+        """Validate folder data"""
+        if not self.name or not self.name.strip():
+            raise ValueError("Folder name cannot be empty")
+        if self.type not in ["asset", "shot"]:
+            raise ValueError(f"Folder type must be 'asset' or 'shot', got: {self.type}")
+
+
 @dataclass 
 class Task:
     """Represents a task status in the pipeline"""
@@ -55,6 +72,7 @@ class Asset:
     name: str
     type: str  # Characters, Props, Environments, etc.
     path: str = ""
+    versions: List[Version] = field(default_factory=list)
     meta: Dict[str, Any] = field(default_factory=dict)
     
     def __post_init__(self):
@@ -70,6 +88,7 @@ class Shot:
     """Represents a shot in the project"""
     sequence: str
     name: str
+    versions: List[Version] = field(default_factory=list)
     path: str = ""
     meta: Dict[str, Any] = field(default_factory=dict)
     
@@ -97,6 +116,7 @@ class Project:
     tasks: List[str] = field(default_factory=lambda: ["WIP", "Review", "Final"])
     assets: List[Asset] = field(default_factory=list)
     shots: List[Shot] = field(default_factory=list)
+    folders: List[Folder] = field(default_factory=list)  # Custom folder structure
     versions: Dict[str, List[Version]] = field(default_factory=dict)
     
     def __post_init__(self):

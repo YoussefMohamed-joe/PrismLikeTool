@@ -194,6 +194,19 @@ def pipeline_to_project(data: Dict[str, Any]) -> Project:
         )
         shots.append(shot)
     
+    # Create folders
+    folders = []
+    for folder_data in data.get("folders", []):
+        from .models import Folder
+        folder = Folder(
+            name=folder_data["name"],
+            type=folder_data["type"],
+            parent=folder_data.get("parent"),
+            assets=folder_data.get("assets", []),
+            shots=folder_data.get("shots", [])
+        )
+        folders.append(folder)
+
     # Create versions
     versions = {}
     for entity_key, version_list in data.get("versions", {}).items():
@@ -208,7 +221,7 @@ def pipeline_to_project(data: Dict[str, Any]) -> Project:
                 thumbnail=version_data.get("thumbnail")
             )
             versions[entity_key].append(version)
-    
+
     # Create project
     project = Project(
         name=data["name"],
@@ -219,6 +232,7 @@ def pipeline_to_project(data: Dict[str, Any]) -> Project:
         tasks=data["tasks"],
         assets=assets,
         shots=shots,
+        folders=folders,
         versions=versions
     )
     
@@ -257,6 +271,19 @@ def project_to_pipeline(project: Project) -> Dict[str, Any]:
         }
         shots.append(shot_data)
     
+    # Convert folders
+    folders = []
+    for folder in project.folders:
+        folder_data = {
+            "name": folder.name,
+            "type": folder.type,
+            "assets": folder.assets,
+            "shots": folder.shots
+        }
+        if folder.parent:
+            folder_data["parent"] = folder.parent
+        folders.append(folder_data)
+
     # Convert versions
     versions = {}
     for entity_key, version_list in project.versions.items():
@@ -272,7 +299,7 @@ def project_to_pipeline(project: Project) -> Dict[str, Any]:
             if version.thumbnail:
                 version_data["thumbnail"] = version.thumbnail
             versions[entity_key].append(version_data)
-    
+
     return {
         "name": project.name,
         "path": project.path,
@@ -282,6 +309,7 @@ def project_to_pipeline(project: Project) -> Dict[str, Any]:
         "tasks": project.tasks,
         "assets": assets,
         "shots": shots,
+        "folders": folders,
         "versions": versions
     }
 

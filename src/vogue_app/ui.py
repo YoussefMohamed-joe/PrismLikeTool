@@ -17,13 +17,206 @@ from PyQt6.QtWidgets import (
     QHeaderView, QAbstractItemView, QProgressBar, QLineEdit, QComboBox,
     QListWidget, QListWidgetItem, QCheckBox, QSpinBox, QDoubleSpinBox,
     QSlider, QScrollArea, QFrame, QDockWidget, QTextEdit, QCompleter,
-    QButtonGroup, QRadioButton, QToolButton, QSizePolicy, QSpacerItem
+    QButtonGroup, QRadioButton, QToolButton, QSizePolicy, QSpacerItem,
+    QInputDialog, QStyledItemDelegate, QStyle
 )
 from PyQt6.QtCore import Qt, QTimer, QThread, pyqtSignal, QSize, QRect
-from PyQt6.QtGui import QFont, QIcon, QPixmap, QAction, QPalette, QColor, QPainter
+from PyQt6.QtGui import QFont, QIcon, QPixmap, QAction, QPalette, QColor, QPainter, QPen
 
 from .colors import COLORS
 from .qss import build_qss
+
+
+def sync_ui_to_project_model(project_browser, manager):
+    """Sync UI tree structure to the project model"""
+    if not manager.current_project:
+        return False
+
+    try:
+        # Sync folders and assets
+        folders = []
+        assets = []
+
+        # Process asset tree
+        for i in range(project_browser.asset_tree.topLevelItemCount()):
+            folder_item = project_browser.asset_tree.topLevelItem(i)
+            if folder_item.data(0, Qt.ItemDataRole.UserRole) == "Folder":
+                folder_name = folder_item.text(0)
+
+                # Create folder entry
+                from vogue_core.models import Folder
+                folder_assets = []
+                folder_shots = []
+
+                # Add assets in this folder (including default "Assets" folder)
+                for j in range(folder_item.childCount()):
+                    asset_item = folder_item.child(j)
+                    asset_name = asset_item.text(0)
+                    asset_type = asset_item.data(0, Qt.ItemDataRole.UserRole)
+
+                    # Only save actual assets, not summary items or folders
+                    print(f"DEBUG: Processing asset '{asset_name}' with type '{asset_type}'")
+                    if asset_type not in ["Summary", "Folder"]:
+                        from vogue_core.models import Asset
+                        # Use "Asset" as the type since we're not using complex type system anymore
+                        asset = Asset(name=asset_name, type="Asset")
+                        assets.append(asset)
+                        folder_assets.append(asset_name)
+                        print(f"DEBUG: Saved asset '{asset_name}'")
+                    else:
+                        print(f"DEBUG: Skipped asset '{asset_name}' (type: {asset_type})")
+
+                # Only create folder entries for custom folders, not the default "Assets" folder
+                if folder_name != "Assets":
+                    # Check if folder already exists in current project
+                    existing_folder = None
+                    for f in manager.current_project.folders:
+                        if f.name == folder_name and f.type == "asset":
+                            existing_folder = f
+                            break
+
+                    if existing_folder:
+                        # Update existing folder
+                        existing_folder.assets = folder_assets
+                    else:
+                        # Create new folder
+                        folder = Folder(
+                            name=folder_name,
+                            type="asset",
+                            assets=folder_assets,
+                            shots=folder_shots
+                        )
+                        folders.append(folder)
+
+        # Process shot tree
+        for i in range(project_browser.shot_tree.topLevelItemCount()):
+            folder_item = project_browser.shot_tree.topLevelItem(i)
+            if folder_item.data(0, Qt.ItemDataRole.UserRole) == "Folder":
+                folder_name = folder_item.text(0)
+
+                # Create folder entry
+                from vogue_core.models import Folder
+                folder_assets = []
+                folder_shots = []
+
+                # Add shots in this folder
+                for j in range(folder_item.childCount()):
+                    shot_item = folder_item.child(j)
+                    shot_name = shot_item.text(0)
+                    shot_type = shot_item.data(0, Qt.ItemDataRole.UserRole)
+
+                    # Only save actual shots, not summary items
+                    if shot_type not in ["Summary"]:
+                        from vogue_core.models import Shot
+                        shot = Shot(sequence=sequence if sequence and sequence != "Shot" else "Main", name=shot_name)
+                        shots.append(shot)
+                        folder_shots.append(shot_name)
+
+                # Only create folder entries for custom folders, not default folders
+                if folder_name != "Shots":  # Assuming "Shots" is the default folder name
+                    # Check if folder already exists in current project
+                    existing_folder = None
+                    for f in manager.current_project.folders:
+                        if f.name == folder_name and f.type == "shot":
+                            existing_folder = f
+                            break
+
+                    if existing_folder:
+                        # Update existing folder
+                        existing_folder.shots = folder_shots
+                    else:
+                        # Create new folder
+                        folder = Folder(
+                            name=folder_name,
+                            type="shot",
+                            assets=folder_assets,
+                            shots=folder_shots
+                        )
+                        folders.append(folder)
+
+        # Preserve existing folders that weren't processed in this sync
+        for existing_folder in manager.current_project.folders:
+            if existing_folder.type == "asset":
+                # Check if we already processed this folder
+                folder_already_processed = False
+                for new_folder in folders:
+                    if new_folder.name == existing_folder.name and new_folder.type == existing_folder.type:
+                        folder_already_processed = True
+                        break
+
+                if not folder_already_processed:
+                    folders.append(existing_folder)
+            elif existing_folder.type == "shot":
+                # Preserve shot folders as well
+                folders.append(existing_folder)
+
+        manager.current_project.folders = folders
+        manager.current_project.assets = assets
+        return True
+    except Exception as e:
+        print(f"Sync UI to model failed: {e}")
+        return False
+
+
+# Global reference to the current controller
+_current_controller = None
+
+def set_current_controller(controller):
+    """Set the global controller reference"""
+    global _current_controller
+    _current_controller = controller
+
+def get_current_controller():
+    """Get the global controller reference"""
+    global _current_controller
+    return _current_controller
+
+
+def auto_save_project(project_browser=None):
+    """Utility function to auto-save the current project"""
+    try:
+        # Try to get the controller from global reference
+        controller = get_current_controller()
+        if controller and hasattr(controller, 'manager') and controller.manager:
+            manager = controller.manager
+
+            if hasattr(manager, 'current_project') and manager.current_project:
+                # Sync UI changes to the model first
+                if not sync_ui_to_project_model(controller.project_browser, manager):
+                    return False
+
+                # Save the project
+                manager.save_project(manager.current_project)
+                return True
+        else:
+            # Fallback: try to find controller via project_browser
+            if project_browser:
+                # Try to traverse up the widget hierarchy to find the controller
+                current_widget = project_browser
+                max_depth = 10  # Prevent infinite loops
+                depth = 0
+
+                while current_widget and depth < max_depth:
+                    if hasattr(current_widget, 'manager'):
+                        manager = current_widget.manager
+
+                        if hasattr(manager, 'current_project') and manager.current_project:
+                            # Sync UI changes to the model first
+                            if not sync_ui_to_project_model(project_browser, manager):
+                                return False
+
+                            # Save the project
+                            manager.save_project(manager.current_project)
+                            return True
+                        break
+
+                    current_widget = current_widget.parent()
+                    depth += 1
+
+    except Exception as e:
+        print(f"Auto-save failed: {e}")
+        return False
+    return False
 
 
 class PrismStyleWidget(QWidget):
@@ -39,12 +232,16 @@ class ProjectBrowser(PrismStyleWidget):
     
     def __init__(self, parent=None):
         super().__init__(parent)
+        # Initialize clipboard state for cut/copy operations
+        self.clipboard_item = None
+        self.clipboard_operation = None  # 'cut' or 'copy'
+        self.clipboard_type = None  # 'asset' or 'shot'
         self.setup_ui()
     
     def setup_ui(self):
         layout = QVBoxLayout(self)
         layout.setContentsMargins(5, 5, 5, 5)
-
+        
         # Create horizontal splitter for tabs + tasks
         self.horizontal_splitter = QSplitter(Qt.Orientation.Horizontal)
 
@@ -60,6 +257,19 @@ class ProjectBrowser(PrismStyleWidget):
         self.horizontal_splitter.setSizes([400, 400])
 
         layout.addWidget(self.horizontal_splitter)
+
+        # Set up thumbnail delegates
+        self.asset_delegate = ThumbnailDelegate(self.asset_tree)
+        self.shot_delegate = ThumbnailDelegate(self.shot_tree)
+        self.asset_tree.setItemDelegate(self.asset_delegate)
+        self.shot_tree.setItemDelegate(self.shot_delegate)
+
+        # Don't populate with sample data initially - let project loading handle it
+        # self.populate_asset_tree()
+        # self.populate_shot_tree()
+
+        # Setup context menus
+        self.setup_context_menus()
 
     def setup_tabs_section(self):
         """Setup the tabs section (Assets/Shots)"""
@@ -86,21 +296,60 @@ class ProjectBrowser(PrismStyleWidget):
         filter_layout.addStretch()
         assets_layout.addLayout(filter_layout)
         
-        # Asset tree
-        self.asset_tree = QTreeWidget()
-        self.asset_tree.setHeaderLabels(["Name", "Type", "Versions"])
+        # Asset tree view (Prism-style hierarchical with thumbnails)
+        self.asset_tree = AssetTreeWidget()
+        self.asset_tree.setHeaderHidden(True)
         self.asset_tree.setRootIsDecorated(True)
         self.asset_tree.setAlternatingRowColors(True)
-        self.asset_tree.setSortingEnabled(True)
         self.asset_tree.setMinimumHeight(300)
+
+        # Enable drag and drop
+        self.asset_tree.setDragEnabled(True)
+        self.asset_tree.setAcceptDrops(True)
+        self.asset_tree.setDragDropMode(QAbstractItemView.DragDropMode.InternalMove)
+        self.asset_tree.setDropIndicatorShown(True)
+        self.asset_tree.setStyleSheet("""
+            QTreeWidget {
+                background-color: #1A2332;
+                border: 1px solid #2A3441;
+                border-radius: 5px;
+                alternate-background-color: #1E2533;
+            }
+            QTreeWidget::item {
+                padding: 5px;
+                border-bottom: 1px solid #2A3441;
+            }
+            QTreeWidget::item:hover {
+                background-color: #212A37;
+            }
+            QTreeWidget::item:selected {
+                background-color: #73C2FB;
+                color: #12181F;
+            }
+            QTreeWidget::branch {
+                background: transparent;
+            }
+            QTreeWidget::branch:has-children:!has-siblings:closed,
+            QTreeWidget::branch:closed:has-children:has-siblings {
+                border-image: none;
+                image: none;
+            }
+            QTreeWidget::branch:open:has-children:!has-siblings,
+            QTreeWidget::branch:open:has-children:has-siblings {
+                border-image: none;
+                image: none;
+            }
+        """)
         assets_layout.addWidget(self.asset_tree)
         
         # Asset buttons
         asset_btn_layout = QHBoxLayout()
         self.add_asset_btn = QPushButton("Add Asset")
         self.add_asset_btn.setProperty("class", "primary")
+        self.new_folder_btn = QPushButton("New Folder")
         self.refresh_assets_btn = QPushButton("Refresh")
         asset_btn_layout.addWidget(self.add_asset_btn)
+        asset_btn_layout.addWidget(self.new_folder_btn)
         asset_btn_layout.addWidget(self.refresh_assets_btn)
         asset_btn_layout.addStretch()
         assets_layout.addLayout(asset_btn_layout)
@@ -121,21 +370,60 @@ class ProjectBrowser(PrismStyleWidget):
         shot_filter_layout.addStretch()
         shots_layout.addLayout(shot_filter_layout)
         
-        # Shot tree
-        self.shot_tree = QTreeWidget()
-        self.shot_tree.setHeaderLabels(["Shot", "Sequence", "Versions"])
+        # Shot tree view (Prism-style hierarchical with thumbnails)
+        self.shot_tree = ShotTreeWidget()
+        self.shot_tree.setHeaderHidden(True)
         self.shot_tree.setRootIsDecorated(True)
         self.shot_tree.setAlternatingRowColors(True)
-        self.shot_tree.setSortingEnabled(True)
         self.shot_tree.setMinimumHeight(300)
+
+        # Enable drag and drop
+        self.shot_tree.setDragEnabled(True)
+        self.shot_tree.setAcceptDrops(True)
+        self.shot_tree.setDragDropMode(QAbstractItemView.DragDropMode.InternalMove)
+        self.shot_tree.setDropIndicatorShown(True)
+        self.shot_tree.setStyleSheet("""
+            QTreeWidget {
+                background-color: #1A2332;
+                border: 1px solid #2A3441;
+                border-radius: 5px;
+                alternate-background-color: #1E2533;
+            }
+            QTreeWidget::item {
+                padding: 5px;
+                border-bottom: 1px solid #2A3441;
+            }
+            QTreeWidget::item:hover {
+                background-color: #212A37;
+            }
+            QTreeWidget::item:selected {
+                background-color: #73C2FB;
+                color: #12181F;
+            }
+            QTreeWidget::branch {
+                background: transparent;
+            }
+            QTreeWidget::branch:has-children:!has-siblings:closed,
+            QTreeWidget::branch:closed:has-children:has-siblings {
+                border-image: none;
+                image: none;
+            }
+            QTreeWidget::branch:open:has-children:!has-siblings,
+            QTreeWidget::branch:open:has-children:has-siblings {
+                border-image: none;
+                image: none;
+            }
+        """)
         shots_layout.addWidget(self.shot_tree)
         
         # Shot buttons
         shot_btn_layout = QHBoxLayout()
         self.add_shot_btn = QPushButton("Add Shot")
         self.add_shot_btn.setProperty("class", "primary")
+        self.new_shot_folder_btn = QPushButton("New Folder")
         self.refresh_shots_btn = QPushButton("Refresh")
         shot_btn_layout.addWidget(self.add_shot_btn)
+        shot_btn_layout.addWidget(self.new_shot_folder_btn)
         shot_btn_layout.addWidget(self.refresh_shots_btn)
         shot_btn_layout.addStretch()
         shots_layout.addLayout(shot_btn_layout)
@@ -272,6 +560,1144 @@ class ProjectBrowser(PrismStyleWidget):
 
         info_layout.addWidget(project_group)
 
+    def generate_thumbnail(self, asset_type: str, asset_name: str) -> QPixmap:
+        """Generate a thumbnail for an asset/shot based on its type"""
+        pixmap = QPixmap(80, 80)
+        pixmap.fill(QColor("#1A2332"))
+
+        painter = QPainter(pixmap)
+        painter.setRenderHint(QPainter.RenderHint.Antialiasing)
+
+        # Draw background with rounded corners
+        painter.setBrush(QColor("#2A3441"))
+        painter.setPen(QPen(QColor("#73C2FB"), 2))
+        painter.drawRoundedRect(2, 2, 76, 76, 8, 8)
+
+        # Draw icon based on type
+        painter.setPen(QPen(QColor("#73C2FB"), 3))
+        painter.setBrush(QColor("#73C2FB"))
+
+        if asset_type.lower() in ["character", "characters"]:
+            # Draw character icon (simple person shape)
+            painter.drawEllipse(25, 15, 30, 30)  # Head
+            painter.drawRect(35, 45, 10, 25)     # Body
+            painter.drawLine(30, 50, 25, 65)      # Left arm
+            painter.drawLine(50, 50, 55, 65)      # Right arm
+            painter.drawLine(35, 70, 30, 85)      # Left leg
+            painter.drawLine(45, 70, 50, 85)      # Right leg
+
+        elif asset_type.lower() in ["prop", "props"]:
+            # Draw prop icon (cube)
+            painter.drawRect(25, 25, 30, 30)
+            painter.drawLine(25, 25, 35, 15)      # Top-left edge
+            painter.drawLine(55, 25, 65, 15)      # Top-right edge
+            painter.drawLine(35, 15, 65, 15)      # Top edge
+            painter.drawLine(65, 15, 65, 45)      # Right edge
+
+        elif asset_type.lower() in ["environment", "environments"]:
+            # Draw environment icon (landscape)
+            painter.drawRect(20, 40, 40, 15)     # Ground
+            painter.drawEllipse(15, 20, 50, 25)  # Sky
+            painter.drawLine(30, 30, 50, 30)      # Horizon
+
+        elif asset_type.lower() == "shot":
+            # Draw shot icon (camera/clapperboard)
+            painter.drawRect(20, 25, 40, 25)     # Clapperboard
+            painter.drawRect(15, 15, 20, 15)     # Camera body
+            painter.drawEllipse(10, 10, 10, 10)  # Lens
+            painter.drawLine(15, 15, 25, 25)      # Clapper arm
+
+        else:
+            # Default folder icon for unknown types
+            painter.drawRect(25, 20, 30, 20)     # Folder base
+            painter.drawRect(20, 15, 35, 25)     # Folder
+            painter.drawLine(20, 20, 30, 20)      # Folder tab
+
+        painter.end()
+        return pixmap
+
+    def populate_asset_tree(self):
+        """Populate the asset tree with hierarchical folder structure"""
+        self.asset_tree.clear()
+
+        # Create root folders
+        characters_folder = QTreeWidgetItem(self.asset_tree)
+        characters_folder.setText(0, "Characters")
+        characters_folder.setData(0, Qt.ItemDataRole.UserRole, "Folder")
+
+        props_folder = QTreeWidgetItem(self.asset_tree)
+        props_folder.setText(0, "Props")
+        props_folder.setData(0, Qt.ItemDataRole.UserRole, "Folder")
+
+        environments_folder = QTreeWidgetItem(self.asset_tree)
+        environments_folder.setText(0, "Environments")
+        environments_folder.setData(0, Qt.ItemDataRole.UserRole, "Folder")
+
+        # Add sample assets to folders
+        hero_char = QTreeWidgetItem(characters_folder)
+        hero_char.setText(0, "Hero_Character")
+        hero_char.setData(0, Qt.ItemDataRole.UserRole, "Character")
+
+        villain_char = QTreeWidgetItem(characters_folder)
+        villain_char.setText(0, "Villain_Character")
+        villain_char.setData(0, Qt.ItemDataRole.UserRole, "Character")
+
+        magic_prop = QTreeWidgetItem(props_folder)
+        magic_prop.setText(0, "Magic_Prop")
+        magic_prop.setData(0, Qt.ItemDataRole.UserRole, "Prop")
+
+        treasure_prop = QTreeWidgetItem(props_folder)
+        treasure_prop.setText(0, "Treasure_Chest")
+        treasure_prop.setData(0, Qt.ItemDataRole.UserRole, "Prop")
+
+        forest_env = QTreeWidgetItem(environments_folder)
+        forest_env.setText(0, "Forest_Environment")
+        forest_env.setData(0, Qt.ItemDataRole.UserRole, "Environment")
+
+        castle_env = QTreeWidgetItem(environments_folder)
+        castle_env.setText(0, "Castle_Environment")
+        castle_env.setData(0, Qt.ItemDataRole.UserRole, "Environment")
+
+        # Expand all folders by default
+        self.asset_tree.expandAll()
+
+    def populate_shot_tree(self):
+        """Populate the shot tree with hierarchical sequence structure"""
+        self.shot_tree.clear()
+
+        # Create sequence folders
+        seq_a_folder = QTreeWidgetItem(self.shot_tree)
+        seq_a_folder.setText(0, "Sequence_A")
+        seq_a_folder.setData(0, Qt.ItemDataRole.UserRole, "Folder")
+
+        seq_b_folder = QTreeWidgetItem(self.shot_tree)
+        seq_b_folder.setText(0, "Sequence_B")
+        seq_b_folder.setData(0, Qt.ItemDataRole.UserRole, "Folder")
+
+        # Add sample shots to sequences
+        shot_0010 = QTreeWidgetItem(seq_a_folder)
+        shot_0010.setText(0, "0010")
+        shot_0010.setData(0, Qt.ItemDataRole.UserRole, "Sequence A")
+
+        shot_0020 = QTreeWidgetItem(seq_a_folder)
+        shot_0020.setText(0, "0020")
+        shot_0020.setData(0, Qt.ItemDataRole.UserRole, "Sequence A")
+
+        shot_0030 = QTreeWidgetItem(seq_a_folder)
+        shot_0030.setText(0, "0030")
+        shot_0030.setData(0, Qt.ItemDataRole.UserRole, "Sequence A")
+
+        shot_0100 = QTreeWidgetItem(seq_b_folder)
+        shot_0100.setText(0, "0100")
+        shot_0100.setData(0, Qt.ItemDataRole.UserRole, "Sequence B")
+
+        shot_0110 = QTreeWidgetItem(seq_b_folder)
+        shot_0110.setText(0, "0110")
+        shot_0110.setData(0, Qt.ItemDataRole.UserRole, "Sequence B")
+
+        shot_0120 = QTreeWidgetItem(seq_b_folder)
+        shot_0120.setText(0, "0120")
+        shot_0120.setData(0, Qt.ItemDataRole.UserRole, "Sequence B")
+
+        # Expand all sequences by default
+        self.shot_tree.expandAll()
+
+    def setup_context_menus(self):
+        """Setup context menus for asset and shot trees"""
+        # Asset tree context menu
+        self.asset_tree.setContextMenuPolicy(Qt.ContextMenuPolicy.CustomContextMenu)
+        self.asset_tree.customContextMenuRequested.connect(self.show_asset_context_menu)
+
+        # Shot tree context menu
+        self.shot_tree.setContextMenuPolicy(Qt.ContextMenuPolicy.CustomContextMenu)
+        self.shot_tree.customContextMenuRequested.connect(self.show_shot_context_menu)
+
+    def show_asset_context_menu(self, position):
+        """Show context menu for asset tree"""
+        menu = QMenu()
+
+        # Get current item
+        item = self.asset_tree.itemAt(position)
+        if item:
+            item_type = item.data(0, Qt.ItemDataRole.UserRole)
+            item_name = item.text(0)
+
+            if item_type == "Folder":
+                # Folder operations
+                create_asset_action = menu.addAction("Create Asset in Folder")
+                paste_action = menu.addAction("Paste Asset")
+                menu.addSeparator()
+                open_action = menu.addAction("Open Folder")
+                menu.addSeparator()
+                rename_action = menu.addAction("Rename Folder")
+                delete_action = menu.addAction("Delete Folder")
+
+                # Connect actions
+                create_asset_action.triggered.connect(lambda: self.create_asset_in_folder(item_name))
+                paste_action.triggered.connect(lambda: self.paste_asset(item_name))
+                open_action.triggered.connect(lambda: self.open_folder("asset", item_name))
+                rename_action.triggered.connect(lambda: self.rename_folder("asset", item_name))
+                delete_action.triggered.connect(lambda: self.delete_folder("asset", item_name))
+            else:
+                # Asset operations
+                open_action = menu.addAction("Open Asset")
+                cut_action = menu.addAction("Cut Asset")
+                copy_action = menu.addAction("Copy Asset")
+                menu.addSeparator()
+                move_to_action = menu.addAction("Move to Folder")
+                properties_action = menu.addAction("Properties")
+
+                # Connect actions
+                open_action.triggered.connect(lambda: self.open_asset(item_name))
+                cut_action.triggered.connect(lambda: self.cut_asset(item_name))
+                copy_action.triggered.connect(lambda: self.copy_asset(item_name))
+                move_to_action.triggered.connect(lambda: self.move_asset_to_folder(item_name))
+                properties_action.triggered.connect(lambda: self.show_asset_properties(item_name))
+
+        else:
+            # No item selected - show create options
+            create_folder_action = menu.addAction("Create Folder")
+            create_asset_action = menu.addAction("Create Asset")
+
+            # Connect actions
+            create_folder_action.triggered.connect(lambda: self.create_folder("asset"))
+            create_asset_action.triggered.connect(self.create_asset)
+
+        menu.exec(self.asset_tree.mapToGlobal(position))
+
+    def show_shot_context_menu(self, position):
+        """Show context menu for shot tree"""
+        menu = QMenu()
+
+        # Get current item
+        item = self.shot_tree.itemAt(position)
+        if item:
+            item_data = item.data(0, Qt.ItemDataRole.UserRole)
+            item_name = item.text(0)
+
+            if item_data == "Folder":
+                # Folder operations
+                create_shot_action = menu.addAction("Create Shot in Folder")
+                paste_action = menu.addAction("Paste Shot")
+                menu.addSeparator()
+                open_action = menu.addAction("Open Folder")
+                menu.addSeparator()
+                rename_action = menu.addAction("Rename Folder")
+                delete_action = menu.addAction("Delete Folder")
+
+                # Connect actions
+                create_shot_action.triggered.connect(lambda: self.create_shot_in_folder(item_name))
+                paste_action.triggered.connect(lambda: self.paste_shot(item_name))
+                open_action.triggered.connect(lambda: self.open_folder("shot", item_name))
+                rename_action.triggered.connect(lambda: self.rename_folder("shot", item_name))
+                delete_action.triggered.connect(lambda: self.delete_folder("shot", item_name))
+            else:
+                # Shot operations
+                open_action = menu.addAction("Open Shot")
+                cut_action = menu.addAction("Cut Shot")
+                copy_action = menu.addAction("Copy Shot")
+                menu.addSeparator()
+                move_to_action = menu.addAction("Move to Folder")
+                properties_action = menu.addAction("Properties")
+
+                # Connect actions
+                open_action.triggered.connect(lambda: self.open_shot(item_name))
+                cut_action.triggered.connect(lambda: self.cut_shot(item_name))
+                copy_action.triggered.connect(lambda: self.copy_shot(item_name))
+                move_to_action.triggered.connect(lambda: self.move_shot_to_folder(item_name))
+                properties_action.triggered.connect(lambda: self.show_shot_properties(item_name))
+
+        else:
+            # No item selected - show create options
+            create_folder_action = menu.addAction("Create Folder")
+            create_shot_action = menu.addAction("Create Shot")
+
+            # Connect actions
+            create_folder_action.triggered.connect(lambda: self.create_folder("shot"))
+            create_shot_action.triggered.connect(self.create_shot)
+
+        menu.exec(self.shot_tree.mapToGlobal(position))
+
+    def create_folder(self, list_type: str):
+        """Create a new folder in the specified tree"""
+        folder_name, ok = QInputDialog.getText(
+            self, "Create Folder",
+            "Enter folder name:",
+            QLineEdit.EchoMode.Normal,
+            ""
+        )
+
+        if ok and folder_name:
+            # Check if folder with this name already exists
+            folder_exists = False
+            tree_widget = self.asset_tree if list_type == "asset" else self.shot_tree
+            for i in range(tree_widget.topLevelItemCount()):
+                item = tree_widget.topLevelItem(i)
+                if item.text(0) == folder_name and item.data(0, Qt.ItemDataRole.UserRole) == "Folder":
+                    folder_exists = True
+                    break
+
+            if not folder_exists:
+                # Create new folder item
+                if list_type == "asset":
+                    folder_item = QTreeWidgetItem(self.asset_tree)
+                    folder_item.setText(0, folder_name)
+                    folder_item.setData(0, Qt.ItemDataRole.UserRole, "Folder")
+                else:
+                    folder_item = QTreeWidgetItem(self.shot_tree)
+                    folder_item.setText(0, folder_name)
+                    folder_item.setData(0, Qt.ItemDataRole.UserRole, "Folder")
+
+                self.add_log_message(f"Folder '{folder_name}' created in {list_type}s")
+
+                # Auto-save the project
+                if auto_save_project(self):
+                    self.add_log_message("Project auto-saved")
+                    # Force refresh the tree to show changes
+                    self.asset_tree.update()
+                    self.shot_tree.update()
+                else:
+                    self.add_log_message("Auto-save skipped: no project loaded")
+            else:
+                self.add_log_message(f"Folder '{folder_name}' already exists")
+
+    def rename_folder(self, list_type: str, old_name: str):
+        """Rename an existing folder"""
+        new_name, ok = QInputDialog.getText(
+            self, "Rename Folder",
+            "Enter new folder name:",
+            QLineEdit.EchoMode.Normal,
+            old_name
+        )
+
+        if ok and new_name and new_name != old_name:
+            # Find and update the item
+            tree_widget = self.asset_tree if list_type == "asset" else self.shot_tree
+
+            def find_and_rename_item(parent_item):
+                for i in range(parent_item.childCount()):
+                    child_item = parent_item.child(i)
+                    if (child_item.text(0) == old_name and
+                        child_item.data(0, Qt.ItemDataRole.UserRole) == "Folder"):
+                        child_item.setText(0, new_name)
+                        return True
+                return False
+
+            # Search through root items
+            for i in range(tree_widget.topLevelItemCount()):
+                root_item = tree_widget.topLevelItem(i)
+                if find_and_rename_item(root_item) or (
+                    root_item.text(0) == old_name and
+                    root_item.data(0, Qt.ItemDataRole.UserRole) == "Folder"
+                ):
+                    root_item.setText(0, new_name)
+                    self.add_log_message(f"Folder '{old_name}' renamed to '{new_name}'")
+
+                    # Auto-save the project
+                    try:
+                        from vogue_core.manager import ProjectManager
+                        manager = ProjectManager()
+                        if hasattr(manager, 'current_project') and manager.current_project:
+                            manager.save_project()
+                            self.add_log_message("Project auto-saved")
+                    except Exception as e:
+                        print(f"Auto-save failed: {e}")
+                    break
+
+    def delete_folder(self, list_type: str, folder_name: str):
+        """Delete a folder"""
+        reply = QMessageBox.question(
+            self, "Delete Folder",
+            f"Are you sure you want to delete folder '{folder_name}'?\nThis will delete all contents inside the folder.",
+            QMessageBox.StandardButton.Yes | QMessageBox.StandardButton.No,
+            QMessageBox.StandardButton.No
+        )
+
+        if reply == QMessageBox.StandardButton.Yes:
+            # Find and remove the item
+            tree_widget = self.asset_tree if list_type == "asset" else self.shot_tree
+
+            def find_and_remove_item(parent_item):
+                for i in range(parent_item.childCount()):
+                    child_item = parent_item.child(i)
+                    if (child_item.text(0) == folder_name and
+                        child_item.data(0, Qt.ItemDataRole.UserRole) == "Folder"):
+                        parent_item.takeChild(i)
+                        return True
+                return False
+
+            # Search through root items
+            for i in range(tree_widget.topLevelItemCount()):
+                root_item = tree_widget.topLevelItem(i)
+                if find_and_remove_item(root_item) or (
+                    root_item.text(0) == folder_name and
+                    root_item.data(0, Qt.ItemDataRole.UserRole) == "Folder"
+                ):
+                    tree_widget.takeTopLevelItem(i)
+                    self.add_log_message(f"Folder '{folder_name}' deleted")
+
+                    # Auto-save the project
+                    try:
+                        from vogue_core.manager import ProjectManager
+                        manager = ProjectManager()
+                        if hasattr(manager, 'current_project') and manager.current_project:
+                            manager.save_project()
+                            self.add_log_message("Project auto-saved")
+                    except Exception as e:
+                        print(f"Auto-save failed: {e}")
+                    break
+
+    def open_folder(self, list_type: str, folder_name: str):
+        """Open a folder (show contents)"""
+        QMessageBox.information(self, "Open Folder", f"Opening folder: {folder_name}")
+
+    def open_asset(self, asset_name: str):
+        """Open an asset"""
+        QMessageBox.information(self, "Open Asset", f"Opening asset: {asset_name}")
+
+    def copy_asset(self, asset_name: str):
+        """Copy an asset"""
+        QMessageBox.information(self, "Copy Asset", f"Copying asset: {asset_name}")
+
+    def show_asset_properties(self, asset_name: str):
+        """Show asset properties"""
+        QMessageBox.information(self, "Asset Properties", f"Properties for: {asset_name}")
+
+    def create_asset_in_folder(self, folder_name):
+        """Create a new asset in a specific folder"""
+        asset_name, ok = QInputDialog.getText(
+            self, "Create Asset",
+            f"Enter asset name for {folder_name} folder:",
+            QLineEdit.EchoMode.Normal,
+            ""
+        )
+
+        if ok and asset_name:
+            # Find the folder and add the asset
+            root_item = self._find_folder_by_name(self.asset_tree, folder_name)
+            if root_item:
+                # Create new asset item
+                asset_item = QTreeWidgetItem(root_item)
+                asset_item.setText(0, asset_name)
+
+                # Set asset type to a proper asset type, not the folder name
+                # For now, we'll use a generic type, but in a real VFX pipeline
+                # this would be determined by the asset type (Character, Prop, Environment, etc.)
+                asset_type = "Asset"  # Generic type for now
+                asset_item.setData(0, Qt.ItemDataRole.UserRole, asset_type)
+
+                self.add_log_message(f"Asset '{asset_name}' created in folder '{folder_name}'")
+
+                # Auto-save the project
+                if auto_save_project():
+                    self.add_log_message("Project auto-saved")
+                else:
+                    self.add_log_message("Auto-save skipped: no project loaded")
+
+    def cut_asset(self, asset_name):
+        """Cut an asset for moving"""
+        try:
+            # Find the asset item
+            asset_item = self._find_asset_by_name(asset_name)
+            if asset_item and asset_item.isValid():
+                self.clipboard_item = asset_item
+                self.clipboard_operation = 'cut'
+                self.clipboard_type = 'asset'
+                self.add_log_message(f"Asset '{asset_name}' cut to clipboard")
+            else:
+                QMessageBox.warning(self, "Asset Not Found", f"Could not find asset '{asset_name}'")
+        except Exception as e:
+            self.logger.error(f"Error cutting asset: {e}")
+            QMessageBox.critical(self, "Error", f"Failed to cut asset: {e}")
+
+    def copy_asset(self, asset_name):
+        """Copy an asset"""
+        try:
+            # Find the asset item
+            asset_item = self._find_asset_by_name(asset_name)
+            if asset_item and asset_item.isValid():
+                self.clipboard_item = asset_item
+                self.clipboard_operation = 'copy'
+                self.clipboard_type = 'asset'
+                self.add_log_message(f"Asset '{asset_name}' copied to clipboard")
+            else:
+                QMessageBox.warning(self, "Asset Not Found", f"Could not find asset '{asset_name}'")
+        except Exception as e:
+            self.logger.error(f"Error copying asset: {e}")
+            QMessageBox.critical(self, "Error", f"Failed to copy asset: {e}")
+
+    def move_asset_to_folder(self, asset_name):
+        """Move an asset to a different folder"""
+        if not self.clipboard_item or self.clipboard_operation != 'cut' or self.clipboard_type != 'asset':
+            QMessageBox.warning(self, "No Item to Move", "No asset has been cut. Use Cut first.")
+            return
+
+        # Get available folders
+        folders = []
+        for i in range(self.asset_tree.topLevelItemCount()):
+            item = self.asset_tree.topLevelItem(i)
+            if item.data(0, Qt.ItemDataRole.UserRole) == "Folder":
+                folders.append(item.text(0))
+
+        if not folders:
+            QMessageBox.warning(self, "No Folders", "No folders available to move to.")
+            return
+
+        folder_name, ok = QInputDialog.getItem(
+            self, "Move Asset",
+            f"Move '{asset_name}' to folder:",
+            folders, 0, False
+        )
+
+        if ok and folder_name:
+            # Find target folder
+            target_folder = self._find_folder_by_name(self.asset_tree, folder_name)
+            if target_folder:
+                # Remove from current parent
+                parent = self.clipboard_item.parent()
+                if parent:
+                    parent.removeChild(self.clipboard_item)
+                else:
+                    # Remove from root
+                    index = self.asset_tree.indexOfTopLevelItem(self.clipboard_item)
+                    if index >= 0:
+                        self.asset_tree.takeTopLevelItem(index)
+
+                # Add to target folder
+                target_folder.addChild(self.clipboard_item)
+
+                # Clear clipboard
+                self.clipboard_item = None
+                self.clipboard_operation = None
+                self.clipboard_type = None
+
+                self.add_log_message(f"Asset '{asset_name}' moved to folder '{folder_name}'")
+
+    def paste_asset(self, folder_name):
+        """Paste an asset into a folder"""
+        try:
+            if not self.clipboard_item or self.clipboard_type != 'asset':
+                QMessageBox.warning(self, "No Item to Paste", "No asset has been copied or cut.")
+                return
+
+            # Store item name before operations
+            item_name = self.clipboard_item.text(0)
+
+            # Find target folder
+            target_folder = self._find_folder_by_name(self.asset_tree, folder_name)
+            if target_folder:
+                if self.clipboard_operation == 'copy':
+                    # Create a copy of the item
+                    new_item = QTreeWidgetItem()
+                    new_item.setText(0, item_name)
+                    new_item.setData(0, Qt.ItemDataRole.UserRole, self.clipboard_item.data(0, Qt.ItemDataRole.UserRole))
+                    target_folder.addChild(new_item)
+                    self.add_log_message(f"Asset '{item_name}' pasted to folder '{folder_name}'")
+
+                    # Auto-save the project
+                    try:
+                        from vogue_core.manager import ProjectManager
+                        manager = ProjectManager()
+                        if hasattr(manager, 'current_project') and manager.current_project:
+                            manager.save_project()
+                            self.add_log_message("Project auto-saved")
+                    except Exception as e:
+                        print(f"Auto-save failed: {e}")
+                else:  # cut operation
+                    # Remove from current parent
+                    parent = self.clipboard_item.parent()
+                    if parent:
+                        parent.removeChild(self.clipboard_item)
+                    else:
+                        # Remove from root
+                        index = self.asset_tree.indexOfTopLevelItem(self.clipboard_item)
+                        if index >= 0:
+                            self.asset_tree.takeTopLevelItem(index)
+
+                    # Add to target folder
+                    target_folder.addChild(self.clipboard_item)
+
+                    # Clear clipboard
+                    self.clipboard_item = None
+                    self.clipboard_operation = None
+                    self.clipboard_type = None
+
+                    self.add_log_message(f"Asset '{item_name}' moved to folder '{folder_name}'")
+
+                    # Auto-save the project
+                    try:
+                        from vogue_core.manager import ProjectManager
+                        manager = ProjectManager()
+                        if hasattr(manager, 'current_project') and manager.current_project:
+                            manager.save_project()
+                            self.add_log_message("Project auto-saved")
+                    except Exception as e:
+                        print(f"Auto-save failed: {e}")
+            else:
+                QMessageBox.warning(self, "Folder Not Found", f"Could not find folder '{folder_name}'")
+        except Exception as e:
+            self.logger.error(f"Error pasting asset: {e}")
+            QMessageBox.critical(self, "Error", f"Failed to paste asset: {e}")
+
+    def create_asset(self):
+        """Create a new asset with folder selection (no type field)."""
+        # Build dialog with name + folder dropdown
+        dialog = QDialog(self)
+        dialog.setWindowTitle("Create Asset")
+        layout = QFormLayout(dialog)
+
+        name_edit = QLineEdit(dialog)
+        layout.addRow("Name:", name_edit)
+
+        folder_combo = QComboBox(dialog)
+        folders = ["Main"]
+        for i in range(self.asset_tree.topLevelItemCount()):
+            item = self.asset_tree.topLevelItem(i)
+            if item.data(0, Qt.ItemDataRole.UserRole) == "Folder":
+                fname = item.text(0)
+                if fname not in folders:
+                    folders.append(fname)
+        folder_combo.addItems(folders)
+        layout.addRow("Folder:", folder_combo)
+
+        buttons_layout = QHBoxLayout()
+        ok_btn = QPushButton("Create", dialog)
+        cancel_btn = QPushButton("Cancel", dialog)
+        buttons_layout.addStretch()
+        buttons_layout.addWidget(ok_btn)
+        buttons_layout.addWidget(cancel_btn)
+        layout.addRow(buttons_layout)
+
+        def on_ok():
+            asset_name = name_edit.text().strip()
+            folder_name = folder_combo.currentText().strip()
+            if not asset_name:
+                QMessageBox.warning(dialog, "Invalid Name", "Please enter an asset name.")
+                return
+            dialog.accept()
+            self._create_asset_in_folder(asset_name, folder_name)
+            controller = get_current_controller()
+            if controller:
+                try:
+                    controller._normalize_project()
+                    controller.update_assets_tree()
+                except Exception:
+                    pass
+
+        ok_btn.clicked.connect(on_ok)
+        cancel_btn.clicked.connect(dialog.reject)
+
+        dialog.exec()
+
+    def _create_asset_in_folder(self, asset_name, folder_name):
+        """Create an asset in the specified folder, creating the folder if needed"""
+        # Find or create the folder
+        folder_item = self._find_folder_by_name(self.asset_tree, folder_name)
+
+        if not folder_item:
+            # Create the folder if it doesn't exist
+            folder_item = QTreeWidgetItem(self.asset_tree)
+            folder_item.setText(0, folder_name)
+            folder_item.setData(0, Qt.ItemDataRole.UserRole, "Folder")
+
+        # Create the asset in the folder
+        asset_item = QTreeWidgetItem(folder_item)
+        asset_item.setText(0, asset_name)
+        asset_item.setData(0, Qt.ItemDataRole.UserRole, "Asset")  # Simple type
+
+        self.add_log_message(f"Asset '{asset_name}' created in folder '{folder_name}'")
+
+        # Auto-save the project
+        if auto_save_project():
+            self.add_log_message("Project auto-saved")
+        else:
+            self.add_log_message("Auto-save skipped: no project loaded")
+
+    def _find_folder_by_name(self, tree_widget, folder_name):
+        """Find a folder by name in the tree"""
+        for i in range(tree_widget.topLevelItemCount()):
+            item = tree_widget.topLevelItem(i)
+            if item.text(0) == folder_name and item.data(0, Qt.ItemDataRole.UserRole) == "Folder":
+                return item
+        return None
+
+    def _find_asset_by_name(self, asset_name):
+        """Find an asset by name in the asset tree"""
+        def search_tree(parent_item):
+            for i in range(parent_item.childCount()):
+                child_item = parent_item.child(i)
+                if child_item.text(0) == asset_name and child_item.data(0, Qt.ItemDataRole.UserRole) != "Folder":
+                    return child_item
+                # Recursively search children
+                result = search_tree(child_item)
+                if result:
+                    return result
+            return None
+
+        # Search through root items
+        for i in range(self.asset_tree.topLevelItemCount()):
+            root_item = self.asset_tree.topLevelItem(i)
+            if root_item.text(0) == asset_name and root_item.data(0, Qt.ItemDataRole.UserRole) != "Folder":
+                return root_item
+            # Search children
+            result = search_tree(root_item)
+            if result:
+                return result
+        return None
+
+    def _find_shot_by_name(self, shot_name):
+        """Find a shot by name in the shot tree"""
+        def search_tree(parent_item):
+            for i in range(parent_item.childCount()):
+                child_item = parent_item.child(i)
+                if child_item.text(0) == shot_name and child_item.data(0, Qt.ItemDataRole.UserRole) != "Folder":
+                    return child_item
+                # Recursively search children
+                result = search_tree(child_item)
+                if result:
+                    return result
+            return None
+
+        # Search through root items
+        for i in range(self.shot_tree.topLevelItemCount()):
+            root_item = self.shot_tree.topLevelItem(i)
+            if root_item.text(0) == shot_name and root_item.data(0, Qt.ItemDataRole.UserRole) != "Folder":
+                return root_item
+            # Search children
+            result = search_tree(root_item)
+            if result:
+                return result
+        return None
+
+    def open_shot(self, shot_name: str):
+        """Open a shot"""
+        QMessageBox.information(self, "Open Shot", f"Opening shot: {shot_name}")
+
+    def copy_shot(self, shot_name: str):
+        """Copy a shot"""
+        QMessageBox.information(self, "Copy Shot", f"Copying shot: {shot_name}")
+
+    def show_shot_properties(self, shot_name: str):
+        """Show shot properties"""
+        QMessageBox.information(self, "Shot Properties", f"Properties for: {shot_name}")
+
+    def create_shot_in_folder(self, folder_name):
+        """Create a new shot in a specific folder"""
+        shot_name, ok = QInputDialog.getText(
+            self, "Create Shot",
+            f"Enter shot name for {folder_name} folder:",
+            QLineEdit.EchoMode.Normal,
+            ""
+        )
+
+        if ok and shot_name:
+            # Find the folder and add the shot
+            root_item = self._find_folder_by_name(self.shot_tree, folder_name)
+            if root_item:
+                # Create new shot item
+                shot_item = QTreeWidgetItem(root_item)
+                shot_item.setText(0, shot_name)
+
+                # Set shot sequence based on folder
+                shot_sequence = folder_name
+                shot_item.setData(0, Qt.ItemDataRole.UserRole, shot_sequence)
+
+                self.add_log_message(f"Shot '{shot_name}' created in folder '{folder_name}'")
+
+                # Auto-save the project
+                try:
+                    from vogue_core.manager import ProjectManager
+                    # Use the singleton pattern or get the existing instance
+                    manager = ProjectManager()
+                    # Try to get current project - if not available, we'll skip auto-save
+                    if hasattr(manager, 'current_project') and manager.current_project:
+                        # Save the current project state
+                        manager.save_project(manager.current_project)
+                        self.add_log_message("Project auto-saved")
+                    else:
+                        self.add_log_message("Auto-save skipped: no project loaded")
+                except Exception as e:
+                    print(f"Auto-save failed: {e}")
+                    self.add_log_message(f"Auto-save failed: {e}")
+
+    def cut_shot(self, shot_name):
+        """Cut a shot for moving"""
+        try:
+            # Find the shot item
+            shot_item = self._find_shot_by_name(shot_name)
+            if shot_item and shot_item.isValid():
+                self.clipboard_item = shot_item
+                self.clipboard_operation = 'cut'
+                self.clipboard_type = 'shot'
+                self.add_log_message(f"Shot '{shot_name}' cut to clipboard")
+            else:
+                QMessageBox.warning(self, "Shot Not Found", f"Could not find shot '{shot_name}'")
+        except Exception as e:
+            self.logger.error(f"Error cutting shot: {e}")
+            QMessageBox.critical(self, "Error", f"Failed to cut shot: {e}")
+
+    def copy_shot(self, shot_name):
+        """Copy a shot"""
+        try:
+            # Find the shot item
+            shot_item = self._find_shot_by_name(shot_name)
+            if shot_item and shot_item.isValid():
+                self.clipboard_item = shot_item
+                self.clipboard_operation = 'copy'
+                self.clipboard_type = 'shot'
+                self.add_log_message(f"Shot '{shot_name}' copied to clipboard")
+            else:
+                QMessageBox.warning(self, "Shot Not Found", f"Could not find shot '{shot_name}'")
+        except Exception as e:
+            self.logger.error(f"Error copying shot: {e}")
+            QMessageBox.critical(self, "Error", f"Failed to copy shot: {e}")
+
+    def move_shot_to_folder(self, shot_name):
+        """Move a shot to a different folder"""
+        if not self.clipboard_item or self.clipboard_operation != 'cut' or self.clipboard_type != 'shot':
+            QMessageBox.warning(self, "No Item to Move", "No shot has been cut. Use Cut first.")
+            return
+
+        # Get available folders
+        folders = []
+        for i in range(self.shot_tree.topLevelItemCount()):
+            item = self.shot_tree.topLevelItem(i)
+            if item.data(0, Qt.ItemDataRole.UserRole) == "Folder":
+                folders.append(item.text(0))
+
+        if not folders:
+            QMessageBox.warning(self, "No Folders", "No folders available to move to.")
+            return
+
+        folder_name, ok = QInputDialog.getItem(
+            self, "Move Shot",
+            f"Move '{shot_name}' to folder:",
+            folders, 0, False
+        )
+
+        if ok and folder_name:
+            # Find target folder
+            target_folder = self._find_folder_by_name(self.shot_tree, folder_name)
+            if target_folder:
+                # Remove from current parent
+                parent = self.clipboard_item.parent()
+                if parent:
+                    parent.removeChild(self.clipboard_item)
+                else:
+                    # Remove from root
+                    index = self.shot_tree.indexOfTopLevelItem(self.clipboard_item)
+                    if index >= 0:
+                        self.shot_tree.takeTopLevelItem(index)
+
+                # Add to target folder
+                target_folder.addChild(self.clipboard_item)
+
+                # Clear clipboard
+                self.clipboard_item = None
+                self.clipboard_operation = None
+                self.clipboard_type = None
+
+                self.add_log_message(f"Shot '{shot_name}' moved to folder '{folder_name}'")
+
+    def paste_shot(self, folder_name):
+        """Paste a shot into a folder"""
+        try:
+            if not self.clipboard_item or self.clipboard_type != 'shot':
+                QMessageBox.warning(self, "No Item to Paste", "No shot has been copied or cut.")
+                return
+
+            # Store item name before operations
+            item_name = self.clipboard_item.text(0)
+
+            # Find target folder
+            target_folder = self._find_folder_by_name(self.shot_tree, folder_name)
+            if target_folder:
+                if self.clipboard_operation == 'copy':
+                    # Create a copy of the item
+                    new_item = QTreeWidgetItem()
+                    new_item.setText(0, item_name)
+                    new_item.setData(0, Qt.ItemDataRole.UserRole, self.clipboard_item.data(0, Qt.ItemDataRole.UserRole))
+                    target_folder.addChild(new_item)
+                    self.add_log_message(f"Shot '{item_name}' pasted to folder '{folder_name}'")
+
+                # Auto-save the project
+                try:
+                    from vogue_core.manager import ProjectManager
+                    # Use the singleton pattern or get the existing instance
+                    manager = ProjectManager()
+                    # Try to get current project - if not available, we'll skip auto-save
+                    if hasattr(manager, 'current_project') and manager.current_project:
+                        # Save the current project state
+                        manager.save_project(manager.current_project)
+                        self.add_log_message("Project auto-saved")
+                    else:
+                        self.add_log_message("Auto-save skipped: no project loaded")
+                except Exception as e:
+                    print(f"Auto-save failed: {e}")
+                    self.add_log_message(f"Auto-save failed: {e}")
+                else:  # cut operation
+                    # Remove from current parent
+                    parent = self.clipboard_item.parent()
+                    if parent:
+                        parent.removeChild(self.clipboard_item)
+                    else:
+                        # Remove from root
+                        index = self.shot_tree.indexOfTopLevelItem(self.clipboard_item)
+                        if index >= 0:
+                            self.shot_tree.takeTopLevelItem(index)
+
+                    # Add to target folder
+                    target_folder.addChild(self.clipboard_item)
+
+                    # Clear clipboard
+                    self.clipboard_item = None
+                    self.clipboard_operation = None
+                    self.clipboard_type = None
+
+                    self.add_log_message(f"Shot '{item_name}' moved to folder '{folder_name}'")
+
+                # Auto-save the project
+                try:
+                    from vogue_core.manager import ProjectManager
+                    # Use the singleton pattern or get the existing instance
+                    manager = ProjectManager()
+                    # Try to get current project - if not available, we'll skip auto-save
+                    if hasattr(manager, 'current_project') and manager.current_project:
+                        # Save the current project state
+                        manager.save_project(manager.current_project)
+                        self.add_log_message("Project auto-saved")
+                    else:
+                        self.add_log_message("Auto-save skipped: no project loaded")
+                except Exception as e:
+                    print(f"Auto-save failed: {e}")
+                    self.add_log_message(f"Auto-save failed: {e}")
+            else:
+                QMessageBox.warning(self, "Folder Not Found", f"Could not find folder '{folder_name}'")
+        except Exception as e:
+            self.logger.error(f"Error pasting shot: {e}")
+            QMessageBox.critical(self, "Error", f"Failed to paste shot: {e}")
+
+    def create_shot(self):
+        """Create a new shot"""
+        QMessageBox.information(self, "Create Shot", "Shot creation dialog would open here")
+
+    def add_log_message(self, message: str):
+        """Add a message to the log (placeholder)"""
+        print(f"[LOG] {message}")
+
+
+class AssetTreeWidget(QTreeWidget):
+    """Custom tree widget with enhanced drag and drop support"""
+
+    def dropEvent(self, event):
+        """Handle drop events to ensure items are only dropped on folders"""
+        # Get the drop position
+        pos = event.position().toPoint()
+        target_item = self.itemAt(pos)
+
+        # Check if we're dropping on a folder
+        if target_item and target_item.data(0, Qt.ItemDataRole.UserRole) == "Folder":
+            # Allow drop on folders
+            super().dropEvent(event)
+            # Log the move
+            dragged_item = self.currentItem()
+            if dragged_item:
+                item_name = dragged_item.text(0)
+                folder_name = target_item.text(0)
+                print(f"[LOG] Asset '{item_name}' moved to folder '{folder_name}'")
+
+                # Auto-save the project after drag and drop
+                if auto_save_project(self.parent()):
+                    print("[LOG] Project auto-saved after drag and drop")
+                else:
+                    print("[LOG] Auto-save skipped after drag and drop: no project loaded")
+        elif not target_item:
+            # Allow drop on empty space (root level)
+            super().dropEvent(event)
+        else:
+            # Reject drop on non-folder items
+            event.ignore()
+
+class ShotTreeWidget(QTreeWidget):
+    """Custom tree widget with enhanced drag and drop support for shots"""
+
+    def dropEvent(self, event):
+        """Handle drop events to ensure items are only dropped on folders"""
+        # Get the drop position
+        pos = event.position().toPoint()
+        target_item = self.itemAt(pos)
+
+        # Check if we're dropping on a folder
+        if target_item and target_item.data(0, Qt.ItemDataRole.UserRole) == "Folder":
+            # Allow drop on folders
+            super().dropEvent(event)
+            # Log the move
+            dragged_item = self.currentItem()
+            if dragged_item:
+                item_name = dragged_item.text(0)
+                folder_name = target_item.text(0)
+                print(f"[LOG] Shot '{item_name}' moved to folder '{folder_name}'")
+
+                # Auto-save the project after drag and drop
+                if auto_save_project(self.parent()):
+                    print("[LOG] Project auto-saved after drag and drop")
+                else:
+                    print("[LOG] Auto-save skipped after drag and drop: no project loaded")
+        elif not target_item:
+            # Allow drop on empty space (root level)
+            super().dropEvent(event)
+        else:
+            # Reject drop on non-folder items
+            event.ignore()
+
+class ThumbnailDelegate(QStyledItemDelegate):
+    """Custom delegate for displaying thumbnails in tree widget"""
+
+    def __init__(self, parent=None):
+        super().__init__(parent)
+        self.thumbnail_size = QSize(60, 60)
+
+    def paint(self, painter, option, index):
+        """Paint the item with thumbnail"""
+        # Get the data
+        item_data = index.data(Qt.ItemDataRole.UserRole)
+        text = index.data(Qt.ItemDataRole.DisplayRole)
+
+        # Set up painter
+        painter.save()
+        painter.setRenderHint(QPainter.RenderHint.Antialiasing)
+
+        # Draw background
+        if option.state & QStyle.StateFlag.State_Selected:
+            painter.fillRect(option.rect, QColor("#73C2FB"))
+            painter.setPen(QColor("#12181F"))
+        elif option.state & QStyle.StateFlag.State_MouseOver:
+            painter.fillRect(option.rect, QColor("#212A37"))
+            painter.setPen(QColor("#E0E0E0"))
+        else:
+            painter.fillRect(option.rect, QColor("transparent"))
+            painter.setPen(QColor("#E0E0E0"))
+
+        # Draw thumbnail if available
+        if item_data and isinstance(item_data, str) and item_data != "Folder":
+            # Generate thumbnail based on item type
+            thumbnail = self.generate_thumbnail(item_data, text)
+
+            # Calculate thumbnail position (left side)
+            thumb_rect = QRect(
+                option.rect.left() + 5,
+                option.rect.top() + 5,
+                self.thumbnail_size.width(),
+                self.thumbnail_size.height()
+            )
+
+            # Draw thumbnail
+            painter.drawPixmap(thumb_rect, thumbnail)
+
+            # Draw text next to thumbnail
+            text_rect = QRect(
+                thumb_rect.right() + 10,
+                option.rect.top(),
+                option.rect.width() - thumb_rect.width() - 15,
+                option.rect.height()
+            )
+            painter.drawText(text_rect, Qt.AlignmentFlag.AlignVCenter, text)
+        else:
+            # For folders, draw folder icon
+            folder_pixmap = QPixmap(40, 40)
+            folder_pixmap.fill(QColor("transparent"))
+
+            folder_painter = QPainter(folder_pixmap)
+            folder_painter.setRenderHint(QPainter.RenderHint.Antialiasing)
+
+            # Draw folder icon
+            folder_painter.setBrush(QColor("#73C2FB"))
+            folder_painter.setPen(QPen(QColor("#3A75A3"), 2))
+
+            # Folder base
+            folder_painter.drawRect(5, 15, 30, 15)
+            # Folder tab
+            folder_painter.drawRect(2, 10, 33, 20)
+
+            folder_painter.end()
+
+            # Draw folder icon
+            folder_rect = QRect(
+                option.rect.left() + 10,
+                option.rect.top() + 10,
+                40, 40
+            )
+            painter.drawPixmap(folder_rect, folder_pixmap)
+
+            # Draw text next to folder icon
+            text_rect = QRect(
+                folder_rect.right() + 10,
+                option.rect.top(),
+                option.rect.width() - folder_rect.width() - 20,
+                option.rect.height()
+            )
+            painter.drawText(text_rect, Qt.AlignmentFlag.AlignVCenter, text)
+
+        painter.restore()
+
+    def sizeHint(self, option, index):
+        """Return the size hint for the item"""
+        return QSize(200, 70)  # Width, Height
+
+    def generate_thumbnail(self, asset_type: str, asset_name: str) -> QPixmap:
+        """Generate a thumbnail for an asset based on its type"""
+        pixmap = QPixmap(60, 60)
+        pixmap.fill(QColor("#2A3441"))
+
+        painter = QPainter(pixmap)
+        painter.setRenderHint(QPainter.RenderHint.Antialiasing)
+
+        # Draw background with rounded corners
+        painter.setBrush(QColor("#1A2332"))
+        painter.setPen(QPen(QColor("#73C2FB"), 1))
+        painter.drawRoundedRect(1, 1, 58, 58, 5, 5)
+
+        # Draw icon based on type
+        painter.setPen(QPen(QColor("#73C2FB"), 2))
+        painter.setBrush(QColor("#73C2FB"))
+
+        if asset_type.lower() in ["character", "characters"]:
+            # Draw character icon (simple person shape)
+            painter.drawEllipse(15, 8, 30, 30)  # Head
+            painter.drawRect(22, 38, 15, 20)     # Body
+            painter.drawLine(17, 43, 12, 58)      # Left arm
+            painter.drawLine(37, 43, 42, 58)      # Right arm
+            painter.drawLine(22, 58, 17, 73)      # Left leg
+            painter.drawLine(32, 58, 37, 73)      # Right leg
+
+        elif asset_type.lower() in ["prop", "props"]:
+            # Draw prop icon (cube)
+            painter.drawRect(15, 15, 30, 30)
+            painter.drawLine(15, 15, 20, 10)      # Top-left edge
+            painter.drawLine(45, 15, 50, 10)      # Top-right edge
+            painter.drawLine(20, 10, 50, 10)      # Top edge
+            painter.drawLine(50, 10, 50, 40)      # Right edge
+
+        elif asset_type.lower() in ["environment", "environments"]:
+            # Draw environment icon (landscape)
+            painter.drawRect(10, 30, 40, 15)     # Ground
+            painter.drawEllipse(8, 10, 44, 25)   # Sky
+            painter.drawLine(20, 25, 40, 25)      # Horizon
+
+        elif asset_type.lower() == "shot":
+            # Draw shot icon (camera/clapperboard)
+            painter.drawRect(10, 15, 40, 25)     # Clapperboard
+            painter.drawRect(7, 7, 15, 12)       # Camera body
+            painter.drawEllipse(5, 5, 7, 7)      # Lens
+            painter.drawLine(7, 7, 17, 17)        # Clapper arm
+
+        else:
+            # Default icon
+            painter.drawEllipse(15, 15, 30, 30)
+
+        painter.end()
+        return pixmap
+
 
 class PrismRightPanel(PrismStyleWidget):
     """Prism-style right panel with Tasks, Departments, and Asset Info"""
@@ -283,7 +1709,7 @@ class PrismRightPanel(PrismStyleWidget):
     def setup_ui(self):
         layout = QVBoxLayout(self)
         layout.setContentsMargins(5, 5, 5, 5)
-
+        
         # Asset Info section (full width since departments moved to left panel)
         self.setup_asset_info_widget()
         layout.addWidget(self.asset_info_widget)
@@ -671,12 +2097,6 @@ class PrismMainWindow(QMainWindow):
         
         file_menu.addSeparator()
         
-        # Recent files submenu
-        recent_menu = file_menu.addMenu("&Recent Projects")
-        self.recent_menu = recent_menu
-        
-        file_menu.addSeparator()
-        
         exit_action = QAction("E&xit", self)
         exit_action.setShortcut("Ctrl+Q")
         file_menu.addAction(exit_action)
@@ -699,10 +2119,6 @@ class PrismMainWindow(QMainWindow):
         
         # Assets menu
         assets_menu = menubar.addMenu("&Assets")
-        
-        add_asset_action = QAction("&Add Asset...", self)
-        add_asset_action.setShortcut("Ctrl+A")
-        assets_menu.addAction(add_asset_action)
         
         import_asset_action = QAction("&Import Asset...", self)
         import_asset_action.setShortcut("Ctrl+I")
@@ -897,10 +2313,6 @@ class PrismMainWindow(QMainWindow):
         toolbar.addSeparator()
         
         # Asset actions
-        add_asset_action = QAction("Add Asset", self)
-        add_asset_action.setToolTip("Add new asset")
-        add_asset_action.setShortcut("Ctrl+A")
-        toolbar.addAction(add_asset_action)
         
         add_shot_action = QAction("Add Shot", self)
         add_shot_action.setToolTip("Add new shot")
@@ -1078,15 +2490,6 @@ Project Information:
         button_layout.addWidget(close_btn)
         layout.addLayout(button_layout)
         
-        dialog.exec()
-    
-    def show_recent_projects_dialog(self):
-        """Show recent projects dialog"""
-        from .dialogs import RecentProjectsDialog
-
-        # Create and show recent projects dialog
-        dialog = RecentProjectsDialog(self)
-        dialog.project_selected.connect(self.load_recent_project)
         dialog.exec()
 
     def load_recent_project(self, project_path: str):

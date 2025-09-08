@@ -13,9 +13,10 @@ from datetime import datetime
 
 # Import PyQt6 only
 from PyQt6.QtWidgets import (QMainWindow, QFileDialog, QMessageBox, QInputDialog,
-                            QToolBar, QDialog, QTreeWidgetItem, QListWidgetItem, QTableWidgetItem)
-from PyQt6.QtCore import QThread, pyqtSignal, QObject, Qt, QUrl
-from PyQt6.QtGui import QDesktopServices
+                            QToolBar, QDialog, QTreeWidget, QTreeWidgetItem, QListWidgetItem, QTableWidgetItem)
+from PyQt6.QtCore import QThread, pyqtSignal, QObject, Qt, QUrl, QTimer
+from PyQt6.QtGui import QDesktopServices, QColor, QIcon
+
 QT_AVAILABLE = True
 QT_VERSION = "PyQt6"
 
@@ -61,30 +62,58 @@ class VogueController(PrismMainWindow):
         self.manager = ProjectManager()
         self.logger = get_logger("Controller")
         
-        # Set initial state
-        self.update_ui_state()
+        # Set global controller reference for auto-save
+        from vogue_app.ui import set_current_controller
+        set_current_controller(self)
         
         # Connect signals after UI is set up
         self.setup_connections()
+
+        # Auto-load last opened project AFTER UI is set up
+        QTimer.singleShot(100, self.auto_load_last_project)
         
         self.logger.info("Vogue Controller initialized")
+    
+    def auto_load_last_project(self):
+        """Automatically load the last opened project on startup"""
+        try:
+            from vogue_core.settings import settings
+
+            # Get the most recent project from settings
+            recent_projects = settings.recent_projects
+            if recent_projects and len(recent_projects) > 0:
+                # Load the most recent project (first in the list)
+                last_project = recent_projects[0]
+                project_path = last_project.get('path')
+
+                if project_path and os.path.exists(project_path):
+                    self.logger.info(f"Auto-loading last project: {last_project.get('name')} from {project_path}")
+                    self.load_project(project_path)
+                else:
+                    self.logger.info("Last project path not found or doesn't exist")
+            else:
+                self.logger.info("No recent projects found, starting with empty state")
+        except Exception as e:
+            self.logger.error(f"Failed to auto-load last project: {e}")
     
     def setup_connections(self):
         """Set up signal connections"""
         # Project browser connections
         self.project_browser.add_asset_btn.clicked.connect(self.add_asset)
         self.project_browser.add_shot_btn.clicked.connect(self.add_shot)
+        self.project_browser.new_folder_btn.clicked.connect(lambda: self.project_browser.create_folder("asset"))
+        self.project_browser.new_shot_folder_btn.clicked.connect(lambda: self.project_browser.create_folder("shot"))
         self.project_browser.refresh_assets_btn.clicked.connect(self.refresh_assets)
         self.project_browser.refresh_shots_btn.clicked.connect(self.refresh_shots)
         
         # Asset tree selection
         self.project_browser.asset_tree.itemSelectionChanged.connect(
-            self.on_asset_selection_changed
+            lambda: self.on_asset_selection_changed(self.project_browser.asset_tree.currentItem())
         )
         
         # Shot tree selection
         self.project_browser.shot_tree.itemSelectionChanged.connect(
-            self.on_shot_selection_changed
+            lambda: self.on_shot_selection_changed(self.project_browser.shot_tree.currentItem())
         )
         
         # Version manager connections
@@ -171,17 +200,73 @@ class VogueController(PrismMainWindow):
             QMessageBox.information(self, "No Recent Projects", "No recent projects found.")
             return
         
-        # Create project list
-        project_names = [f"{p['name']} ({p['path']})" for p in recent_projects]
-        
-        project_name, ok = QInputDialog.getItem(
-            self, "Select Recent Project", "Choose a project:", project_names, 0, False
-        )
-        
-        if ok and project_name:
-            # Extract path from selection
-            selected_path = project_name.split(" (")[-1].rstrip(")")
-            self.load_project(selected_path)
+        # Create a simple list dialog
+        from PyQt6.QtWidgets import QListWidget, QVBoxLayout, QDialog, QPushButton, QHBoxLayout
+
+        dialog = QDialog(self)
+        dialog.setWindowTitle("Select Recent Project")
+        dialog.setModal(True)
+
+        layout = QVBoxLayout(dialog)
+
+        # Create list widget
+        list_widget = QListWidget()
+        for project in recent_projects:
+            list_widget.addItem(f"{project['name']}\n{project['path']}")
+
+        layout.addWidget(list_widget)
+
+        # Buttons
+        button_layout = QHBoxLayout()
+        open_btn = QPushButton("Open")
+        open_btn.setDefault(True)
+        cancel_btn = QPushButton("Cancel")
+
+        button_layout.addStretch()
+        button_layout.addWidget(open_btn)
+        button_layout.addWidget(cancel_btn)
+        layout.addLayout(button_layout)
+
+        # Connect buttons
+        def on_open():
+            current_item = list_widget.currentItem()
+            if current_item:
+                # Find the corresponding project
+                item_text = current_item.text()
+                for project in recent_projects:
+                    if project['name'] in item_text and project['path'] in item_text:
+                        # Always close dialog first, then load project
+                        dialog.accept()  # Close dialog immediately
+                        try:
+                            self.load_project(project['path'])
+                        except Exception as e:
+                            QMessageBox.warning(None, "Load Error", f"Failed to load project: {e}")
+                        return
+            QMessageBox.warning(dialog, "No Selection", "Please select a project to open.")
+
+        def on_cancel():
+            dialog.reject()
+
+        open_btn.clicked.connect(on_open)
+        cancel_btn.clicked.connect(on_cancel)
+
+        # Handle double-click on items
+        def on_double_click(item):
+            # Find the corresponding project
+            item_text = item.text()
+            for project in recent_projects:
+                if project['name'] in item_text and project['path'] in item_text:
+                    # Always close dialog first, then load project
+                    dialog.accept()  # Close dialog immediately
+                    try:
+                        self.load_project(project['path'])
+                    except Exception as e:
+                        QMessageBox.warning(None, "Load Error", f"Failed to load project: {e}")
+                    return
+
+        list_widget.itemDoubleClicked.connect(on_double_click)
+
+        dialog.exec()
     
     def load_project(self, project_path: str):
         """Load a project"""
@@ -191,6 +276,12 @@ class VogueController(PrismMainWindow):
             # Load project
             project = self.manager.load_project(project_path)
             
+            # Normalize project data: ensure 'Main' folder exists and assign unassigned assets
+            try:
+                self._normalize_project()
+            except Exception as norm_err:
+                self.logger.error(f"Normalization failed: {norm_err}")
+
             # Add to recent projects
             settings.add_recent_project(project.name, project.path)
             
@@ -211,6 +302,78 @@ class VogueController(PrismMainWindow):
             error_msg = f"Failed to load project: {e}"
             self.logger.error(error_msg)
             QMessageBox.critical(self, "Error", error_msg)
+
+    def _normalize_project(self):
+        """Ensure a 'Main' asset folder exists and all assets are assigned to a folder.
+
+        - Creates a 'Main' folder (type='asset') if missing
+        - Assigns any unassigned assets to 'Main'
+        - Deduplicates asset references inside folders
+        """
+        project = self.manager.current_project
+        if not project:
+            return
+
+        # Ensure folders list exists
+        if not hasattr(project, 'folders') or project.folders is None:
+            project.folders = []
+
+        # Find or create 'Main' folder (asset type)
+        main_folder = None
+        for f in project.folders:
+            if getattr(f, 'type', None) == 'asset' and getattr(f, 'name', '') == 'Main':
+                main_folder = f
+                break
+        if main_folder is None:
+            from vogue_core.models import Folder
+            main_folder = Folder(name='Main', type='asset', assets=[], shots=[])
+            project.folders.append(main_folder)
+
+        # Build set of assets referenced by folders
+        assets_in_folders = set()
+        for f in project.folders:
+            if getattr(f, 'type', None) == 'asset':
+                # Deduplicate in-place
+                if hasattr(f, 'assets') and f.assets:
+                    seen = set()
+                    deduped = []
+                    for a_name in f.assets:
+                        if a_name not in seen:
+                            seen.add(a_name)
+                            deduped.append(a_name)
+                    f.assets = deduped
+                    assets_in_folders.update(deduped)
+
+        # Ensure project.assets contains entries for any names referenced by folders
+        from vogue_core.models import Asset as _VMAsset
+        existing_asset_names = set(a.name for a in (project.assets or []))
+        for name in list(assets_in_folders):
+            if name not in existing_asset_names:
+                project.assets.append(_VMAsset(name=name, type="Asset"))
+                existing_asset_names.add(name)
+
+        # Assign any unassigned assets to 'Main'
+        for a in project.assets or []:
+            if a.name not in assets_in_folders:
+                main_folder.assets.append(a.name)
+                assets_in_folders.add(a.name)
+
+        # Final dedupe of Main
+        if hasattr(main_folder, 'assets') and main_folder.assets:
+            main_folder.assets = list(dict.fromkeys(main_folder.assets))
+
+        # Rebuild project.assets strictly from folder listings; treat all as generic 'Asset'
+        from vogue_core.models import Asset as _VMAsset
+        rebuilt_assets = []
+        seen_assets = set()
+        for f in project.folders:
+            if getattr(f, 'type', None) == 'asset':
+                for a_name in getattr(f, 'assets', []) or []:
+                    if a_name and a_name not in seen_assets:
+                        seen_assets.add(a_name)
+                        rebuilt_assets.append(_VMAsset(name=a_name, type="Asset"))
+
+        project.assets = rebuilt_assets
     
     def save_project(self):
         """Save the current project"""
@@ -275,10 +438,10 @@ class VogueController(PrismMainWindow):
         self.update_ui_state()
         self.logger.info("Filesystem scan completed")
         self.add_log_message("Filesystem scan completed")
-
+    
         # Clean up the worker thread to prevent memory leaks
         self._cleanup_worker_thread()
-
+    
     def on_scan_error(self, error_msg: str):
         """Handle filesystem scan error"""
         self.logger.error(f"Filesystem scan error: {error_msg}")
@@ -380,8 +543,7 @@ class VogueController(PrismMainWindow):
                 action.triggered.connect(self.export_project)
             elif "Settings" in text:
                 action.triggered.connect(self.project_settings)
-            elif "Recent" in text:
-                action.triggered.connect(self.show_recent_projects_dialog)
+            # Note: Recent Projects is handled by specific connection above
 
     def _connect_edit_menu_actions(self, edit_menu):
         """Connect edit menu actions"""
@@ -463,7 +625,24 @@ class VogueController(PrismMainWindow):
     
     def add_shot(self):
         """Add a new shot"""
-        QMessageBox.information(self, "Add Shot", "Add shot functionality not yet implemented.")
+        if not self.manager.current_project:
+            QMessageBox.warning(self, "No Project", "Please load a project first.")
+            return
+
+        try:
+            # Create shot creation dialog
+            from vogue_app.dialogs import CreateShotDialog
+            dialog = CreateShotDialog(self)
+
+            if dialog.exec() == QDialog.DialogCode.Accepted:
+                shot_data = dialog.get_shot_data()
+                self.create_shot(shot_data)
+                self.refresh_shots()
+                self.add_log_message(f"Shot '{shot_data['name']}' added successfully")
+
+        except Exception as e:
+            self.logger.error(f"Error adding shot: {e}")
+            QMessageBox.critical(self, "Error", f"Failed to add shot: {e}")
     
     def refresh_assets(self):
         """Refresh assets list"""
@@ -477,11 +656,90 @@ class VogueController(PrismMainWindow):
     
     def import_version(self):
         """Import a version"""
-        QMessageBox.information(self, "Import Version", "Import version functionality not yet implemented.")
+        if not self.manager.current_project:
+            QMessageBox.warning(self, "No Project", "Please load a project first.")
+            return
+
+        try:
+            file_path, _ = QFileDialog.getOpenFileName(
+                self, "Import Version", "", "All Files (*.*)"
+            )
+
+            if file_path:
+                # Get current selection
+                current_item = self.version_manager.version_table.currentItem()
+                if not current_item:
+                    QMessageBox.warning(self, "No Selection", "Please select an asset or shot first.")
+                    return
+
+                # Import the file as a new version
+                import shutil
+                import os
+                from pathlib import Path
+
+                # Create version directory
+                asset_name = self.get_current_asset_name()
+                version_dir = Path(self.manager.current_project.path) / "01_Assets" / asset_name / "versions"
+                version_dir.mkdir(parents=True, exist_ok=True)
+
+                # Copy file
+                file_name = Path(file_path).name
+                dest_path = version_dir / file_name
+                shutil.copy2(file_path, dest_path)
+
+                # Create version entry
+                version_data = {
+                    'version': f"v{len(os.listdir(version_dir)):03d}",
+                    'user': os.getenv('USERNAME', 'Unknown'),
+                    'comment': f"Imported from {file_path}"
+                }
+
+                self.add_log_message(f"Version imported: {dest_path}")
+                self.update_ui_state()
+
+        except Exception as e:
+            self.logger.error(f"Error importing version: {e}")
+            QMessageBox.critical(self, "Error", f"Failed to import version: {e}")
     
     def export_version(self):
         """Export a version"""
-        QMessageBox.information(self, "Export Version", "Export version functionality not yet implemented.")
+        if not self.manager.current_project:
+            QMessageBox.warning(self, "No Project", "Please load a project first.")
+            return
+
+        try:
+            # Get selected version
+            current_row = self.version_manager.version_table.currentRow()
+            if current_row < 0:
+                QMessageBox.warning(self, "No Selection", "Please select a version to export.")
+                return
+
+            # Get version data
+            path_item = self.version_manager.version_table.item(current_row, 5)
+            if not path_item:
+                QMessageBox.warning(self, "No Path", "Selected version has no file path.")
+                return
+
+            source_path = path_item.text()
+            if not Path(source_path).exists():
+                QMessageBox.warning(self, "File Not Found", f"File does not exist: {source_path}")
+                return
+
+            # Choose export location
+            file_name = Path(source_path).name
+            export_path, _ = QFileDialog.getSaveFileName(
+                self, "Export Version", file_name, "All Files (*.*)"
+            )
+
+            if export_path:
+                import shutil
+                shutil.copy2(source_path, export_path)
+                self.add_log_message(f"Version exported to: {export_path}")
+                QMessageBox.information(self, "Export Complete", f"Version exported to: {export_path}")
+
+        except Exception as e:
+            self.logger.error(f"Error exporting version: {e}")
+            QMessageBox.critical(self, "Error", f"Failed to export version: {e}")
     
     def open_selected_version(self):
         """Open the selected version"""
@@ -494,11 +752,89 @@ class VogueController(PrismMainWindow):
     
     def copy_selected_version(self):
         """Copy the selected version"""
-        QMessageBox.information(self, "Copy Version", "Copy version functionality not yet implemented.")
+        if not self.manager.current_project:
+            QMessageBox.warning(self, "No Project", "Please load a project first.")
+            return
+
+        try:
+            current_row = self.version_manager.version_table.currentRow()
+            if current_row < 0:
+                QMessageBox.warning(self, "No Selection", "Please select a version to copy.")
+                return
+
+            # Get version data
+            path_item = self.version_manager.version_table.item(current_row, 5)
+            if not path_item:
+                QMessageBox.warning(self, "No Path", "Selected version has no file path.")
+                return
+
+            source_path = path_item.text()
+            if not Path(source_path).exists():
+                QMessageBox.warning(self, "File Not Found", f"File does not exist: {source_path}")
+                return
+
+            # Choose copy destination
+            file_name = Path(source_path).name
+            copy_path, _ = QFileDialog.getSaveFileName(
+                self, "Copy Version", f"copy_{file_name}", "All Files (*.*)"
+            )
+
+            if copy_path:
+                import shutil
+                shutil.copy2(source_path, copy_path)
+                self.add_log_message(f"Version copied to: {copy_path}")
+                QMessageBox.information(self, "Copy Complete", f"Version copied to: {copy_path}")
+
+        except Exception as e:
+            self.logger.error(f"Error copying version: {e}")
+            QMessageBox.critical(self, "Error", f"Failed to copy version: {e}")
     
     def delete_selected_version(self):
         """Delete the selected version"""
-        QMessageBox.information(self, "Delete Version", "Delete version functionality not yet implemented.")
+        if not self.manager.current_project:
+            QMessageBox.warning(self, "No Project", "Please load a project first.")
+            return
+
+        try:
+            current_row = self.version_manager.version_table.currentRow()
+            if current_row < 0:
+                QMessageBox.warning(self, "No Selection", "Please select a version to delete.")
+                return
+
+            # Confirm deletion
+            reply = QMessageBox.question(
+                self, "Confirm Delete",
+                "Are you sure you want to delete this version?\nThis action cannot be undone.",
+                QMessageBox.StandardButton.Yes | QMessageBox.StandardButton.No,
+                QMessageBox.StandardButton.No
+            )
+
+            if reply != QMessageBox.StandardButton.Yes:
+                return
+
+            # Get version data
+            path_item = self.version_manager.version_table.item(current_row, 5)
+            if not path_item:
+                QMessageBox.warning(self, "No Path", "Selected version has no file path.")
+                return
+
+            source_path = path_item.text()
+            if not Path(source_path).exists():
+                QMessageBox.warning(self, "File Not Found", f"File does not exist: {source_path}")
+                return
+
+            # Delete the file
+            Path(source_path).unlink()
+
+            # Remove from table
+            self.version_manager.version_table.removeRow(current_row)
+
+            self.add_log_message(f"Version deleted: {source_path}")
+            QMessageBox.information(self, "Delete Complete", "Version deleted successfully.")
+
+        except Exception as e:
+            self.logger.error(f"Error deleting version: {e}")
+            QMessageBox.critical(self, "Error", f"Failed to delete version: {e}")
     
     def on_version_selection_changed(self):
         """Handle version selection change"""
@@ -533,9 +869,6 @@ class VogueController(PrismMainWindow):
             self.version_manager.copy_btn.setEnabled(False)
             self.version_manager.delete_btn.setEnabled(False)
     
-    def import_asset(self):
-        """Import an asset"""
-        QMessageBox.information(self, "Import Asset", "Import asset functionality not yet implemented.")
     
     def generate_thumbnails(self):
         """Generate thumbnails for versions"""
@@ -708,15 +1041,15 @@ class VogueController(PrismMainWindow):
     def get_current_asset(self):
         """Get currently selected asset"""
         current_item = self.project_browser.asset_tree.currentItem()
-        if current_item and current_item.parent():
-            return current_item.data(0, Qt.ItemDataRole.UserRole)
+        if current_item and current_item.data(0, Qt.ItemDataRole.UserRole) != "Folder":
+            return current_item.text(0)
         return None
     
     def get_current_shot(self):
         """Get currently selected shot"""
         current_item = self.project_browser.shot_tree.currentItem()
-        if current_item and current_item.parent():
-            return current_item.data(0, Qt.ItemDataRole.UserRole)
+        if current_item and current_item.data(0, Qt.ItemDataRole.UserRole) != "Folder":
+            return current_item.text(0)
         return None
     
     def publish_version(self, entity, publish_data):
@@ -1064,61 +1397,55 @@ class VogueController(PrismMainWindow):
         """Save project with new name"""
         QMessageBox.information(self, "Save As", "Save as functionality not yet implemented.")
     
-    def on_asset_selection_changed(self):
+    def on_asset_selection_changed(self, current_item):
         """Handle asset selection change"""
-        current_item = self.project_browser.asset_tree.currentItem()
-        
-        if not current_item or current_item.parent() is None:
-            # No asset selected or type selected
+        if not current_item:
+            # No asset selected
             self.update_versions_table([])
             self.version_manager.entity_name_label.setText("No Selection")
             self.version_manager.entity_type_label.setText("")
             return
         
-        # Get asset data
-        asset = current_item.data(0, Qt.ItemDataRole.UserRole)
-        if not asset:
-            return
+        # Get asset name and type
+        asset_name = current_item.text(0)
+        asset_type = current_item.data(0, Qt.ItemDataRole.UserRole)
         
         # Update entity info
-        self.version_manager.entity_name_label.setText(asset.name)
-        self.version_manager.entity_type_label.setText(f"Asset - {asset.type}")
+        self.version_manager.entity_name_label.setText(asset_name)
+        self.version_manager.entity_type_label.setText(f"Asset - {asset_type}")
 
-        # Update versions table
-        self.update_versions_table(asset.versions)
+        # For now, show empty versions table (can be enhanced later)
+        self.update_versions_table([])
 
-        # Update asset info panel
-        self.update_asset_info(asset)
-
+        # Update asset info panel with basic info
+        self.update_asset_info_for_list(asset_name, asset_type)
+        
         # Enable publish button
         self.version_manager.publish_btn.setEnabled(True)
     
-    def on_shot_selection_changed(self):
+    def on_shot_selection_changed(self, current_item):
         """Handle shot selection change"""
-        current_item = self.project_browser.shot_tree.currentItem()
-        
-        if not current_item or current_item.parent() is None:
-            # No shot selected or sequence selected
+        if not current_item:
+            # No shot selected
             self.update_versions_table([])
             self.version_manager.entity_name_label.setText("No Selection")
             self.version_manager.entity_type_label.setText("")
             return
         
-        # Get shot data
-        shot = current_item.data(0, Qt.ItemDataRole.UserRole)
-        if not shot:
-            return
+        # Get shot name and sequence
+        shot_name = current_item.text(0)
+        shot_sequence = current_item.data(0, Qt.ItemDataRole.UserRole)
         
         # Update entity info
-        self.version_manager.entity_name_label.setText(shot.name)
-        self.version_manager.entity_type_label.setText(f"Shot - {shot.sequence}")
+        self.version_manager.entity_name_label.setText(shot_name)
+        self.version_manager.entity_type_label.setText(f"Shot - {shot_sequence}")
 
-        # Update versions table
-        self.update_versions_table(shot.versions)
+        # For now, show empty versions table (can be enhanced later)
+        self.update_versions_table([])
 
-        # Update asset info panel (show shot info)
-        self.update_asset_info(shot)
-
+        # Update asset info panel with basic shot info
+        self.update_shot_info_for_list(shot_name, shot_sequence)
+        
         # Enable publish button
         self.version_manager.publish_btn.setEnabled(True)
     
@@ -1167,9 +1494,29 @@ class VogueController(PrismMainWindow):
             
             # Update shots tree
             self.update_shots_tree()
+
+            # Sync project data to ensure UI consistency
+            self.sync_project_to_ui()
             
             # Update recent projects
             self.update_recent_projects()
+
+    def sync_project_to_ui(self):
+        """Sync project model data to UI to ensure consistency"""
+        if not self.manager.current_project:
+            return
+
+
+        try:
+            # The update_assets_tree and update_shots_tree methods already handle
+            # syncing from project to UI, so we just need to make sure they're called
+            # This method serves as a central point for any additional sync operations
+
+            # Ensure trees are properly expanded and updated
+            self.project_browser.asset_tree.expandAll()
+            self.project_browser.shot_tree.expandAll()
+        except Exception as e:
+            self.logger.error(f"Failed to sync project to UI: {e}")
             
             # Add log message
             self.add_log_message("Project loaded successfully")
@@ -1185,69 +1532,171 @@ class VogueController(PrismMainWindow):
     
     def update_assets_tree(self):
         """Update the assets tree widget"""
-        self.project_browser.asset_tree.clear()
-        
         if not self.manager.current_project:
             return
         
-        # Group assets by type
-        assets_by_type = {}
+
+        # Clear the tree first
+        self.project_browser.asset_tree.clear()
+
+        # Create asset folders from saved folder structure
+        asset_folders = [f for f in self.manager.current_project.folders if f.type == "asset"]
+
+        # Track which assets have been placed in folders
+        placed_assets = set()
+
+        if asset_folders:
+            # Recreate the custom folder structure
+            for folder in asset_folders:
+                # Create folder
+                folder_item = QTreeWidgetItem(self.project_browser.asset_tree)
+                folder_item.setText(0, folder.name)
+                folder_item.setData(0, Qt.ItemDataRole.UserRole, "Folder")
+
+                # Add assets to the folder
+                for asset_name in folder.assets:
+                    # Find the asset in the project
+                    asset = None
+                    for a in self.manager.current_project.assets:
+                        if a.name == asset_name:
+                            asset = a
+                            break
+
+                    if asset:
+                        asset_item = QTreeWidgetItem(folder_item)
+                        asset_item.setText(0, asset.name)
+                        asset_item.setData(0, Qt.ItemDataRole.UserRole, "Asset")
+                        placed_assets.add(asset_name)
+
+        # Add any remaining assets that aren't in custom folders
+        # Put them in a default "Assets" folder or similar
+        remaining_assets = []
         for asset in self.manager.current_project.assets:
-            asset_type = asset.type
-            if asset_type not in assets_by_type:
-                assets_by_type[asset_type] = []
-            assets_by_type[asset_type].append(asset)
-        
-        # Create tree items
-        for asset_type, assets in assets_by_type.items():
-            type_item = QTreeWidgetItem(self.project_browser.asset_tree)
-            type_item.setText(0, asset_type)
-            type_item.setText(1, asset_type)
-            type_item.setText(2, str(len(assets)))
-            type_item.setData(0, Qt.ItemDataRole.UserRole, asset_type)
-            
-            for asset in assets:
-                asset_item = QTreeWidgetItem(type_item)
+            if asset.name not in placed_assets:
+                remaining_assets.append(asset)
+
+        if remaining_assets:
+            # Create a default folder for unassigned assets named 'Main'
+            default_folder = QTreeWidgetItem(self.project_browser.asset_tree)
+            default_folder.setText(0, "Main")
+            default_folder.setData(0, Qt.ItemDataRole.UserRole, "Folder")
+
+            for asset in remaining_assets:
+                asset_item = QTreeWidgetItem(default_folder)
                 asset_item.setText(0, asset.name)
-                asset_item.setText(1, asset.type)
-                asset_item.setText(2, str(len(asset.versions)))
-                asset_item.setData(0, Qt.ItemDataRole.UserRole, asset)
+                asset_item.setData(0, Qt.ItemDataRole.UserRole, "Asset")
         
-        # Expand all items
+        # Expand all folders so assets are immediately visible
         self.project_browser.asset_tree.expandAll()
+    
+        # Optional: If no custom folders and no remaining assets, ensure 'Main' is visible
+        if self.project_browser.asset_tree.topLevelItemCount() == 0:
+            main_item = QTreeWidgetItem(self.project_browser.asset_tree)
+            main_item.setText(0, "Main")
+            main_item.setData(0, Qt.ItemDataRole.UserRole, "Folder")
     
     def update_shots_tree(self):
         """Update the shots tree widget"""
-        self.project_browser.shot_tree.clear()
-        
         if not self.manager.current_project:
             return
         
-        # Group shots by sequence
-        shots_by_sequence = {}
-        for shot in self.manager.current_project.shots:
-            sequence = shot.sequence
-            if sequence not in shots_by_sequence:
-                shots_by_sequence[sequence] = []
-            shots_by_sequence[sequence].append(shot)
+
+        # Clear the tree first
+        self.project_browser.shot_tree.clear()
+
+        # Create shot folders from saved folder structure
+        shot_folders = [f for f in self.manager.current_project.folders if f.type == "shot"]
+
+        if shot_folders:
+            # Recreate the custom folder structure
+            for folder in shot_folders:
+                # Create folder
+                folder_item = QTreeWidgetItem(self.project_browser.shot_tree)
+                folder_item.setText(0, folder.name)
+                folder_item.setData(0, Qt.ItemDataRole.UserRole, "Folder")
+
+                # Add shots to the folder
+                for shot_name in folder.shots:
+                    # Find the shot in the project
+                    shot = None
+                    for s in self.manager.current_project.shots:
+                        if s.name == shot_name:
+                            shot = s
+                            break
+
+                    if shot:
+                        shot_item = QTreeWidgetItem(folder_item)
+                        shot_item.setText(0, shot.name)
+                        shot_item.setData(0, Qt.ItemDataRole.UserRole, "Shot")
+        else:
+            # Fallback: group shots by sequence if no custom folders exist
+            if self.manager.current_project.shots:
+                # Group shots by sequence
+                shots_by_sequence = {}
+                for shot in self.manager.current_project.shots:
+                    sequence = shot.sequence
+                    if sequence not in shots_by_sequence:
+                        shots_by_sequence[sequence] = []
+                    shots_by_sequence[sequence].append(shot)
+
+                # Create sequence folders and add shots
+                for sequence, shots in shots_by_sequence.items():
+                    # Create sequence folder
+                    seq_folder = QTreeWidgetItem(self.project_browser.shot_tree)
+                    seq_folder.setText(0, sequence)
+                    seq_folder.setData(0, Qt.ItemDataRole.UserRole, "Folder")
+
+                    # Add shots to the sequence
+                    for shot in shots:
+                        shot_item = QTreeWidgetItem(seq_folder)
+                        shot_item.setText(0, shot.name)
+                        shot_item.setData(0, Qt.ItemDataRole.UserRole, "Shot")
         
-        # Create tree items
-        for sequence, shots in shots_by_sequence.items():
-            seq_item = QTreeWidgetItem(self.project_browser.shot_tree)
-            seq_item.setText(0, sequence)
-            seq_item.setText(1, sequence)
-            seq_item.setText(2, str(len(shots)))
-            seq_item.setData(0, Qt.ItemDataRole.UserRole, sequence)
-            
-            for shot in shots:
-                shot_item = QTreeWidgetItem(seq_item)
-                shot_item.setText(0, shot.name)
-                shot_item.setText(1, shot.sequence)
-                shot_item.setText(2, str(len(shot.versions)))
-                shot_item.setData(0, Qt.ItemDataRole.UserRole, shot)
-        
-        # Expand all items
+        # Expand all folders so shots are immediately visible
         self.project_browser.shot_tree.expandAll()
+
+        # Add a summary item at the top showing all shots
+        if self.manager.current_project.shots:
+            # Check if summary already exists
+            summary_exists = False
+            for i in range(self.project_browser.shot_tree.topLevelItemCount()):
+                item = self.project_browser.shot_tree.topLevelItem(i)
+                if item.data(0, Qt.ItemDataRole.UserRole) == "Summary":
+                    summary_exists = True
+                    break
+
+            if not summary_exists:
+                summary_item = QTreeWidgetItem(self.project_browser.shot_tree)
+                summary_item.setText(0, f"🎬 All Shots ({len(self.manager.current_project.shots)} total)")
+                summary_item.setData(0, Qt.ItemDataRole.UserRole, "Summary")
+
+                # Add all shots in a flat list for easy access
+                for shot in self.manager.current_project.shots:
+                    shot_item = QTreeWidgetItem(summary_item)
+                    shot_item.setText(0, shot.name)
+                    shot_item.setData(0, Qt.ItemDataRole.UserRole, "Shot")
+
+                summary_item.setExpanded(True)  # Expand summary by default
+
+    def update_asset_info_for_list(self, asset_name: str, asset_type: str):
+        """Update asset info panel for list-based assets"""
+        if hasattr(self.right_panel, 'asset_name_label'):
+            self.right_panel.asset_name_label.setText(asset_name)
+            self.right_panel.asset_type_label.setText(asset_type)
+            self.right_panel.asset_path_label.setText("Path: Not Available")
+            self.right_panel.asset_status_label.setText("Status: Active")
+            self.right_panel.asset_artist_label.setText("Artist: Unknown")
+            self.right_panel.asset_date_label.setText("Modified: Today")
+
+    def update_shot_info_for_list(self, shot_name: str, shot_sequence: str):
+        """Update asset info panel for list-based shots"""
+        if hasattr(self.right_panel, 'asset_name_label'):
+            self.right_panel.asset_name_label.setText(shot_name)
+            self.right_panel.asset_type_label.setText(f"Shot - {shot_sequence}")
+            self.right_panel.asset_path_label.setText("Path: Not Available")
+            self.right_panel.asset_status_label.setText("Status: Active")
+            self.right_panel.asset_artist_label.setText("Artist: Unknown")
+            self.right_panel.asset_date_label.setText("Modified: Today")
     
     def update_recent_projects(self):
         """Update the recent projects list"""
@@ -1326,28 +1775,160 @@ class VogueController(PrismMainWindow):
     # Task management methods
     def new_task(self):
         """Create a new task"""
-        QMessageBox.information(self, "New Task", "Task creation functionality will be implemented.")
+        if not self.manager.current_project:
+            QMessageBox.warning(self, "No Project", "Please load a project first.")
+            return
+
+        try:
+            # Create task creation dialog
+            from vogue_app.dialogs import CreateTaskDialog
+            dialog = CreateTaskDialog(self)
+
+            if dialog.exec() == QDialog.DialogCode.Accepted:
+                task_data = dialog.get_task_data()
+
+                # Add to tasks list
+                task_text = f"{task_data['name']} - {task_data['status']}"
+                item = QListWidgetItem(task_text)
+                self.project_browser.tasks_list.addItem(item)
+
+                self.add_log_message(f"Task '{task_data['name']}' created successfully")
+
+        except Exception as e:
+            self.logger.error(f"Error creating task: {e}")
+            QMessageBox.critical(self, "Error", f"Failed to create task: {e}")
 
     def assign_task(self):
         """Assign a task to someone"""
-        QMessageBox.information(self, "Assign Task", "Task assignment functionality will be implemented.")
+        current_item = self.project_browser.tasks_list.currentItem()
+        if not current_item:
+            QMessageBox.warning(self, "No Selection", "Please select a task to assign.")
+            return
+
+        try:
+            # Simple assignment dialog
+            user, ok = QInputDialog.getText(
+                self, "Assign Task",
+                "Enter user name to assign this task to:",
+                QLineEdit.EchoMode.Normal,
+                ""
+            )
+
+            if ok and user:
+                current_text = current_item.text()
+                new_text = f"{current_text} [Assigned to: {user}]"
+                current_item.setText(new_text)
+                self.add_log_message(f"Task assigned to {user}")
+
+        except Exception as e:
+            self.logger.error(f"Error assigning task: {e}")
+            QMessageBox.critical(self, "Error", f"Failed to assign task: {e}")
 
     def complete_task(self):
         """Mark a task as completed"""
-        QMessageBox.information(self, "Complete Task", "Task completion functionality will be implemented.")
+        current_item = self.project_browser.tasks_list.currentItem()
+        if not current_item:
+            QMessageBox.warning(self, "No Selection", "Please select a task to complete.")
+            return
+
+        try:
+            # Confirm completion
+            reply = QMessageBox.question(
+                self, "Complete Task",
+                "Mark this task as completed?",
+                QMessageBox.StandardButton.Yes | QMessageBox.StandardButton.No,
+                QMessageBox.StandardButton.Yes
+            )
+
+            if reply == QMessageBox.StandardButton.Yes:
+                current_text = current_item.text()
+                new_text = f"{current_text} - COMPLETED"
+                current_item.setText(new_text)
+
+                # Change text color to indicate completion
+                current_item.setForeground(QColor("#4CAF50"))  # Green color
+
+                self.add_log_message("Task marked as completed")
+
+        except Exception as e:
+            self.logger.error(f"Error completing task: {e}")
+            QMessageBox.critical(self, "Error", f"Failed to complete task: {e}")
 
     # Department management methods
     def add_department(self):
         """Add a new department"""
-        QMessageBox.information(self, "Add Department", "Department creation functionality will be implemented.")
+        try:
+            # Simple department creation dialog
+            dept_name, ok = QInputDialog.getText(
+                self, "Add Department",
+                "Enter department name:",
+                QLineEdit.EchoMode.Normal,
+                ""
+            )
+
+            if ok and dept_name:
+                dept_text = f"{dept_name} - Active"
+                item = QListWidgetItem(dept_text)
+                self.project_browser.departments_list.addItem(item)
+                self.add_log_message(f"Department '{dept_name}' added successfully")
+
+        except Exception as e:
+            self.logger.error(f"Error adding department: {e}")
+            QMessageBox.critical(self, "Error", f"Failed to add department: {e}")
 
     def edit_department(self):
         """Edit an existing department"""
-        QMessageBox.information(self, "Edit Department", "Department editing functionality will be implemented.")
+        current_item = self.project_browser.departments_list.currentItem()
+        if not current_item:
+            QMessageBox.warning(self, "No Selection", "Please select a department to edit.")
+            return
+
+        try:
+            current_text = current_item.text()
+            dept_name = current_text.split(" - ")[0]  # Extract department name
+
+            # Edit department name dialog
+            new_name, ok = QInputDialog.getText(
+                self, "Edit Department",
+                "Enter new department name:",
+                QLineEdit.EchoMode.Normal,
+                dept_name
+            )
+
+            if ok and new_name:
+                new_text = f"{new_name} - Active"
+                current_item.setText(new_text)
+                self.add_log_message(f"Department renamed to '{new_name}'")
+
+        except Exception as e:
+            self.logger.error(f"Error editing department: {e}")
+            QMessageBox.critical(self, "Error", f"Failed to edit department: {e}")
 
     def remove_department(self):
         """Remove a department"""
-        QMessageBox.information(self, "Remove Department", "Department removal functionality will be implemented.")
+        current_item = self.project_browser.departments_list.currentItem()
+        if not current_item:
+            QMessageBox.warning(self, "No Selection", "Please select a department to remove.")
+            return
+
+        try:
+            # Confirm removal
+            reply = QMessageBox.question(
+                self, "Remove Department",
+                "Are you sure you want to remove this department?",
+                QMessageBox.StandardButton.Yes | QMessageBox.StandardButton.No,
+                QMessageBox.StandardButton.No
+            )
+
+            if reply == QMessageBox.StandardButton.Yes:
+                dept_name = current_item.text().split(" - ")[0]
+                row = self.project_browser.departments_list.row(current_item)
+                self.project_browser.departments_list.takeItem(row)
+                self.add_log_message(f"Department '{dept_name}' removed")
+
+        except Exception as e:
+            self.logger.error(f"Error removing department: {e}")
+            QMessageBox.critical(self, "Error", f"Failed to remove department: {e}")
 
     # Department tools methods
     def open_farm_monitor(self):
@@ -1436,7 +2017,7 @@ class VogueController(PrismMainWindow):
                 self.right_panel.asset_artist_label.setText("-")
                 self.right_panel.asset_date_label.setText("-")
                 self.right_panel.asset_metadata_text.setPlainText("No metadata available")
-
+    
     def show(self):
         """Show the main window"""
         super().show()
