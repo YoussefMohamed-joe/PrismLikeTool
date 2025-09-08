@@ -44,48 +44,20 @@ class ProjectBrowser(PrismStyleWidget):
     def setup_ui(self):
         layout = QVBoxLayout(self)
         layout.setContentsMargins(5, 5, 5, 5)
-        
-        # Project info header
-        header_frame = QFrame()
-        header_frame.setFrameStyle(QFrame.Shape.Box)
-        header_frame.setStyleSheet("QFrame { background-color: #404040; border: 1px solid #555555; }")
-        header_layout = QVBoxLayout(header_frame)
-        
-        self.project_name_label = QLabel("No Project")
-        self.project_name_label.setProperty("class", "title")
-        self.project_name_label.setAlignment(Qt.AlignmentFlag.AlignCenter)
-        header_layout.addWidget(self.project_name_label)
-        
-        self.project_path_label = QLabel("")
-        self.project_path_label.setProperty("class", "muted")
-        self.project_path_label.setAlignment(Qt.AlignmentFlag.AlignCenter)
-        self.project_path_label.setWordWrap(True)
-        header_layout.addWidget(self.project_path_label)
-        
-        layout.addWidget(header_frame)
-        
-        # Browse button
-        self.browse_btn = QPushButton("Browse Project...")
-        self.browse_btn.setProperty("class", "primary")
-        layout.addWidget(self.browse_btn)
-        
-        # Recent projects
-        recent_group = QGroupBox("Recent Projects")
-        recent_layout = QVBoxLayout(recent_group)
-        
-        self.recent_list = QListWidget()
-        self.recent_list.setMaximumHeight(80)  # Reduce height to give more space to assets/shots
-        recent_layout.addWidget(self.recent_list)
-        
-        layout.addWidget(recent_group)
-        
-        # Main content area
-        content_splitter = QSplitter(Qt.Orientation.Vertical)
-        
-        # Assets section
-        assets_group = QGroupBox("Assets")
-        assets_layout = QVBoxLayout(assets_group)
-        
+
+        # Main content area with tabs only
+        self.tab_widget = QTabWidget()
+        self.tab_widget.setTabPosition(QTabWidget.TabPosition.North)
+        self.tab_widget.setDocumentMode(True)  # Modern tab style
+
+        # Set the tab widget to take full space
+        layout.addWidget(self.tab_widget)
+
+        # Assets tab
+        assets_tab = QWidget()
+        assets_layout = QVBoxLayout(assets_tab)
+        assets_layout.setContentsMargins(5, 5, 5, 5)
+
         # Asset type filter
         filter_layout = QHBoxLayout()
         self.asset_type_combo = QComboBox()
@@ -94,31 +66,33 @@ class ProjectBrowser(PrismStyleWidget):
         filter_layout.addWidget(self.asset_type_combo)
         filter_layout.addStretch()
         assets_layout.addLayout(filter_layout)
-        
+
         # Asset tree
         self.asset_tree = QTreeWidget()
         self.asset_tree.setHeaderLabels(["Name", "Type", "Versions"])
         self.asset_tree.setRootIsDecorated(True)
         self.asset_tree.setAlternatingRowColors(True)
         self.asset_tree.setSortingEnabled(True)
-        self.asset_tree.setMinimumHeight(200)  # Give more height to asset tree
+        self.asset_tree.setMinimumHeight(300)
         assets_layout.addWidget(self.asset_tree)
-        
+
         # Asset buttons
         asset_btn_layout = QHBoxLayout()
         self.add_asset_btn = QPushButton("Add Asset")
+        self.add_asset_btn.setProperty("class", "primary")
         self.refresh_assets_btn = QPushButton("Refresh")
         asset_btn_layout.addWidget(self.add_asset_btn)
         asset_btn_layout.addWidget(self.refresh_assets_btn)
         asset_btn_layout.addStretch()
         assets_layout.addLayout(asset_btn_layout)
-        
-        content_splitter.addWidget(assets_group)
-        
-        # Shots section
-        shots_group = QGroupBox("Shots")
-        shots_layout = QVBoxLayout(shots_group)
-        
+
+        self.tab_widget.addTab(assets_tab, "Assets")
+
+        # Shots tab
+        shots_tab = QWidget()
+        shots_layout = QVBoxLayout(shots_tab)
+        shots_layout.setContentsMargins(5, 5, 5, 5)
+
         # Shot filter
         shot_filter_layout = QHBoxLayout()
         self.sequence_combo = QComboBox()
@@ -127,30 +101,29 @@ class ProjectBrowser(PrismStyleWidget):
         shot_filter_layout.addWidget(self.sequence_combo)
         shot_filter_layout.addStretch()
         shots_layout.addLayout(shot_filter_layout)
-        
+
         # Shot tree
         self.shot_tree = QTreeWidget()
         self.shot_tree.setHeaderLabels(["Shot", "Sequence", "Versions"])
         self.shot_tree.setRootIsDecorated(True)
         self.shot_tree.setAlternatingRowColors(True)
         self.shot_tree.setSortingEnabled(True)
-        self.shot_tree.setMinimumHeight(200)  # Give more height to shot tree
+        self.shot_tree.setMinimumHeight(300)
         shots_layout.addWidget(self.shot_tree)
-        
+
         # Shot buttons
         shot_btn_layout = QHBoxLayout()
         self.add_shot_btn = QPushButton("Add Shot")
+        self.add_shot_btn.setProperty("class", "primary")
         self.refresh_shots_btn = QPushButton("Refresh")
         shot_btn_layout.addWidget(self.add_shot_btn)
         shot_btn_layout.addWidget(self.refresh_shots_btn)
         shot_btn_layout.addStretch()
         shots_layout.addLayout(shot_btn_layout)
-        
-        content_splitter.addWidget(shots_group)
-        
-        # Set splitter proportions - give more space to assets and shots
-        content_splitter.setSizes([350, 350])
-        layout.addWidget(content_splitter)
+
+        self.tab_widget.addTab(shots_tab, "Shots")
+
+        layout.addWidget(self.tab_widget)
 
 
 class PipelinePanel(PrismStyleWidget):
@@ -226,7 +199,7 @@ class VersionManager(PrismStyleWidget):
         # Header with entity info
         header_frame = QFrame()
         header_frame.setFrameStyle(QFrame.Shape.Box)
-        header_frame.setStyleSheet("QFrame { background-color: #404040; border: 1px solid #555555; }")
+        header_frame.setStyleSheet(f"QFrame {{ background-color: {COLORS['hover']}; border: 1px solid {COLORS['border']}; }}")
         header_layout = QVBoxLayout(header_frame)
         
         self.entity_name_label = QLabel("No Selection")
@@ -417,11 +390,14 @@ class PrismMainWindow(QMainWindow):
     def __init__(self):
         super().__init__()
         self.setWindowTitle("Vogue Manager - Prism Interface")
-        self.setMinimumSize(1500, 950)  # Slightly larger for better proportions
-        
-        # Apply Prism-like styling
+        self.setMinimumSize(1600, 1000)  # Larger size for better layout
+
+        # Apply Prism-like styling with enhanced design
         self.setStyleSheet(build_qss())
-        
+
+        # Set window properties for better appearance
+        self.setWindowIconText("Vogue Manager")
+
         self.setup_ui()
         self.setup_menu()
         self.setup_toolbar()
@@ -452,9 +428,9 @@ class PrismMainWindow(QMainWindow):
         self.pipeline_panel = PipelinePanel()
         main_splitter.addWidget(self.pipeline_panel)
         
-        # Set splitter proportions (35% left, 45% center, 20% right)
-        # This gives more space to the asset/shot browser
-        main_splitter.setSizes([490, 630, 280])
+        # Set splitter proportions (25% left, 55% center, 20% right)
+        # Optimized for cleaner left panel with just tabs
+        main_splitter.setSizes([350, 770, 280])
         layout.addWidget(main_splitter)
     
     def setup_menu(self):
@@ -480,7 +456,14 @@ class PrismMainWindow(QMainWindow):
         project_menu.addAction(open_action)
         
         project_menu.addSeparator()
-        
+
+        # Recent Projects menu item
+        self.recent_projects_action = QAction("&Recent Projects...", self)
+        self.recent_projects_action.setShortcut("Ctrl+R")
+        project_menu.addAction(self.recent_projects_action)
+
+        project_menu.addSeparator()
+
         # Prism-specific project actions
         import_project_action = QAction("&Import Project...", self)
         project_menu.addAction(import_project_action)
@@ -639,46 +622,82 @@ class PrismMainWindow(QMainWindow):
         toolbar = self.addToolBar("Main")
         toolbar.setMovable(False)
         toolbar.setToolButtonStyle(Qt.ToolButtonStyle.ToolButtonTextBesideIcon)
-        toolbar.setStyleSheet("""
-            QToolBar {
-                background-color: #2b2b2b;
-                border: none;
-                spacing: 2px;
-                padding: 4px;
-            }
-            QToolBar QToolButton {
+        toolbar.setStyleSheet(f"""
+            QToolBar {{
+                background: linear-gradient(180deg, {COLORS['panel']} 0%, {COLORS['bg']} 100%);
+                border: 1px solid {COLORS['border']};
+                border-radius: 6px;
+                spacing: 4px;
+                padding: 6px;
+                margin: 4px;
+            }}
+            QToolBar QToolButton {{
                 background-color: transparent;
                 border: 1px solid transparent;
-                border-radius: 4px;
-                padding: 6px 12px;
+                border-radius: 6px;
+                padding: 8px 16px;
                 margin: 2px;
-                color: #cccccc;
+                color: {COLORS['fg']};
                 font-size: 11px;
-                font-weight: 500;
-            }
-            QToolBar QToolButton:hover {
-                background-color: #404040;
-                border: 1px solid #555555;
-            }
-            QToolBar QToolButton:pressed {
-                background-color: #505050;
-                border: 1px solid #666666;
-            }
-            QToolBar QToolButton[class="primary"] {
-                background-color: #0078d4;
+                font-weight: 600;
+                text-transform: uppercase;
+                letter-spacing: 0.5px;
+            }}
+            QToolBar QToolButton:hover {{
+                background-color: {COLORS['hover']};
+                border: 2px solid {COLORS['accent']};
+                color: {COLORS['accent']};
+            }}
+            QToolBar QToolButton:pressed {{
+                background-color: {COLORS['accent']};
+                border: 2px solid {COLORS['accent']};
                 color: white;
-            }
-            QToolBar QToolButton[class="primary"]:hover {
-                background-color: #106ebe;
-            }
-            QToolBar QToolButton[class="primary"]:pressed {
-                background-color: #005a9e;
-            }
-            QToolBar::separator {
-                background-color: #555555;
-                width: 1px;
-                margin: 4px 8px;
-            }
+            }}
+            QToolBar QToolButton[class="primary"] {{
+                background-color: {COLORS['accent']};
+                color: white;
+                border: 2px solid {COLORS['accent']};
+                font-weight: 700;
+                letter-spacing: 1px;
+            }}
+            QToolBar QToolButton[class="primary"]:hover {{
+                background-color: {COLORS['accent2']};
+                border-color: {COLORS['accent2']};
+                border-width: 3px;
+            }}
+            QToolBar QToolButton[class="primary"]:pressed {{
+                background-color: {COLORS['selection']};
+                border-color: {COLORS['selection']};
+            }}
+            QToolBar QPushButton {{
+                background-color: {COLORS['panel']};
+                border: 1px solid {COLORS['border']};
+                border-radius: 6px;
+                padding: 8px 16px;
+                margin: 2px;
+                color: {COLORS['fg']};
+                font-size: 11px;
+                font-weight: 600;
+                text-transform: uppercase;
+                letter-spacing: 0.5px;
+                min-width: 100px;
+            }}
+            QToolBar QPushButton:hover {{
+                background-color: {COLORS['hover']};
+                border-color: {COLORS['accent']};
+                color: {COLORS['accent']};
+                border-width: 2px;
+            }}
+            QToolBar QPushButton:pressed {{
+                background-color: {COLORS['accent']};
+                color: white;
+            }}
+            QToolBar::separator {{
+                background-color: {COLORS['border']};
+                width: 2px;
+                margin: 4px 12px;
+                border-radius: 1px;
+            }}
         """)
         
         # Project actions
@@ -686,11 +705,12 @@ class PrismMainWindow(QMainWindow):
         browse_action.setToolTip("Browse for project")
         browse_action.setShortcut("Ctrl+O")
         toolbar.addAction(browse_action)
-        
+
         new_action = QAction("New", self)
         new_action.setToolTip("Create new project")
         new_action.setShortcut("Ctrl+N")
         toolbar.addAction(new_action)
+
         
         toolbar.addSeparator()
         
@@ -806,13 +826,10 @@ class PrismMainWindow(QMainWindow):
     
     def update_project_status(self, project_name: str, project_path: str):
         """Update the project status in the status bar and menu"""
-        self.project_browser.project_name_label.setText(project_name)
-        self.project_browser.project_path_label.setText(project_path)
-        
         # Update status menu
         self.project_status_action.setText(f"Project: {project_name}")
         self.project_status_action.setEnabled(True)
-        
+
         # Update status bar message
         self.status_message_label.setText(f"Project loaded: {project_name}")
     
@@ -881,12 +898,40 @@ Project Information:
         
         dialog.exec()
     
+    def show_recent_projects_dialog(self):
+        """Show recent projects dialog"""
+        from .dialogs import RecentProjectsDialog
+
+        # Create and show recent projects dialog
+        dialog = RecentProjectsDialog(self)
+        dialog.project_selected.connect(self.load_recent_project)
+        dialog.exec()
+
+    def load_recent_project(self, project_path: str):
+        """Load a recent project"""
+        try:
+            # Import settings here to avoid circular imports
+            from vogue_core.settings import settings
+
+            # Load project using manager (we'll need to pass this from controller)
+            if hasattr(self, 'load_project_callback'):
+                self.load_project_callback(project_path)
+            else:
+                # Fallback - emit signal or show message
+                from PyQt6.QtWidgets import QMessageBox
+                QMessageBox.information(self, "Load Project",
+                                      f"Selected project: {project_path}\n\n"
+                                      "Project loading will be handled by the controller.")
+        except Exception as e:
+            from PyQt6.QtWidgets import QMessageBox
+            QMessageBox.warning(self, "Error", f"Failed to load project: {e}")
+
     def show_progress(self, message: str = "Processing..."):
         """Show progress bar with message"""
         self.progress_bar.setVisible(True)
         self.progress_bar.setRange(0, 0)  # Indeterminate progress
         self.status_message_label.setText(message)
-    
+
     def hide_progress(self):
         """Hide progress bar"""
         self.progress_bar.setVisible(False)

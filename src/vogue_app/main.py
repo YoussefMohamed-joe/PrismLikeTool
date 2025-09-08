@@ -12,26 +12,11 @@ from pathlib import Path
 src_path = Path(__file__).parent.parent
 sys.path.insert(0, str(src_path))
 
-try:
-    from PyQt6.QtWidgets import QApplication, QMessageBox
-    from PyQt6.QtCore import Qt
-    QT_AVAILABLE = True
-    QT_VERSION = "PyQt6"
-except ImportError:
-    try:
-        from PySide2.QtWidgets import QApplication, QMessageBox
-        from PySide2.QtCore import Qt
-        QT_AVAILABLE = True
-        QT_VERSION = "PySide2"
-    except ImportError:
-        try:
-            from PyQt5.QtWidgets import QApplication, QMessageBox
-            from PyQt5.QtCore import Qt
-            QT_AVAILABLE = True
-            QT_VERSION = "PyQt5"
-        except ImportError:
-            QT_AVAILABLE = False
-            QT_VERSION = None
+# Import PyQt6 only
+from PyQt6.QtWidgets import QApplication, QMessageBox
+from PyQt6.QtCore import Qt
+QT_AVAILABLE = True
+QT_VERSION = "PyQt6"
 
 from vogue_core.logging_utils import setup_logging, get_logger
 from vogue_app.controller import VogueController
@@ -42,8 +27,8 @@ def main():
     
     # Check if Qt is available
     if not QT_AVAILABLE:
-        print("Error: PyQt6, PySide2, or PyQt5 is required but not installed.")
-        print("Please install one of: pip install PyQt6 or pip install PySide2 or pip install PyQt5")
+        print("Error: PyQt6 is required but not installed.")
+        print("Please install: pip install PyQt6")
         sys.exit(1)
     
     # Set up logging

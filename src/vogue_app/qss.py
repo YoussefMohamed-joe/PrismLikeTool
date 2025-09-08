@@ -23,8 +23,13 @@ def build_qss(colors: dict = None) -> str:
     qss = f"""
     /* Main Window */
     QMainWindow {{
-        background-color: {colors['bg']};
+        background: linear-gradient(135deg, {colors['bg']} 0%, {colors['panel']} 100%);
         color: {colors['fg']};
+    }}
+
+    /* Central Widget */
+    QWidget {{
+        background-color: transparent;
     }}
     
     /* Menu Bar */
@@ -107,27 +112,36 @@ def build_qss(colors: dict = None) -> str:
     QTabWidget::pane {{
         border: 1px solid {colors['border']};
         background-color: {colors['bg']};
+        border-radius: 6px;
     }}
-    
+
     QTabBar::tab {{
         background-color: {colors['panel']};
-        color: {colors['fg']};
-        padding: 8px 16px;
-        margin-right: 2px;
-        border-top-left-radius: 4px;
-        border-top-right-radius: 4px;
+        color: {colors['muted']};
+        padding: 10px 20px;
+        margin-right: 4px;
+        border-top-left-radius: 6px;
+        border-top-right-radius: 6px;
         border: 1px solid {colors['border']};
         border-bottom: none;
+        font-weight: 500;
+        min-width: 80px;
     }}
-    
+
     QTabBar::tab:selected {{
         background-color: {colors['bg']};
         color: {colors['accent']};
-        border-bottom: 1px solid {colors['bg']};
+        border-bottom: 2px solid {colors['accent']};
+        font-weight: bold;
     }}
-    
+
     QTabBar::tab:hover {{
         background-color: {colors['hover']};
+        color: {colors['fg']};
+    }}
+
+    QTabBar::tab:!selected {{
+        margin-top: 2px;
     }}
     
     /* Push Buttons */
@@ -135,34 +149,73 @@ def build_qss(colors: dict = None) -> str:
         background-color: {colors['accent']};
         color: white;
         border: none;
-        border-radius: 4px;
-        padding: 8px 16px;
-        font-weight: bold;
+        border-radius: 6px;
+        padding: 10px 18px;
+        font-weight: 600;
+        font-size: 11px;
+        text-transform: uppercase;
+        letter-spacing: 0.5px;
+        min-height: 16px;
     }}
-    
+
     QPushButton:hover {{
         background-color: {colors['accent2']};
+        border: 2px solid {colors['accent2']};
     }}
-    
+
     QPushButton:pressed {{
         background-color: {colors['accent']};
+        border: 2px solid {colors['accent']};
     }}
-    
+
     QPushButton:disabled {{
         background-color: {colors['muted']};
         color: {colors['border']};
+        border: 1px solid {colors['border']};
     }}
-    
+
+    /* Primary Buttons */
+    QPushButton[class="primary"] {{
+        background-color: {colors['accent']};
+        color: white;
+        border: 2px solid {colors['accent']};
+        font-weight: 700;
+        text-transform: uppercase;
+        letter-spacing: 1px;
+    }}
+
+    QPushButton[class="primary"]:hover {{
+        background-color: {colors['accent2']};
+        border-color: {colors['accent2']};
+        border-width: 3px;
+    }}
+
     /* Secondary Buttons */
     QPushButton[class="secondary"] {{
         background-color: {colors['panel']};
         color: {colors['fg']};
         border: 1px solid {colors['border']};
+        font-weight: 500;
     }}
-    
+
     QPushButton[class="secondary"]:hover {{
         background-color: {colors['hover']};
         border-color: {colors['accent']};
+        color: {colors['accent']};
+        border-width: 2px;
+    }}
+
+    /* Danger Buttons */
+    QPushButton[class="danger"] {{
+        background-color: {colors['error']};
+        color: white;
+        border: 1px solid {colors['error']};
+    }}
+
+    QPushButton[class="danger"]:hover {{
+        background-color: #d32f2f;
+        border-color: #d32f2f;
+        border-width: 2px;
     }}
     
     /* Tree Widget */
@@ -378,17 +431,24 @@ def build_qss(colors: dict = None) -> str:
     /* Group Box */
     QGroupBox {{
         color: {colors['fg']};
-        border: 1px solid {colors['border']};
-        border-radius: 4px;
-        margin-top: 8px;
-        font-weight: bold;
+        border: 2px solid {colors['border']};
+        border-radius: 8px;
+        margin-top: 12px;
+        font-weight: 600;
+        font-size: 12px;
+        padding-top: 8px;
     }}
-    
+
     QGroupBox::title {{
         subcontrol-origin: margin;
-        left: 8px;
-        padding: 0 8px 0 8px;
+        left: 12px;
+        padding: 2px 12px;
         background-color: {colors['bg']};
+        color: {colors['accent']};
+        font-weight: 700;
+        text-transform: uppercase;
+        letter-spacing: 1px;
+        border-radius: 4px;
     }}
     
     /* Splitter */

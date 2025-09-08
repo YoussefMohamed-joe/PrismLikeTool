@@ -11,32 +11,13 @@ from pathlib import Path
 from typing import List, Dict, Any, Optional
 from datetime import datetime
 
-try:
-    from PyQt6.QtWidgets import (QMainWindow, QFileDialog, QMessageBox, QInputDialog, 
-                                QToolBar, QDialog, QTreeWidgetItem, QListWidgetItem, QTableWidgetItem)
-    from PyQt6.QtCore import QThread, pyqtSignal, QObject, Qt
-    from PyQt6.QtGui import QDesktopServices, QUrl
-    QT_AVAILABLE = True
-    QT_VERSION = "PyQt6"
-except ImportError:
-    try:
-        from PySide2.QtWidgets import (QMainWindow, QFileDialog, QMessageBox, QInputDialog,
-                                     QTreeWidgetItem, QListWidgetItem, QTableWidgetItem)
-        from PySide2.QtCore import QThread, Signal as pyqtSignal, QObject, Qt
-        from PySide2.QtGui import QDesktopServices, QUrl
-        QT_AVAILABLE = True
-        QT_VERSION = "PySide2"
-    except ImportError:
-        try:
-            from PyQt5.QtWidgets import (QMainWindow, QFileDialog, QMessageBox, QInputDialog,
-                                       QTreeWidgetItem, QListWidgetItem, QTableWidgetItem)
-            from PyQt5.QtCore import QThread, pyqtSignal, QObject, Qt
-            from PyQt5.QtGui import QDesktopServices, QUrl
-            QT_AVAILABLE = True
-            QT_VERSION = "PyQt5"
-        except ImportError:
-            QT_AVAILABLE = False
-            QT_VERSION = None
+# Import PyQt6 only
+from PyQt6.QtWidgets import (QMainWindow, QFileDialog, QMessageBox, QInputDialog,
+                            QToolBar, QDialog, QTreeWidgetItem, QListWidgetItem, QTableWidgetItem)
+from PyQt6.QtCore import QThread, pyqtSignal, QObject, Qt, QUrl
+from PyQt6.QtGui import QDesktopServices
+QT_AVAILABLE = True
+QT_VERSION = "PyQt6"
 
 from vogue_core.manager import ProjectManager
 from vogue_core.models import Project, Asset, Shot, Version, Department, Task
@@ -91,7 +72,6 @@ class VogueController(PrismMainWindow):
     def setup_connections(self):
         """Set up signal connections"""
         # Project browser connections
-        self.project_browser.browse_btn.clicked.connect(self.browse_project)
         self.project_browser.add_asset_btn.clicked.connect(self.add_asset)
         self.project_browser.add_shot_btn.clicked.connect(self.add_shot)
         self.project_browser.refresh_assets_btn.clicked.connect(self.refresh_assets)
@@ -244,6 +224,13 @@ class VogueController(PrismMainWindow):
                     action.triggered.connect(self.refresh_project)
                 elif "Scan" in action.text():
                     action.triggered.connect(self.scan_filesystem)
+
+        # Recent projects menu connection
+        if hasattr(self, 'recent_projects_action'):
+            self.recent_projects_action.triggered.connect(self.show_recent_projects_dialog)
+
+        # Set load project callback for recent projects dialog
+        self.load_project_callback = self.load_project
     
     def browse_project(self):
         """Browse for a project to load"""
@@ -743,12 +730,7 @@ class VogueController(PrismMainWindow):
             path_item = self.version_manager.version_table.item(row, 5)
             if path_item:
                 # Copy to clipboard
-                if QT_VERSION == "PyQt6":
-                    from PyQt6.QtWidgets import QApplication
-                elif QT_VERSION == "PySide2":
-                    from PySide2.QtWidgets import QApplication
-                else:  # PyQt5
-                    from PyQt5.QtWidgets import QApplication
+                from PyQt6.QtWidgets import QApplication
                 QApplication.clipboard().setText(path_item.text())
                 self.add_log_message("Version path copied to clipboard")
     
@@ -1209,6 +1191,19 @@ class VogueController(PrismMainWindow):
     
     def update_project_status(self, name: str, path: str):
         """Update the project status in the UI"""
+        # Update window title with project name
+        if name and name != "No Project":
+            self.setWindowTitle(f"Vogue Manager - {name}")
+        else:
+            self.setWindowTitle("Vogue Manager - Prism Interface")
+
+        # Update status bar with project path
+        if path:
+            self.status_bar.showMessage(f"Project: {path}")
+        else:
+            self.status_bar.showMessage("No project loaded")
+
+        # Call parent method for any additional updates
         super().update_project_status(name, path)
     
     def add_log_message(self, message: str, level: str = "INFO"):

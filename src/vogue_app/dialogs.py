@@ -25,6 +25,7 @@ from vogue_core.models import Project, Asset, Shot, Version, Department, Task
 from vogue_core.settings import settings
 from vogue_core.fs import ensure_layout, atomic_write_json
 from vogue_core.schema import project_to_pipeline, pipeline_to_project
+from .colors import COLORS
 
 
 class NewProjectDialog(QDialog):
@@ -109,12 +110,12 @@ class NewProjectDialog(QDialog):
         
         # Default departments
         self.departments = [
-            {"name": "Modeling", "color": "#FF6B6B", "tasks": ["High", "Mid", "Low"]},
-            {"name": "Texturing", "color": "#4ECDC4", "tasks": ["Diffuse", "Normal", "Roughness"]},
-            {"name": "Rigging", "color": "#45B7D1", "tasks": ["Rig", "Controls", "Skinning"]},
-            {"name": "Animation", "color": "#96CEB4", "tasks": ["Blocking", "Spline", "Polish"]},
-            {"name": "Lighting", "color": "#FFEAA7", "tasks": ["Key", "Fill", "Rim"]},
-            {"name": "Rendering", "color": "#DDA0DD", "tasks": ["Beauty", "AOVs", "Comp"]}
+            {"name": "Modeling", "color": "#FF7F7F", "tasks": ["High", "Mid", "Low"]},
+            {"name": "Texturing", "color": "#5FD4C7", "tasks": ["Diffuse", "Normal", "Roughness"]},
+            {"name": "Rigging", "color": "#73C2FB", "tasks": ["Rig", "Controls", "Skinning"]},
+            {"name": "Animation", "color": "#7FB97F", "tasks": ["Blocking", "Spline", "Polish"]},
+            {"name": "Lighting", "color": "#FFD700", "tasks": ["Key", "Fill", "Rim"]},
+            {"name": "Rendering", "color": "#E6A3E6", "tasks": ["Beauty", "AOVs", "Comp"]}
         ]
         
         self.dept_table = QTableWidget()
@@ -181,7 +182,7 @@ class NewProjectDialog(QDialog):
         # Add new department to the list
         new_dept = {
             "name": "New Department",
-            "color": "#FF6B6B",
+            "color": "#73C2FB",
             "tasks": ["WIP", "Review", "Final"]
         }
         self.departments.append(new_dept)
@@ -772,7 +773,7 @@ class ImagePreviewDialog(QDialog):
         # Image display
         self.image_label = QLabel()
         self.image_label.setAlignment(Qt.AlignmentFlag.AlignCenter)
-        self.image_label.setStyleSheet("QLabel { border: 1px solid #555555; background-color: #2b2b2b; }")
+        self.image_label.setStyleSheet(f"QLabel {{ border: 1px solid {COLORS['border']}; background-color: {COLORS['bg']}; }}")
         
         scroll_area = QScrollArea()
         scroll_area.setWidget(self.image_label)
