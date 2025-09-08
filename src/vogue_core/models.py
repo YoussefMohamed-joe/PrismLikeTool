@@ -15,6 +15,7 @@ class Department:
     """Represents a department in the pipeline"""
     name: str
     description: str = ""
+    color: str = "#3498db"
 
 
 @dataclass 

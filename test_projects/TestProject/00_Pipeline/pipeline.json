@@ -1,0 +1,21 @@
+{
+  "name": "TestProject",
+  "path": "D:\\project\\PrismLikeTool\\test_projects\\TestProject",
+  "fps": 24,
+  "resolution": [
+    1920,
+    1080
+  ],
+  "departments": [
+    "Model",
+    "Rig"
+  ],
+  "tasks": [
+    "WIP",
+    "Review",
+    "Final"
+  ],
+  "assets": [],
+  "shots": [],
+  "versions": {}
+}

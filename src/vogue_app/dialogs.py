@@ -132,6 +132,8 @@ class NewProjectDialog(QDialog):
         dept_btn_layout = QHBoxLayout()
         add_dept_btn = QPushButton("Add Department")
         remove_dept_btn = QPushButton("Remove Department")
+        add_dept_btn.clicked.connect(self.add_department)
+        remove_dept_btn.clicked.connect(self.remove_department)
         dept_btn_layout.addWidget(add_dept_btn)
         dept_btn_layout.addWidget(remove_dept_btn)
         dept_btn_layout.addStretch()
@@ -173,6 +175,36 @@ class NewProjectDialog(QDialog):
             # Tasks
             tasks_item = QTableWidgetItem(", ".join(dept["tasks"]))
             self.dept_table.setItem(row, 2, tasks_item)
+    
+    def add_department(self):
+        """Add a new department"""
+        # Add new department to the list
+        new_dept = {
+            "name": "New Department",
+            "color": "#FF6B6B",
+            "tasks": ["WIP", "Review", "Final"]
+        }
+        self.departments.append(new_dept)
+        self.populate_departments()
+        
+        # Select the new row for editing
+        new_row = len(self.departments) - 1
+        self.dept_table.selectRow(new_row)
+        self.dept_table.edit(self.dept_table.item(new_row, 0))
+    
+    def remove_department(self):
+        """Remove selected department"""
+        current_row = self.dept_table.currentRow()
+        if current_row >= 0 and current_row < len(self.departments):
+            # Remove from departments list
+            del self.departments[current_row]
+            self.populate_departments()
+            
+            # Select the next available row
+            if current_row < len(self.departments):
+                self.dept_table.selectRow(current_row)
+            elif len(self.departments) > 0:
+                self.dept_table.selectRow(len(self.departments) - 1)
             
     def get_project_data(self):
         """Get project data from dialog"""

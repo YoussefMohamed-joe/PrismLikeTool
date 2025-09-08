@@ -369,6 +369,25 @@ class VogueMainWindow(QMainWindow):
         scan_action = QAction("&Scan Filesystem", self)
         tools_menu.addAction(scan_action)
         
+        # Status menu
+        status_menu = menubar.addMenu("&Status")
+        
+        # Project status action
+        self.project_status_action = QAction("Project: No project loaded", self)
+        self.project_status_action.setEnabled(False)
+        status_menu.addAction(self.project_status_action)
+        
+        # User status action
+        self.user_status_action = QAction("User: Unknown", self)
+        self.user_status_action.setEnabled(False)
+        status_menu.addAction(self.user_status_action)
+        
+        status_menu.addSeparator()
+        
+        # System info action
+        self.system_info_action = QAction("System Information...", self)
+        status_menu.addAction(self.system_info_action)
+        
         # Help menu
         help_menu = menubar.addMenu("&Help")
         
@@ -408,21 +427,77 @@ class VogueMainWindow(QMainWindow):
         """Set up the status bar"""
         self.status_bar = self.statusBar()
         
-        # Project status
-        self.project_status_label = QLabel("No project loaded")
-        self.status_bar.addWidget(self.project_status_label)
-        
-        # User label
-        self.user_label = QLabel("User: Unknown")
-        self.status_bar.addPermanentWidget(self.user_label)
+        # Status message (for temporary messages)
+        self.status_message_label = QLabel("Ready")
+        self.status_bar.addWidget(self.status_message_label)
     
     def update_project_status(self, project_name: str, project_path: str):
-        """Update the project status in the status bar"""
-        self.project_status_label.setText(f"Project: {project_name} ({project_path})")
+        """Update the project status in the status bar and menu"""
+        # Update status menu
+        self.project_status_action.setText(f"Project: {project_name}")
+        self.project_status_action.setEnabled(True)
+        
+        # Update status bar message
+        self.status_message_label.setText(f"Project loaded: {project_name}")
     
     def update_user(self, username: str):
-        """Update the user in the status bar"""
-        self.user_label.setText(f"User: {username}")
+        """Update the user in the status bar and menu"""
+        # Update status menu
+        self.user_status_action.setText(f"User: {username}")
+        self.user_status_action.setEnabled(True)
+    
+    def show_system_info(self):
+        """Show system information dialog"""
+        from PyQt6.QtWidgets import QDialog, QVBoxLayout, QTextEdit, QPushButton, QHBoxLayout
+        from PyQt6.QtCore import Qt
+        import platform
+        import sys
+        
+        dialog = QDialog(self)
+        dialog.setWindowTitle("System Information")
+        dialog.setModal(True)
+        dialog.resize(500, 400)
+        
+        layout = QVBoxLayout(dialog)
+        
+        # System info text
+        info_text = QTextEdit()
+        info_text.setReadOnly(True)
+        
+        system_info = f"""
+System Information:
+==================
+
+Platform: {platform.platform()}
+Architecture: {platform.architecture()[0]}
+Processor: {platform.processor()}
+Python Version: {sys.version}
+Qt Version: {Qt.QT_VERSION_STR}
+
+Application:
+============
+Name: Vogue Manager
+Version: 1.0.0
+Status: {'Project Loaded' if hasattr(self, 'project_status_action') and self.project_status_action.isEnabled() else 'No Project'}
+
+Project Information:
+===================
+{self.project_status_action.text() if hasattr(self, 'project_status_action') else 'No project loaded'}
+{self.user_status_action.text() if hasattr(self, 'user_status_action') else 'User: Unknown'}
+        """
+        
+        info_text.setPlainText(system_info)
+        layout.addWidget(info_text)
+        
+        # Close button
+        button_layout = QHBoxLayout()
+        close_btn = QPushButton("Close")
+        close_btn.clicked.connect(dialog.accept)
+        button_layout.addStretch()
+        button_layout.addWidget(close_btn)
+        layout.addLayout(button_layout)
+        
+        dialog.exec()
     
     def add_log_message(self, message: str):
         """Add a message to the log tab"""

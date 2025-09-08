@@ -15,19 +15,23 @@ sys.path.insert(0, str(src_path))
 try:
     from PyQt6.QtWidgets import QApplication, QMessageBox
     from PyQt6.QtCore import Qt
-    PYSIDE2_AVAILABLE = True
+    QT_AVAILABLE = True
+    QT_VERSION = "PyQt6"
 except ImportError:
     try:
         from PySide2.QtWidgets import QApplication, QMessageBox
         from PySide2.QtCore import Qt
-        PYSIDE2_AVAILABLE = True
+        QT_AVAILABLE = True
+        QT_VERSION = "PySide2"
     except ImportError:
         try:
             from PyQt5.QtWidgets import QApplication, QMessageBox
             from PyQt5.QtCore import Qt
-            PYSIDE2_AVAILABLE = True
+            QT_AVAILABLE = True
+            QT_VERSION = "PyQt5"
         except ImportError:
-            PYSIDE2_AVAILABLE = False
+            QT_AVAILABLE = False
+            QT_VERSION = None
 
 from vogue_core.logging_utils import setup_logging, get_logger
 from vogue_app.controller import VogueController
@@ -37,9 +41,9 @@ def main():
     """Main entry point for Vogue Manager desktop application"""
     
     # Check if Qt is available
-    if not PYSIDE2_AVAILABLE:
-        print("Error: PySide2 or PyQt5 is required but not installed.")
-        print("Please install PySide2: pip install PySide2")
+    if not QT_AVAILABLE:
+        print("Error: PyQt6, PySide2, or PyQt5 is required but not installed.")
+        print("Please install one of: pip install PyQt6 or pip install PySide2 or pip install PyQt5")
         sys.exit(1)
     
     # Set up logging

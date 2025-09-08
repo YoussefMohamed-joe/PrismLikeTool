@@ -12,27 +12,34 @@ from typing import List, Dict, Any, Optional
 from datetime import datetime
 
 try:
-    from PyQt6.QtWidgets import QMainWindow, QFileDialog, QMessageBox, QInputDialog, QToolBar, QDialog
-    from PyQt6.QtCore import QThread, pyqtSignal, QObject
+    from PyQt6.QtWidgets import (QMainWindow, QFileDialog, QMessageBox, QInputDialog, 
+                                QToolBar, QDialog, QTreeWidgetItem, QListWidgetItem, QTableWidgetItem)
+    from PyQt6.QtCore import QThread, pyqtSignal, QObject, Qt
     from PyQt6.QtGui import QDesktopServices, QUrl
-    PYSIDE2_AVAILABLE = True
+    QT_AVAILABLE = True
+    QT_VERSION = "PyQt6"
 except ImportError:
     try:
-        from PySide2.QtWidgets import QMainWindow, QFileDialog, QMessageBox, QInputDialog
-        from PySide2.QtCore import QThread, pyqtSignal, QObject
+        from PySide2.QtWidgets import (QMainWindow, QFileDialog, QMessageBox, QInputDialog,
+                                     QTreeWidgetItem, QListWidgetItem, QTableWidgetItem)
+        from PySide2.QtCore import QThread, Signal as pyqtSignal, QObject, Qt
         from PySide2.QtGui import QDesktopServices, QUrl
-        PYSIDE2_AVAILABLE = True
+        QT_AVAILABLE = True
+        QT_VERSION = "PySide2"
     except ImportError:
         try:
-            from PyQt5.QtWidgets import QMainWindow, QFileDialog, QMessageBox, QInputDialog
-            from PyQt5.QtCore import QThread, pyqtSignal, QObject
+            from PyQt5.QtWidgets import (QMainWindow, QFileDialog, QMessageBox, QInputDialog,
+                                       QTreeWidgetItem, QListWidgetItem, QTableWidgetItem)
+            from PyQt5.QtCore import QThread, pyqtSignal, QObject, Qt
             from PyQt5.QtGui import QDesktopServices, QUrl
-            PYSIDE2_AVAILABLE = True
+            QT_AVAILABLE = True
+            QT_VERSION = "PyQt5"
         except ImportError:
-            PYSIDE2_AVAILABLE = False
+            QT_AVAILABLE = False
+            QT_VERSION = None
 
 from vogue_core.manager import ProjectManager
-from vogue_core.models import Asset, Shot, Version, Department, Task
+from vogue_core.models import Project, Asset, Shot, Version, Department, Task
 from vogue_core.settings import settings
 from vogue_core.logging_utils import get_logger
 from vogue_core.fs import ensure_layout, atomic_write_json, next_version
@@ -59,7 +66,7 @@ class WorkerThread(QThread):
     
     def run(self):
         try:
-            self.func(*self.args, **kwargs)
+            self.func(*self.args, **self.kwargs)
             self.finished.emit()
         except Exception as e:
             self.error.emit(str(e))
@@ -203,6 +210,12 @@ class VogueController(PrismMainWindow):
             elif "Logs" in action.text():
                 action.triggered.connect(self.view_logs)
         
+        # Status menu
+        status_menu = menubar.actions()[6].menu()
+        for action in status_menu.actions():
+            if "System Information" in action.text():
+                action.triggered.connect(self.show_system_info)
+        
         # Pipeline panel connections
         self.pipeline_panel.validate_btn.clicked.connect(self.validate_project)
         self.pipeline_panel.optimize_btn.clicked.connect(self.optimize_project)
@@ -212,6 +225,25 @@ class VogueController(PrismMainWindow):
         log_widget = self.log_dock.widget()
         if log_widget:
             log_widget.clear_log_btn.clicked.connect(self.clear_log)
+        
+        # Toolbar connections
+        toolbar = self.findChild(QToolBar, "Main")
+        if toolbar:
+            for action in toolbar.actions():
+                if "Browse" in action.text():
+                    action.triggered.connect(self.browse_project)
+                elif "New" in action.text():
+                    action.triggered.connect(self.new_project)
+                elif "Add Asset" in action.text():
+                    action.triggered.connect(self.add_asset)
+                elif "Add Shot" in action.text():
+                    action.triggered.connect(self.add_shot)
+                elif "Publish" in action.text():
+                    action.triggered.connect(self.publish_selection)
+                elif "Refresh" in action.text():
+                    action.triggered.connect(self.refresh_project)
+                elif "Scan" in action.text():
+                    action.triggered.connect(self.scan_filesystem)
     
     def browse_project(self):
         """Browse for a project to load"""
@@ -256,6 +288,10 @@ class VogueController(PrismMainWindow):
             
             # Update status
             self.update_project_status(project.name, project.path)
+            
+            # Update user info
+            username = os.getenv('USERNAME', 'Unknown')
+            self.update_user(username)
             
             self.logger.info(f"Project loaded successfully: {project.name}")
             self.add_log_message(f"Loaded project: {project.name}")
@@ -334,10 +370,6 @@ class VogueController(PrismMainWindow):
         self.logger.error(f"Filesystem scan error: {error_msg}")
         QMessageBox.critical(self, "Scan Error", f"Filesystem scan failed: {error_msg}")
     
-    def publish_selection(self):
-        """Publish the current selection"""
-        QMessageBox.information(self, "Publish", "Publish functionality not yet implemented.")
-    
     def new_project(self):
         """Create a new project"""
         dialog = NewProjectDialog(self)
@@ -349,10 +381,6 @@ class VogueController(PrismMainWindow):
     def open_project(self):
         """Open an existing project"""
         self.browse_project()
-    
-    def add_asset(self):
-        """Add a new asset"""
-        QMessageBox.information(self, "Add Asset", "Add asset functionality not yet implemented.")
     
     def add_shot(self):
         """Add a new shot"""
@@ -430,10 +458,6 @@ class VogueController(PrismMainWindow):
         """Import an asset"""
         QMessageBox.information(self, "Import Asset", "Import asset functionality not yet implemented.")
     
-    def batch_publish(self):
-        """Batch publish multiple items"""
-        QMessageBox.information(self, "Batch Publish", "Batch publish functionality not yet implemented.")
-    
     def generate_thumbnails(self):
         """Generate thumbnails for versions"""
         QMessageBox.information(self, "Generate Thumbnails", "Thumbnail generation functionality not yet implemented.")
@@ -459,7 +483,7 @@ class VogueController(PrismMainWindow):
             
             # Create project directory structure
             project_path = project_data['path'] / project_data['name']
-            ensure_layout(project_path)
+            ensure_layout(str(project_data['path']), project_data['name'])
             
             # Create departments
             departments = []
@@ -467,19 +491,17 @@ class VogueController(PrismMainWindow):
                 dept = Department(
                     name=dept_data['name'],
                     color=dept_data['color'],
-                    tasks=[Task(name=task) for task in dept_data['tasks']]
+                    description=dept_data.get('description', '')
                 )
                 departments.append(dept)
             
             # Create project
             project = Project(
                 name=project_data['name'],
-                path=project_path,
-                description=project_data['description'],
+                path=str(project_path),
                 fps=project_data['fps'],
-                width=project_data['width'],
-                height=project_data['height'],
-                departments=departments,
+                resolution=[project_data['width'], project_data['height']],
+                departments=[dept.name for dept in departments],
                 assets=[],
                 shots=[]
             )
@@ -512,14 +534,17 @@ class VogueController(PrismMainWindow):
     def create_asset(self, asset_data):
         """Create a new asset"""
         try:
+            # Prepare meta data including description
+            meta = asset_data['meta'].copy()
+            if asset_data.get('description'):
+                meta['description'] = asset_data['description']
+            
             # Create asset
             asset = Asset(
                 name=asset_data['name'],
                 type=asset_data['type'],
-                description=asset_data['description'],
-                path=self.manager.current_project.path / "Assets" / asset_data['type'] / asset_data['name'],
-                meta=asset_data['meta'],
-                versions=[]
+                path=str(Path(self.manager.current_project.path) / "01_Assets" / asset_data['type'] / asset_data['name']),
+                meta=meta
             )
             
             # Add to project
@@ -553,14 +578,17 @@ class VogueController(PrismMainWindow):
     def create_shot(self, shot_data):
         """Create a new shot"""
         try:
+            # Prepare meta data including description
+            meta = shot_data['meta'].copy()
+            if shot_data.get('description'):
+                meta['description'] = shot_data['description']
+            
             # Create shot
             shot = Shot(
                 name=shot_data['name'],
                 sequence=shot_data['sequence'],
-                description=shot_data['description'],
-                path=self.manager.current_project.path / "Shots" / shot_data['sequence'] / shot_data['name'],
-                meta=shot_data['meta'],
-                versions=[]
+                path=str(Path(self.manager.current_project.path) / "02_Shots" / shot_data['sequence'] / shot_data['name']),
+                meta=meta
             )
             
             # Add to project
@@ -626,7 +654,7 @@ class VogueController(PrismMainWindow):
                 version=version_num,
                 user=os.getenv('USERNAME', 'Unknown'),
                 comment=publish_data['comment'],
-                path=entity.path / f"v{version_num:03d}",
+                path=Path(entity.path) / f"v{version_num:03d}",
                 created_at=datetime.now(),
                 meta={}
             )
@@ -670,10 +698,10 @@ class VogueController(PrismMainWindow):
             # Look for image files in version directory
             image_extensions = ['.jpg', '.jpeg', '.png', '.bmp', '.tga', '.exr']
             for ext in image_extensions:
-                for img_file in version.path.glob(f"*{ext}"):
+                for img_file in Path(version.path).glob(f"*{ext}"):
                     # Create thumbnail
                     from vogue_core.thumbnails import make_thumbnail
-                    thumb_path = version.path / "thumbnail.jpg"
+                    thumb_path = Path(version.path) / "thumbnail.jpg"
                     make_thumbnail(str(img_file), str(thumb_path))
                     break
         except Exception as e:
@@ -715,7 +743,12 @@ class VogueController(PrismMainWindow):
             path_item = self.version_manager.version_table.item(row, 5)
             if path_item:
                 # Copy to clipboard
-                from PyQt6.QtWidgets import QApplication
+                if QT_VERSION == "PyQt6":
+                    from PyQt6.QtWidgets import QApplication
+                elif QT_VERSION == "PySide2":
+                    from PySide2.QtWidgets import QApplication
+                else:  # PyQt5
+                    from PyQt5.QtWidgets import QApplication
                 QApplication.clipboard().setText(path_item.text())
                 self.add_log_message("Version path copied to clipboard")
     
@@ -738,7 +771,7 @@ class VogueController(PrismMainWindow):
                         entity = self.get_current_asset() or self.get_current_shot()
                         if entity:
                             version_path = Path(path_item.text())
-                            entity.versions = [v for v in entity.versions if v.path != version_path]
+                            entity.versions = [v for v in entity.versions if Path(v.path) != version_path]
                             
                             # Delete directory
                             shutil.rmtree(version_path)
@@ -851,18 +884,18 @@ class VogueController(PrismMainWindow):
             issues = []
             
             # Check pipeline.json exists
-            pipeline_file = self.manager.current_project.path / "00_Pipeline" / "pipeline.json"
+            pipeline_file = Path(self.manager.current_project.path) / "00_Pipeline" / "pipeline.json"
             if not pipeline_file.exists():
                 issues.append("Missing pipeline.json file")
             
             # Check asset directories
             for asset in self.manager.current_project.assets:
-                if not asset.path.exists():
+                if not Path(asset.path).exists():
                     issues.append(f"Asset directory missing: {asset.name}")
             
             # Check shot directories
             for shot in self.manager.current_project.shots:
-                if not shot.path.exists():
+                if not Path(shot.path).exists():
                     issues.append(f"Shot directory missing: {shot.name}")
             
             self.hide_progress()
@@ -936,6 +969,10 @@ class VogueController(PrismMainWindow):
         """View detailed logs"""
         self.show_log_dock()
         self.add_log_message("Log panel opened")
+    
+    def show_system_info(self):
+        """Show system information dialog"""
+        super().show_system_info()
     
     def import_project(self):
         """Import project from external source"""
@@ -1043,10 +1080,7 @@ class VogueController(PrismMainWindow):
         if self.manager.current_project:
             # Update project info
             self.setWindowTitle(f"Vogue Manager - {self.manager.current_project.name}")
-            self.update_project_status(
-                self.manager.current_project.name,
-                str(self.manager.current_project.path)
-            )
+            self.statusBar().showMessage(f"Project: {self.manager.current_project.name} | Path: {self.manager.current_project.path}")
             
             # Update assets tree
             self.update_assets_tree()
@@ -1062,7 +1096,7 @@ class VogueController(PrismMainWindow):
         else:
             # Clear UI
             self.setWindowTitle("Vogue Manager - Prism Interface")
-            self.update_project_status("No Project", "")
+            self.statusBar().showMessage("No project loaded")
             self.project_browser.asset_tree.clear()
             self.project_browser.shot_tree.clear()
             self.version_manager.version_table.setRowCount(0)
@@ -1172,6 +1206,20 @@ class VogueController(PrismMainWindow):
             # Path
             path_item = QTableWidgetItem(str(version.path))
             self.version_manager.version_table.setItem(row, 5, path_item)
+    
+    def update_project_status(self, name: str, path: str):
+        """Update the project status in the UI"""
+        super().update_project_status(name, path)
+    
+    def add_log_message(self, message: str, level: str = "INFO"):
+        """Add a message to the log dock"""
+        log_widget = self.log_dock.widget()
+        if log_widget and hasattr(log_widget, 'log_text'):
+            log_widget.log_text.appendPlainText(f"[{level}] {message}")
+            # Auto-scroll to bottom
+            log_widget.log_text.verticalScrollBar().setValue(
+                log_widget.log_text.verticalScrollBar().maximum()
+            )
     
     def show(self):
         """Show the main window"""

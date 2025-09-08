@@ -74,7 +74,7 @@ class ProjectBrowser(PrismStyleWidget):
         recent_layout = QVBoxLayout(recent_group)
         
         self.recent_list = QListWidget()
-        self.recent_list.setMaximumHeight(100)
+        self.recent_list.setMaximumHeight(80)  # Reduce height to give more space to assets/shots
         recent_layout.addWidget(self.recent_list)
         
         layout.addWidget(recent_group)
@@ -101,6 +101,7 @@ class ProjectBrowser(PrismStyleWidget):
         self.asset_tree.setRootIsDecorated(True)
         self.asset_tree.setAlternatingRowColors(True)
         self.asset_tree.setSortingEnabled(True)
+        self.asset_tree.setMinimumHeight(200)  # Give more height to asset tree
         assets_layout.addWidget(self.asset_tree)
         
         # Asset buttons
@@ -133,6 +134,7 @@ class ProjectBrowser(PrismStyleWidget):
         self.shot_tree.setRootIsDecorated(True)
         self.shot_tree.setAlternatingRowColors(True)
         self.shot_tree.setSortingEnabled(True)
+        self.shot_tree.setMinimumHeight(200)  # Give more height to shot tree
         shots_layout.addWidget(self.shot_tree)
         
         # Shot buttons
@@ -146,8 +148,8 @@ class ProjectBrowser(PrismStyleWidget):
         
         content_splitter.addWidget(shots_group)
         
-        # Set splitter proportions
-        content_splitter.setSizes([300, 300])
+        # Set splitter proportions - give more space to assets and shots
+        content_splitter.setSizes([350, 350])
         layout.addWidget(content_splitter)
 
 
@@ -415,7 +417,7 @@ class PrismMainWindow(QMainWindow):
     def __init__(self):
         super().__init__()
         self.setWindowTitle("Vogue Manager - Prism Interface")
-        self.setMinimumSize(1400, 900)
+        self.setMinimumSize(1500, 950)  # Slightly larger for better proportions
         
         # Apply Prism-like styling
         self.setStyleSheet(build_qss())
@@ -450,8 +452,9 @@ class PrismMainWindow(QMainWindow):
         self.pipeline_panel = PipelinePanel()
         main_splitter.addWidget(self.pipeline_panel)
         
-        # Set splitter proportions (30% left, 50% center, 20% right)
-        main_splitter.setSizes([420, 700, 280])
+        # Set splitter proportions (35% left, 45% center, 20% right)
+        # This gives more space to the asset/shot browser
+        main_splitter.setSizes([490, 630, 280])
         layout.addWidget(main_splitter)
     
     def setup_menu(self):
@@ -598,6 +601,30 @@ class PrismMainWindow(QMainWindow):
         logs_action = QAction("&View Logs", self)
         tools_menu.addAction(logs_action)
         
+        # Status menu
+        status_menu = menubar.addMenu("&Status")
+        
+        # Project status action
+        self.project_status_action = QAction("Project: No project loaded", self)
+        self.project_status_action.setEnabled(False)
+        status_menu.addAction(self.project_status_action)
+        
+        # User status action
+        self.user_status_action = QAction("User: Unknown", self)
+        self.user_status_action.setEnabled(False)
+        status_menu.addAction(self.user_status_action)
+        
+        # Version status action
+        self.version_status_action = QAction("Version: v1.0.0", self)
+        self.version_status_action.setEnabled(False)
+        status_menu.addAction(self.version_status_action)
+        
+        status_menu.addSeparator()
+        
+        # System info action
+        self.system_info_action = QAction("System Information...", self)
+        status_menu.addAction(self.system_info_action)
+        
         # Help menu
         help_menu = menubar.addMenu("&Help")
         
@@ -704,23 +731,15 @@ class PrismMainWindow(QMainWindow):
         """Set up the status bar"""
         self.status_bar = self.statusBar()
         
-        # Project status
-        self.project_status_label = QLabel("No project loaded")
-        self.status_bar.addWidget(self.project_status_label)
-        
         # Progress bar
         self.progress_bar = QProgressBar()
         self.progress_bar.setVisible(False)
         self.progress_bar.setMaximumWidth(200)
         self.status_bar.addPermanentWidget(self.progress_bar)
         
-        # User info
-        self.user_label = QLabel("User: Unknown")
-        self.status_bar.addPermanentWidget(self.user_label)
-        
-        # Version info
-        self.version_label = QLabel("v1.0.0")
-        self.status_bar.addPermanentWidget(self.version_label)
+        # Status message (for temporary messages)
+        self.status_message_label = QLabel("Ready")
+        self.status_bar.addWidget(self.status_message_label)
     
     def setup_docks(self):
         """Set up dock widgets"""
@@ -786,22 +805,89 @@ class PrismMainWindow(QMainWindow):
             log_widget.log_text.setTextCursor(cursor)
     
     def update_project_status(self, project_name: str, project_path: str):
-        """Update the project status in the status bar"""
-        self.project_status_label.setText(f"Project: {project_name}")
+        """Update the project status in the status bar and menu"""
         self.project_browser.project_name_label.setText(project_name)
         self.project_browser.project_path_label.setText(project_path)
+        
+        # Update status menu
+        self.project_status_action.setText(f"Project: {project_name}")
+        self.project_status_action.setEnabled(True)
+        
+        # Update status bar message
+        self.status_message_label.setText(f"Project loaded: {project_name}")
     
     def update_user(self, username: str):
-        """Update the user in the status bar"""
-        self.user_label.setText(f"User: {username}")
+        """Update the user in the status bar and menu"""
+        # Update status menu
+        self.user_status_action.setText(f"User: {username}")
+        self.user_status_action.setEnabled(True)
+    
+    def update_version(self, version: str):
+        """Update the version in the status bar and menu"""
+        # Update status menu
+        self.version_status_action.setText(f"Version: v{version}")
+        self.version_status_action.setEnabled(True)
+    
+    def show_system_info(self):
+        """Show system information dialog"""
+        from PyQt6.QtWidgets import QDialog, QVBoxLayout, QTextEdit, QPushButton, QHBoxLayout
+        from PyQt6.QtCore import Qt
+        import platform
+        import sys
+        
+        dialog = QDialog(self)
+        dialog.setWindowTitle("System Information")
+        dialog.setModal(True)
+        dialog.resize(500, 400)
+        
+        layout = QVBoxLayout(dialog)
+        
+        # System info text
+        info_text = QTextEdit()
+        info_text.setReadOnly(True)
+        
+        system_info = f"""
+System Information:
+==================
+
+Platform: {platform.platform()}
+Architecture: {platform.architecture()[0]}
+Processor: {platform.processor()}
+Python Version: {sys.version}
+Qt Version: {Qt.QT_VERSION_STR}
+
+Application:
+============
+Name: Vogue Manager
+Version: 1.0.0
+Status: {'Project Loaded' if hasattr(self, 'project_status_action') and self.project_status_action.isEnabled() else 'No Project'}
+
+Project Information:
+===================
+{self.project_status_action.text() if hasattr(self, 'project_status_action') else 'No project loaded'}
+{self.user_status_action.text() if hasattr(self, 'user_status_action') else 'User: Unknown'}
+        """
+        
+        info_text.setPlainText(system_info)
+        layout.addWidget(info_text)
+        
+        # Close button
+        button_layout = QHBoxLayout()
+        close_btn = QPushButton("Close")
+        close_btn.clicked.connect(dialog.accept)
+        button_layout.addStretch()
+        button_layout.addWidget(close_btn)
+        layout.addLayout(button_layout)
+        
+        dialog.exec()
     
     def show_progress(self, message: str = "Processing..."):
         """Show progress bar with message"""
         self.progress_bar.setVisible(True)
         self.progress_bar.setRange(0, 0)  # Indeterminate progress
-        self.status_bar.showMessage(message)
+        self.status_message_label.setText(message)
     
     def hide_progress(self):
         """Hide progress bar"""
         self.progress_bar.setVisible(False)
-        self.status_bar.clearMessage()
+        self.status_message_label.setText("Ready")
