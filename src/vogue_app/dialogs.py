@@ -427,10 +427,11 @@ class AssetDialog(QDialog):
         self.name_edit.setPlaceholderText("Enter asset name...")
         info_layout.addRow("Name:", self.name_edit)
         
-        self.type_combo = QComboBox()
-        self.type_combo.addItems(["Character", "Prop", "Environment", "Vehicle", "FX", "Other"])
-        self.type_combo.setEditable(True)
-        info_layout.addRow("Type:", self.type_combo)
+        # Folder selection
+        self.folder_combo = QComboBox()
+        self.folder_combo.setEditable(False)
+        self.populate_folders()
+        info_layout.addRow("Folder:", self.folder_combo)
         
         self.description_edit = QTextEdit()
         self.description_edit.setMaximumHeight(80)
@@ -477,26 +478,62 @@ class AssetDialog(QDialog):
         button_box.rejected.connect(self.reject)
         layout.addWidget(button_box)
         
+    def populate_folders(self):
+        """Populate the folder dropdown with available folders"""
+        # Get the current project from the parent controller
+        if hasattr(self.parent(), 'manager') and self.parent().manager.current_project:
+            project = self.parent().manager.current_project
+            
+            # Get asset folders
+            asset_folders = [f for f in project.folders if f.type == "asset"]
+            
+            # Add folders to combo box
+            self.folder_combo.clear()
+            for folder in asset_folders:
+                self.folder_combo.addItem(folder.name)
+            
+            # If no folders exist, add "Main" as default
+            if self.folder_combo.count() == 0:
+                self.folder_combo.addItem("Main")
+            
+            # Set "Main" as default selection
+            main_index = self.folder_combo.findText("Main")
+            if main_index >= 0:
+                self.folder_combo.setCurrentIndex(main_index)
+        else:
+            # No project loaded, just add Main
+            self.folder_combo.clear()
+            self.folder_combo.addItem("Main")
+    
     def populate_from_asset(self):
         """Populate dialog from existing asset"""
         if not self.asset:
             return
             
         self.name_edit.setText(self.asset.name)
-        self.type_combo.setCurrentText(self.asset.type)
         self.description_edit.setPlainText(self.asset.description or "")
         self.tags_edit.setText(", ".join(self.asset.meta.get("tags", [])))
         self.artist_edit.setText(self.asset.meta.get("artist", ""))
         
+        # Set folder if asset is in a folder
+        if hasattr(self.parent(), 'manager') and self.parent().manager.current_project:
+            project = self.parent().manager.current_project
+            for folder in project.folders:
+                if folder.type == "asset" and self.asset.name in folder.assets:
+                    folder_index = self.folder_combo.findText(folder.name)
+                    if folder_index >= 0:
+                        self.folder_combo.setCurrentIndex(folder_index)
+                    break
+        
     def get_asset_data(self):
         """Get asset data from dialog"""
         name = self.name_edit.text().strip()
-        asset_type = self.type_combo.currentText().strip()
+        folder_name = self.folder_combo.currentText().strip()
         description = self.description_edit.toPlainText().strip()
         tags = [t.strip() for t in self.tags_edit.text().split(",") if t.strip()]
         artist = self.artist_edit.text().strip()
         
-        if not name or not asset_type:
+        if not name:
             return None
             
         meta = {
@@ -509,7 +546,7 @@ class AssetDialog(QDialog):
         
         return {
             "name": name,
-            "type": asset_type,
+            "folder": folder_name,
             "description": description,
             "meta": meta
         }
@@ -953,4 +990,138 @@ class SettingsDialog(QDialog):
             "startup_project": self.startup_project_cb.isChecked(),
             "theme": self.theme_combo.currentText(),
             "font_size": self.font_size_spin.value()
+        }
+
+
+class CreateTaskDialog(QDialog):
+    """Dialog for creating tasks"""
+    
+    def __init__(self, parent=None):
+        super().__init__(parent)
+        self.setWindowTitle("Create New Task")
+        self.setModal(True)
+        self.resize(400, 300)
+        self.setup_ui()
+        
+    def setup_ui(self):
+        layout = QVBoxLayout(self)
+        
+        # Task info
+        info_group = QGroupBox("Task Information")
+        info_layout = QFormLayout(info_group)
+        
+        self.name_edit = QLineEdit()
+        self.name_edit.setPlaceholderText("Enter task name...")
+        info_layout.addRow("Task Name:", self.name_edit)
+        
+        self.status_combo = QComboBox()
+        self.status_combo.addItems(["WIP", "Review", "Final", "Blocked", "Complete"])
+        info_layout.addRow("Status:", self.status_combo)
+        
+        self.description_edit = QTextEdit()
+        self.description_edit.setMaximumHeight(80)
+        self.description_edit.setPlaceholderText("Task description (optional)...")
+        info_layout.addRow("Description:", self.description_edit)
+        
+        layout.addWidget(info_group)
+        
+        # Buttons
+        button_box = QDialogButtonBox(
+            QDialogButtonBox.StandardButton.Ok | QDialogButtonBox.StandardButton.Cancel
+        )
+        button_box.accepted.connect(self.accept)
+        button_box.rejected.connect(self.reject)
+        layout.addWidget(button_box)
+        
+    def get_task_data(self):
+        """Get task data from dialog"""
+        name = self.name_edit.text().strip()
+        status = self.status_combo.currentText()
+        description = self.description_edit.toPlainText().strip()
+        
+        if not name:
+            return None
+            
+        return {
+            "name": name,
+            "status": status,
+            "description": description
+        }
+
+
+class CreateShotDialog(QDialog):
+    """Dialog for creating shots"""
+    
+    def __init__(self, parent=None):
+        super().__init__(parent)
+        self.setWindowTitle("Create New Shot")
+        self.setModal(True)
+        self.resize(500, 400)
+        self.setup_ui()
+        
+    def setup_ui(self):
+        layout = QVBoxLayout(self)
+        
+        # Shot info
+        info_group = QGroupBox("Shot Information")
+        info_layout = QFormLayout(info_group)
+        
+        self.name_edit = QLineEdit()
+        self.name_edit.setPlaceholderText("Enter shot name (e.g., 0010)...")
+        info_layout.addRow("Shot Name:", self.name_edit)
+        
+        self.sequence_edit = QLineEdit()
+        self.sequence_edit.setPlaceholderText("Enter sequence name (e.g., SEQ001)...")
+        info_layout.addRow("Sequence:", self.sequence_edit)
+        
+        self.description_edit = QTextEdit()
+        self.description_edit.setMaximumHeight(80)
+        self.description_edit.setPlaceholderText("Shot description (optional)...")
+        info_layout.addRow("Description:", self.description_edit)
+        
+        layout.addWidget(info_group)
+        
+        # Shot settings
+        settings_group = QGroupBox("Shot Settings")
+        settings_layout = QFormLayout(settings_group)
+        
+        self.start_frame_spin = QSpinBox()
+        self.start_frame_spin.setRange(1, 999999)
+        self.start_frame_spin.setValue(1001)
+        settings_layout.addRow("Start Frame:", self.start_frame_spin)
+        
+        self.end_frame_spin = QSpinBox()
+        self.end_frame_spin.setRange(1, 999999)
+        self.end_frame_spin.setValue(1100)
+        settings_layout.addRow("End Frame:", self.end_frame_spin)
+        
+        layout.addWidget(settings_group)
+        
+        # Buttons
+        button_box = QDialogButtonBox(
+            QDialogButtonBox.StandardButton.Ok | QDialogButtonBox.StandardButton.Cancel
+        )
+        button_box.accepted.connect(self.accept)
+        button_box.rejected.connect(self.reject)
+        layout.addWidget(button_box)
+        
+    def get_shot_data(self):
+        """Get shot data from dialog"""
+        name = self.name_edit.text().strip()
+        sequence = self.sequence_edit.text().strip()
+        description = self.description_edit.toPlainText().strip()
+        
+        if not name or not sequence:
+            return None
+            
+        meta = {
+            "start_frame": self.start_frame_spin.value(),
+            "end_frame": self.end_frame_spin.value()
+        }
+        
+        return {
+            "name": name,
+            "sequence": sequence,
+            "description": description,
+            "meta": meta
         }

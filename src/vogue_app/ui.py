@@ -287,12 +287,8 @@ class ProjectBrowser(PrismStyleWidget):
         assets_layout = QVBoxLayout(assets_tab)
         assets_layout.setContentsMargins(5, 5, 5, 5)
         
-        # Asset type filter
+        # Asset filter (removed type filter since we removed types)
         filter_layout = QHBoxLayout()
-        self.asset_type_combo = QComboBox()
-        self.asset_type_combo.addItems(["All", "Characters", "Props", "Environments"])
-        filter_layout.addWidget(QLabel("Type:"))
-        filter_layout.addWidget(self.asset_type_combo)
         filter_layout.addStretch()
         assets_layout.addLayout(filter_layout)
         

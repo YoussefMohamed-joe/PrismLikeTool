@@ -13,7 +13,7 @@ from datetime import datetime
 
 # Import PyQt6 only
 from PyQt6.QtWidgets import (QMainWindow, QFileDialog, QMessageBox, QInputDialog,
-                            QToolBar, QDialog, QTreeWidget, QTreeWidgetItem, QListWidgetItem, QTableWidgetItem)
+                            QToolBar, QDialog, QTreeWidget, QTreeWidgetItem, QListWidgetItem, QTableWidgetItem, QLineEdit)
 from PyQt6.QtCore import QThread, pyqtSignal, QObject, Qt, QUrl, QTimer
 from PyQt6.QtGui import QDesktopServices, QColor, QIcon
 
@@ -69,11 +69,48 @@ class VogueController(PrismMainWindow):
         # Connect signals after UI is set up
         self.setup_connections()
 
+        # Ensure tree widgets are properly configured (after UI setup)
+        QTimer.singleShot(500, self._setup_tree_widgets)
+
         # Auto-load last opened project AFTER UI is set up
         QTimer.singleShot(100, self.auto_load_last_project)
-        
+
         self.logger.info("Vogue Controller initialized")
-    
+
+    def _setup_tree_widgets(self):
+        """Ensure tree widgets are properly configured and visible"""
+        try:
+            if hasattr(self, 'project_browser'):
+                # Remove ThumbnailDelegate which interferes with tree item rendering
+                self.project_browser.asset_tree.setItemDelegate(None)
+                self.project_browser.shot_tree.setItemDelegate(None)
+
+                # Clear and repopulate the tree to ensure items are visible
+                if self.manager.current_project:
+                    # Force tree refresh
+                    self.update_assets_tree()
+                    self.update_shots_tree()
+
+                # Debug: Check tree state
+                asset_count = self.project_browser.asset_tree.topLevelItemCount()
+                print(f"DEBUG: Tree setup - Asset count: {asset_count}")
+
+                # Ensure trees are visible and properly updated
+                self.project_browser.asset_tree.setVisible(True)
+                self.project_browser.asset_tree.update()
+                self.project_browser.asset_tree.repaint()
+
+                self.project_browser.shot_tree.setVisible(True)
+                self.project_browser.shot_tree.update()
+                self.project_browser.shot_tree.repaint()
+
+                # Force complete UI refresh
+                if hasattr(self, 'update'):
+                    self.update()
+                    self.repaint()
+        except Exception as e:
+            self.logger.error(f"Failed to setup tree widgets: {e}")
+
     def auto_load_last_project(self):
         """Automatically load the last opened project on startup"""
         try:
@@ -285,9 +322,11 @@ class VogueController(PrismMainWindow):
             # Add to recent projects
             settings.add_recent_project(project.name, project.path)
             
+            # Don't call _setup_tree_widgets here as it interferes with update_ui_state
+
             # Update UI
             self.update_ui_state()
-            
+
             # Update status
             self.update_project_status(project.name, project.path)
             
@@ -945,22 +984,27 @@ class VogueController(PrismMainWindow):
     
     def create_asset(self, asset_data):
         """Create a new asset"""
+        # Asset creation working correctly
         try:
             # Prepare meta data including description
             meta = asset_data['meta'].copy()
             if asset_data.get('description'):
                 meta['description'] = asset_data['description']
             
-            # Create asset
+            # Create asset (no type field)
             asset = Asset(
                 name=asset_data['name'],
-                type=asset_data['type'],
-                path=str(Path(self.manager.current_project.path) / "01_Assets" / asset_data['type'] / asset_data['name']),
+                type="Asset",  # Default type
+                path=str(Path(self.manager.current_project.path) / "01_Assets" / "Assets" / asset_data['name']),
                 meta=meta
             )
             
             # Add to project
             self.manager.current_project.assets.append(asset)
+            
+            # Handle folder assignment
+            folder_name = asset_data.get('folder', 'Main')
+            self._assign_asset_to_folder(asset.name, folder_name)
             
             # Save project
             self.manager.save_project(self.manager.current_project)
@@ -968,12 +1012,57 @@ class VogueController(PrismMainWindow):
             # Update UI
             self.update_assets_tree()
             
-            self.add_log_message(f"Created asset: {asset.name}")
+            self.add_log_message(f"Created asset: {asset.name} in folder: {folder_name}")
             
         except Exception as e:
             error_msg = f"Failed to create asset: {e}"
             self.logger.error(error_msg)
             QMessageBox.critical(self, "Error", error_msg)
+    
+    def _assign_asset_to_folder(self, asset_name: str, folder_name: str):
+        """Assign an asset to a folder, creating the folder if it doesn't exist"""
+        if not self.manager.current_project:
+            return
+        
+        # Ensure folders list exists
+        if not hasattr(self.manager.current_project, 'folders') or self.manager.current_project.folders is None:
+            self.manager.current_project.folders = []
+        
+        # If folder_name is "Main", don't create a folder - assets go at root
+        if folder_name == "Main":
+            # Find or create Main folder for tracking, but don't display it
+            folder = None
+            for f in self.manager.current_project.folders:
+                if f.type == "asset" and f.name == "Main":
+                    folder = f
+                    break
+            
+            if folder is None:
+                # Create Main folder for tracking
+                from vogue_core.models import Folder
+                folder = Folder(name="Main", type="asset", assets=[], shots=[])
+                self.manager.current_project.folders.append(folder)
+            
+            # Add asset to Main folder for tracking
+            if asset_name not in folder.assets:
+                folder.assets.append(asset_name)
+        else:
+            # Find or create the folder
+            folder = None
+            for f in self.manager.current_project.folders:
+                if f.type == "asset" and f.name == folder_name:
+                    folder = f
+                    break
+            
+            if folder is None:
+                # Create new folder
+                from vogue_core.models import Folder
+                folder = Folder(name=folder_name, type="asset", assets=[], shots=[])
+                self.manager.current_project.folders.append(folder)
+            
+            # Add asset to folder if not already there
+            if asset_name not in folder.assets:
+                folder.assets.append(asset_name)
     
     def add_shot(self):
         """Add a new shot"""
@@ -1406,22 +1495,30 @@ class VogueController(PrismMainWindow):
             self.version_manager.entity_type_label.setText("")
             return
         
-        # Get asset name and type
+        # Get asset name
         asset_name = current_item.text(0)
-        asset_type = current_item.data(0, Qt.ItemDataRole.UserRole)
+        item_type = current_item.data(0, Qt.ItemDataRole.UserRole)
         
-        # Update entity info
-        self.version_manager.entity_name_label.setText(asset_name)
-        self.version_manager.entity_type_label.setText(f"Asset - {asset_type}")
+        # Only handle actual assets, not folders
+        if item_type == "Asset":
+            # Update entity info
+            self.version_manager.entity_name_label.setText(asset_name)
+            self.version_manager.entity_type_label.setText("Asset")
 
-        # For now, show empty versions table (can be enhanced later)
-        self.update_versions_table([])
+            # For now, show empty versions table (can be enhanced later)
+            self.update_versions_table([])
 
-        # Update asset info panel with basic info
-        self.update_asset_info_for_list(asset_name, asset_type)
-        
-        # Enable publish button
-        self.version_manager.publish_btn.setEnabled(True)
+            # Update asset info panel with basic info
+            self.update_asset_info_for_list(asset_name)
+            
+            # Enable publish button
+            self.version_manager.publish_btn.setEnabled(True)
+        else:
+            # Folder selected, clear selection
+            self.update_versions_table([])
+            self.version_manager.entity_name_label.setText("No Selection")
+            self.version_manager.entity_type_label.setText("")
+            self.version_manager.publish_btn.setEnabled(False)
     
     def on_shot_selection_changed(self, current_item):
         """Handle shot selection change"""
@@ -1534,10 +1631,14 @@ class VogueController(PrismMainWindow):
         """Update the assets tree widget"""
         if not self.manager.current_project:
             return
-        
+
+        # Tree population working correctly
 
         # Clear the tree first
         self.project_browser.asset_tree.clear()
+
+        # Remove ThumbnailDelegate BEFORE creating items
+        self.project_browser.asset_tree.setItemDelegate(None)
 
         # Create asset folders from saved folder structure
         asset_folders = [f for f in self.manager.current_project.folders if f.type == "asset"]
@@ -1548,52 +1649,67 @@ class VogueController(PrismMainWindow):
         if asset_folders:
             # Recreate the custom folder structure
             for folder in asset_folders:
-                # Create folder
-                folder_item = QTreeWidgetItem(self.project_browser.asset_tree)
-                folder_item.setText(0, folder.name)
-                folder_item.setData(0, Qt.ItemDataRole.UserRole, "Folder")
+                # Skip "Main" folder - we'll handle those assets at root
+                if folder.name == "Main":
+                    # Add Main folder assets directly to root
+                    for asset_name in folder.assets:
+                        # Find the asset in the project
+                        asset = None
+                        for a in self.manager.current_project.assets:
+                            if a.name == asset_name:
+                                asset = a
+                                break
 
-                # Add assets to the folder
-                for asset_name in folder.assets:
-                    # Find the asset in the project
-                    asset = None
-                    for a in self.manager.current_project.assets:
-                        if a.name == asset_name:
-                            asset = a
-                            break
+                        if asset:
+                            asset_item = QTreeWidgetItem(self.project_browser.asset_tree)
+                            asset_item.setText(0, asset.name)
+                            asset_item.setData(0, Qt.ItemDataRole.UserRole, "Asset")
+                            placed_assets.add(asset_name)
+                else:
+                    # Create folder for non-Main folders
+                    folder_item = QTreeWidgetItem(self.project_browser.asset_tree)
+                    folder_item.setText(0, folder.name)
+                    folder_item.setData(0, Qt.ItemDataRole.UserRole, "Folder")
 
-                    if asset:
-                        asset_item = QTreeWidgetItem(folder_item)
-                        asset_item.setText(0, asset.name)
-                        asset_item.setData(0, Qt.ItemDataRole.UserRole, "Asset")
-                        placed_assets.add(asset_name)
+                    # Add assets to the folder
+                    for asset_name in folder.assets:
+                        # Find the asset in the project
+                        asset = None
+                        for a in self.manager.current_project.assets:
+                            if a.name == asset_name:
+                                asset = a
+                                break
+
+                        if asset:
+                            asset_item = QTreeWidgetItem(folder_item)
+                            asset_item.setText(0, asset.name)
+                            asset_item.setData(0, Qt.ItemDataRole.UserRole, "Asset")
+                            placed_assets.add(asset_name)
 
         # Add any remaining assets that aren't in custom folders
-        # Put them in a default "Assets" folder or similar
+        # Put them directly at root (no Main folder)
         remaining_assets = []
         for asset in self.manager.current_project.assets:
             if asset.name not in placed_assets:
                 remaining_assets.append(asset)
 
         if remaining_assets:
-            # Create a default folder for unassigned assets named 'Main'
-            default_folder = QTreeWidgetItem(self.project_browser.asset_tree)
-            default_folder.setText(0, "Main")
-            default_folder.setData(0, Qt.ItemDataRole.UserRole, "Folder")
-
+            # Add assets directly to root
             for asset in remaining_assets:
-                asset_item = QTreeWidgetItem(default_folder)
+                asset_item = QTreeWidgetItem(self.project_browser.asset_tree)
                 asset_item.setText(0, asset.name)
                 asset_item.setData(0, Qt.ItemDataRole.UserRole, "Asset")
-        
+
+        # Remove ThumbnailDelegate which interferes with tree item rendering
+        self.project_browser.asset_tree.setItemDelegate(None)
+
         # Expand all folders so assets are immediately visible
         self.project_browser.asset_tree.expandAll()
-    
-        # Optional: If no custom folders and no remaining assets, ensure 'Main' is visible
-        if self.project_browser.asset_tree.topLevelItemCount() == 0:
-            main_item = QTreeWidgetItem(self.project_browser.asset_tree)
-            main_item.setText(0, "Main")
-            main_item.setData(0, Qt.ItemDataRole.UserRole, "Folder")
+
+        # Force the tree to be visible and update (the 3 key lines)
+        self.project_browser.asset_tree.setVisible(True)
+        self.project_browser.asset_tree.update()
+        self.project_browser.asset_tree.repaint()
     
     def update_shots_tree(self):
         """Update the shots tree widget"""
@@ -1677,12 +1793,20 @@ class VogueController(PrismMainWindow):
                     shot_item.setData(0, Qt.ItemDataRole.UserRole, "Shot")
 
                 summary_item.setExpanded(True)  # Expand summary by default
+        
+        # Remove ThumbnailDelegate for shots tree too
+        self.project_browser.shot_tree.setItemDelegate(None)
 
-    def update_asset_info_for_list(self, asset_name: str, asset_type: str):
+        # Force the tree to be visible and update
+        self.project_browser.shot_tree.setVisible(True)
+        self.project_browser.shot_tree.update()
+        self.project_browser.shot_tree.repaint()
+
+    def update_asset_info_for_list(self, asset_name: str, asset_type: str = None):
         """Update asset info panel for list-based assets"""
         if hasattr(self.right_panel, 'asset_name_label'):
             self.right_panel.asset_name_label.setText(asset_name)
-            self.right_panel.asset_type_label.setText(asset_type)
+            self.right_panel.asset_type_label.setText("Asset")  # Fixed type
             self.right_panel.asset_path_label.setText("Path: Not Available")
             self.right_panel.asset_status_label.setText("Status: Active")
             self.right_panel.asset_artist_label.setText("Artist: Unknown")
