@@ -11,7 +11,7 @@ from PyQt6.QtWidgets import (QApplication, QMainWindow, QWidget, QVBoxLayout,
                              QListWidgetItem, QCheckBox, QSpinBox, QSlider, 
                              QScrollArea, QFrame, QGridLayout, QSizePolicy)
 from PyQt6.QtCore import Qt, QTimer, QThread, pyqtSignal, QSize
-from PyQt6.QtGui import QFont, QBrush, QColor, QIcon
+from PyQt6.QtGui import QFont, QBrush, QColor, QIcon, QPixmap, QPainter, QPen
 
 from vogue_core.manager import ProjectManager
 from vogue_core.logging_utils import get_logger
@@ -50,9 +50,56 @@ class VogueController(PrismMainWindow):
 
         # Auto-load last opened project AFTER tree setup
         QTimer.singleShot(200, self._auto_load_last_project)
+    
+    def create_default_asset_icon(self, width, height):
+        """Create a default asset placeholder icon with dark stripes and dashed border"""
+        pixmap = QPixmap(width, height)
+        pixmap.fill(QColor(40, 40, 40))  # Dark background
+        
+        painter = QPainter(pixmap)
+        painter.setRenderHint(QPainter.RenderHint.Antialiasing)
+        
+        # Draw diagonal stripes
+        painter.setPen(QPen(QColor(60, 60, 60), 2))
+        stripe_spacing = 8
+        for i in range(-height, width + height, stripe_spacing):
+            painter.drawLine(i, 0, i + height, height)
+        
+        # Draw dashed border
+        pen = QPen(QColor(100, 100, 100), 2, Qt.PenStyle.DashLine)
+        painter.setPen(pen)
+        painter.drawRect(2, 2, width - 4, height - 4)
+        
+        # Draw "ASSET" text in center
+        painter.setPen(QPen(QColor(150, 150, 150), 1))
+        font = QFont()
+        font.setPointSize(8)
+        font.setBold(True)
+        painter.setFont(font)
+        painter.drawText(pixmap.rect(), Qt.AlignmentFlag.AlignCenter, "ASSET")
+        
+        painter.end()
+        return pixmap
+    
+    def get_asset_icon(self, asset, size=120):
+        """Get asset icon - custom image if available, otherwise default placeholder"""
+        # Check if asset has a custom image path
+        if hasattr(asset, 'meta') and asset.meta.get('image_path'):
+            image_path = asset.meta['image_path']
+            if os.path.exists(image_path):
+                try:
+                    pixmap = QPixmap(image_path)
+                    if not pixmap.isNull():
+                        # Scale to desired size
+                        return pixmap.scaled(size, size, Qt.AspectRatioMode.KeepAspectRatio, Qt.TransformationMode.SmoothTransformation)
+                except Exception as e:
+                    self.logger.warning(f"Failed to load asset image {image_path}: {e}")
+        
+        # Return default placeholder
+        return self.create_default_asset_icon(size, size)
 
     def update_assets_tree(self):
-        """Simple asset tree update"""
+        """Simple asset tree update with icons"""
         tree = self.project_browser.asset_tree
         tree.clear()
         
@@ -60,6 +107,15 @@ class VogueController(PrismMainWindow):
             placeholder_item = QTreeWidgetItem(tree)
             placeholder_item.setText(0, "No project loaded")
             return
+
+        # Create icons with different sizes
+        folder_icon = self.style().standardIcon(self.style().StandardPixmap.SP_DirOpenIcon)
+        
+        # Scale folder icon to be smaller
+        folder_icon = folder_icon.pixmap(24, 24)
+        
+        # Create default asset placeholder image (dark striped with dashed border) - much bigger for picture preview
+        default_asset_icon = self.create_default_asset_icon(120, 120)
         
         # Add folders
         if hasattr(self.manager.current_project, 'folders') and self.manager.current_project.folders:
@@ -67,13 +123,19 @@ class VogueController(PrismMainWindow):
                 if folder.type == "asset":
                     folder_item = QTreeWidgetItem(tree)
                     folder_item.setText(0, folder.name)
+                    folder_item.setIcon(0, QIcon(folder_icon))
                     folder_item.setData(0, Qt.ItemDataRole.UserRole, "Folder")
                     
                     # Add assets to folder
                     if hasattr(folder, 'assets') and folder.assets:
                         for asset_name in folder.assets:
+                            # Find the actual asset object to get custom icon
+                            asset_obj = next((a for a in self.manager.current_project.assets if a.name == asset_name), None)
+                            asset_icon = self.get_asset_icon(asset_obj) if asset_obj else default_asset_icon
+                            
                             asset_item = QTreeWidgetItem(folder_item)
                             asset_item.setText(0, asset_name)
+                            asset_item.setIcon(0, QIcon(asset_icon))
                             asset_item.setData(0, Qt.ItemDataRole.UserRole, "Asset")
         
         # Add unassigned assets
@@ -85,12 +147,87 @@ class VogueController(PrismMainWindow):
         
         for asset in self.manager.current_project.assets:
             if asset.name not in assigned_assets:
+                # Get custom icon for this asset
+                asset_icon = self.get_asset_icon(asset)
+                
                 asset_item = QTreeWidgetItem(tree)
                 asset_item.setText(0, asset.name)
+                asset_item.setIcon(0, QIcon(asset_icon))
                 asset_item.setData(0, Qt.ItemDataRole.UserRole, "Asset")
+        
+        # Set much larger row height to accommodate bigger icons for picture preview
+        tree.setIconSize(QSize(120, 120))
+        tree.setIndentation(20)  # More indentation for better visual hierarchy
+        
+        # Set larger font for better readability with bigger images (like Prism)
+        font = tree.font()
+        font.setPointSize(14)  # Even larger font size for bigger images
+        tree.setFont(font)
         
         tree.expandAll()
         self.logger.info(f"Updated assets tree with {tree.topLevelItemCount()} items")
+    
+    def update_shots_tree(self):
+        """Update shots tree with icons"""
+        tree = self.project_browser.shot_tree
+        tree.clear()
+        
+        if not self.manager.current_project:
+            placeholder_item = QTreeWidgetItem(tree)
+            placeholder_item.setText(0, "No project loaded")
+            return
+
+        # Create icons with different sizes
+        folder_icon = self.style().standardIcon(self.style().StandardPixmap.SP_DirOpenIcon)
+        shot_icon = self.style().standardIcon(self.style().StandardPixmap.SP_MediaPlay)
+        
+        # Scale folder icon to be smaller, shot icon larger
+        folder_icon = folder_icon.pixmap(24, 24)
+        shot_icon = shot_icon.pixmap(48, 48)
+        
+        # Add shot folders
+        if hasattr(self.manager.current_project, 'folders') and self.manager.current_project.folders:
+            for folder in self.manager.current_project.folders:
+                if folder.type == "shot":
+                    folder_item = QTreeWidgetItem(tree)
+                    folder_item.setText(0, folder.name)
+                    folder_item.setIcon(0, QIcon(folder_icon))
+                    folder_item.setData(0, Qt.ItemDataRole.UserRole, "ShotFolder")
+                    
+                    # Add shots to folder
+                    if hasattr(folder, 'shots') and folder.shots:
+                        for shot_name in folder.shots:
+                            shot_item = QTreeWidgetItem(folder_item)
+                            shot_item.setText(0, shot_name)
+                            shot_item.setIcon(0, QIcon(shot_icon))
+                            shot_item.setData(0, Qt.ItemDataRole.UserRole, "Shot")
+        
+        # Add unassigned shots
+        assigned_shots = set()
+        if hasattr(self.manager.current_project, 'folders') and self.manager.current_project.folders:
+            for folder in self.manager.current_project.folders:
+                if folder.type == "shot" and hasattr(folder, 'shots') and folder.shots:
+                    assigned_shots.update(folder.shots)
+        
+        for shot in self.manager.current_project.shots:
+            shot_key = f"{shot.sequence}/{shot.name}"
+            if shot_key not in assigned_shots:
+                shot_item = QTreeWidgetItem(tree)
+                shot_item.setText(0, shot_key)
+                shot_item.setIcon(0, QIcon(shot_icon))
+                shot_item.setData(0, Qt.ItemDataRole.UserRole, "Shot")
+        
+        # Set larger row height to accommodate bigger icons
+        tree.setIconSize(QSize(48, 48))
+        tree.setIndentation(20)  # More indentation for better visual hierarchy
+        
+        # Set larger font for better readability (like Prism)
+        font = tree.font()
+        font.setPointSize(12)  # Larger font size
+        tree.setFont(font)
+        
+        tree.expandAll()
+        self.logger.info(f"Updated shots tree with {tree.topLevelItemCount()} items")
     
     def setup_asset_tree_context_menu(self):
         """Setup context menu for asset tree"""
@@ -109,8 +246,8 @@ class VogueController(PrismMainWindow):
         tree = self.project_browser.asset_tree
         item = tree.itemAt(position)
         if not item:
-            return
-        
+                return
+            
         # Get selected items
         selected_items = tree.selectedItems()
         
@@ -130,6 +267,8 @@ class VogueController(PrismMainWindow):
                 if self.clipboard_item:
                     menu.addAction("Paste", lambda: self.paste_item(item))
             else:  # Asset
+                menu.addAction("Properties...", lambda: self.show_asset_properties(item))
+                menu.addSeparator()
                 menu.addAction("Rename", lambda: self.rename_item(item))
                 menu.addAction("Delete", lambda: self.delete_item(item))
                 menu.addSeparator()
@@ -146,13 +285,50 @@ class VogueController(PrismMainWindow):
         
         menu.exec(tree.mapToGlobal(position))
     
+    def show_asset_properties(self, item):
+        """Show asset properties dialog"""
+        if not self.manager.current_project:
+            QMessageBox.warning(self, "No Project", "Load or create a project first.")
+            return
+            
+        # Find the asset object
+        asset_name = item.text(0)
+        asset = next((a for a in self.manager.current_project.assets if a.name == asset_name), None)
+        
+        if not asset:
+            QMessageBox.warning(self, "Asset Not Found", f"Could not find asset: {asset_name}")
+            return
+
+        # Create and show properties dialog
+        from vogue_app.dialogs import AssetPropertiesDialog
+        dialog = AssetPropertiesDialog(self, asset)
+        if dialog.exec() == QDialog.DialogCode.Accepted:
+            # Update the asset with new properties
+            data = dialog.get_asset_data()
+            if data:
+                # Update asset properties
+                if data.get('description'):
+                    asset.meta['description'] = data['description']
+                if data.get('image_path'):
+                    asset.meta['image_path'] = data['image_path']
+                if data.get('meta'):
+                    asset.meta.update(data['meta'])
+                
+                # Save project
+                try:
+                    self.manager.save_project()
+                    self.update_assets_tree()  # Refresh the tree
+                    self.logger.info(f"Updated asset properties: {asset_name}")
+                except Exception as e:
+                    QMessageBox.warning(self, "Save Error", f"Failed to save asset properties: {e}")
+    
     def show_shot_context_menu(self, position):
         """Show context menu for shot tree"""
         tree = self.project_browser.shot_tree
         item = tree.itemAt(position)
         if not item:
             return
-        
+
         # Get selected items
         selected_items = tree.selectedItems()
         
@@ -224,7 +400,7 @@ class VogueController(PrismMainWindow):
                 self.logger.error(f"Failed saving project after folder add: {e}")
                 QMessageBox.warning(self, "Save Error", f"Folder added but failed to save project: {e}")
                 return
-                
+
             self.update_assets_tree()
     
     def rename_item(self, item):
@@ -293,13 +469,13 @@ class VogueController(PrismMainWindow):
                     for i in range(self.project_browser.asset_tree.topLevelItemCount()):
                         if self.project_browser.asset_tree.topLevelItem(i) == item:
                             self.project_browser.asset_tree.takeTopLevelItem(i)
-                            return
-                if hasattr(self.project_browser, 'shot_tree'):
-                    for i in range(self.project_browser.shot_tree.topLevelItemCount()):
-                        if self.project_browser.shot_tree.topLevelItem(i) == item:
-                            self.project_browser.shot_tree.takeTopLevelItem(i)
-                            return
-    
+            return
+        if hasattr(self.project_browser, 'shot_tree'):
+            for i in range(self.project_browser.shot_tree.topLevelItemCount()):
+                if self.project_browser.shot_tree.topLevelItem(i) == item:
+                    self.project_browser.shot_tree.takeTopLevelItem(i)
+            return
+
     def copy_item(self, item):
         """Copy item to clipboard"""
         self.clipboard_item = item
@@ -315,8 +491,8 @@ class VogueController(PrismMainWindow):
     def paste_item(self, target_item):
         """Paste item from clipboard"""
         if not self.clipboard_item:
-            return
-        
+                return
+
         # Create new item
         new_item = QTreeWidgetItem(target_item)
         new_item.setText(0, self.clipboard_item.text(0))
@@ -327,7 +503,7 @@ class VogueController(PrismMainWindow):
             parent = self.clipboard_item.parent()
             if parent:
                 parent.removeChild(self.clipboard_item)
-            else:
+        else:
                 tree = self.project_browser.asset_tree
                 tree.takeTopLevelItem(tree.indexOfTopLevelItem(self.clipboard_item))
         
@@ -399,7 +575,7 @@ class VogueController(PrismMainWindow):
         if not self.manager.current_project:
             QMessageBox.warning(self, "No Project", "Load or create a project first.")
             return
-
+            
         dialog = AssetDialog(self)
         if preselected_folder:
             idx = dialog.folder_combo.findText(preselected_folder)
@@ -410,8 +586,8 @@ class VogueController(PrismMainWindow):
             data = dialog.get_asset_data()
             if not data:
                 QMessageBox.warning(self, "Invalid Data", "Please enter a valid asset name.")
-                return
-
+            return
+        
             from vogue_core.models import Asset
             project = self.manager.current_project
 
@@ -428,10 +604,10 @@ class VogueController(PrismMainWindow):
                     if f.type == "asset" and f.name == folder_name:
                         folder = f
                         break
-                if folder is None:
-                    from vogue_core.models import Folder
-                    folder = Folder(name=folder_name, type="asset", assets=[])
-                    project.folders.append(folder)
+            if folder is None:
+                from vogue_core.models import Folder
+                folder = Folder(name=folder_name, type="asset", assets=[])
+                project.folders.append(folder)
 
             # Create asset and append to project assets list if not exists
             existing = next((a for a in getattr(project, 'assets', []) if a.name == data['name']), None)
@@ -444,6 +620,9 @@ class VogueController(PrismMainWindow):
                 # Store description in meta
                 if data.get('description'):
                     asset.meta['description'] = data['description']
+                # Store image path in meta
+                if data.get('image_path'):
+                    asset.meta['image_path'] = data['image_path']
                 # Attach other meta data
                 if hasattr(asset, 'meta') and isinstance(asset.meta, dict):
                     asset.meta.update(data.get('meta', {}))
@@ -646,6 +825,7 @@ class VogueController(PrismMainWindow):
         try:
             self.manager.load_project(project_path)
             self.update_assets_tree()
+            self.update_shots_tree()
             self.setWindowTitle(f"Vogue Manager - {self.manager.current_project.name}")
             
             # Update project info display
@@ -806,7 +986,7 @@ class VogueController(PrismMainWindow):
         
         if not selected_items:
             return
-        
+
         # Confirm deletion
         item_names = [item.text(0) for item in selected_items]
         item_list = "\n".join(f"• {name}" for name in item_names)
@@ -817,7 +997,7 @@ class VogueController(PrismMainWindow):
             f"Are you sure you want to delete the following {len(selected_items)} items?\n\n{item_list}",
             QMessageBox.StandardButton.Yes | QMessageBox.StandardButton.No
         )
-        
+
         if reply == QMessageBox.StandardButton.Yes:
             # Remove from project data first
             if self.manager.current_project:
@@ -869,7 +1049,7 @@ class VogueController(PrismMainWindow):
         
         if not selected_items:
             return
-        
+
         # Store multiple items in clipboard
         self.clipboard_items = selected_items
         self.clipboard_operation = "copy"
@@ -884,7 +1064,7 @@ class VogueController(PrismMainWindow):
         
         if not selected_items:
             return
-        
+
         # Store multiple items in clipboard
         self.clipboard_items = selected_items
         self.clipboard_operation = "cut"

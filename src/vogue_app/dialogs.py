@@ -438,6 +438,19 @@ class AssetDialog(QDialog):
         self.description_edit.setPlaceholderText("Asset description (optional)...")
         info_layout.addRow("Description:", self.description_edit)
         
+        # Asset image selection
+        self.image_path_edit = QLineEdit()
+        self.image_path_edit.setPlaceholderText("No image selected...")
+        self.image_path_edit.setReadOnly(True)
+        
+        self.browse_image_btn = QPushButton("Browse Image...")
+        self.browse_image_btn.clicked.connect(self.browse_image)
+        
+        image_layout = QHBoxLayout()
+        image_layout.addWidget(self.image_path_edit)
+        image_layout.addWidget(self.browse_image_btn)
+        info_layout.addRow("Asset Image:", image_layout)
+        
         layout.addWidget(info_group)
         
         # Asset settings
@@ -525,11 +538,26 @@ class AssetDialog(QDialog):
                         self.folder_combo.setCurrentIndex(folder_index)
                     break
         
+    def browse_image(self):
+        """Browse for asset image"""
+        from PyQt6.QtWidgets import QFileDialog
+        
+        file_path, _ = QFileDialog.getOpenFileName(
+            self,
+            "Select Asset Image",
+            "",
+            "Image Files (*.png *.jpg *.jpeg *.bmp *.gif);;All Files (*)"
+        )
+        
+        if file_path:
+            self.image_path_edit.setText(file_path)
+    
     def get_asset_data(self):
         """Get asset data from dialog"""
         name = self.name_edit.text().strip()
         folder_name = self.folder_combo.currentText().strip()
         description = self.description_edit.toPlainText().strip()
+        image_path = self.image_path_edit.text().strip()
         tags = [t.strip() for t in self.tags_edit.text().split(",") if t.strip()]
         artist = self.artist_edit.text().strip()
         
@@ -541,13 +569,203 @@ class AssetDialog(QDialog):
             "artist": artist,
             "lod": self.lod_combo.currentText(),
             "rigged": self.rigged_check.isChecked(),
-            "animated": self.animated_check.isChecked()
+            "animated": self.animated_check.isChecked(),
+            "image_path": image_path if image_path else None
         }
         
         return {
             "name": name,
             "folder": folder_name,
             "description": description,
+            "image_path": image_path if image_path else None,
+            "meta": meta
+        }
+
+
+class AssetPropertiesDialog(QDialog):
+    """Dialog for editing asset properties"""
+    
+    def __init__(self, parent=None, asset=None):
+        super().__init__(parent)
+        self.asset = asset
+        self.setWindowTitle(f"Asset Properties - {asset.name if asset else 'Unknown'}")
+        self.setModal(True)
+        self.resize(600, 500)
+        self.setup_ui()
+        
+        if asset:
+            self.populate_from_asset()
+            
+    def setup_ui(self):
+        layout = QVBoxLayout(self)
+        
+        # Asset info
+        info_group = QGroupBox("Asset Information")
+        info_layout = QFormLayout(info_group)
+        
+        self.name_edit = QLineEdit()
+        self.name_edit.setPlaceholderText("Enter asset name...")
+        self.name_edit.setReadOnly(True)  # Name cannot be changed in properties
+        info_layout.addRow("Name:", self.name_edit)
+        
+        self.description_edit = QTextEdit()
+        self.description_edit.setMaximumHeight(80)
+        self.description_edit.setPlaceholderText("Asset description (optional)...")
+        info_layout.addRow("Description:", self.description_edit)
+        
+        # Asset image selection
+        self.image_path_edit = QLineEdit()
+        self.image_path_edit.setPlaceholderText("No image selected...")
+        self.image_path_edit.setReadOnly(True)
+        
+        self.browse_image_btn = QPushButton("Browse Image...")
+        self.browse_image_btn.clicked.connect(self.browse_image)
+        
+        self.clear_image_btn = QPushButton("Clear Image")
+        self.clear_image_btn.clicked.connect(self.clear_image)
+        
+        image_layout = QHBoxLayout()
+        image_layout.addWidget(self.image_path_edit)
+        image_layout.addWidget(self.browse_image_btn)
+        image_layout.addWidget(self.clear_image_btn)
+        info_layout.addRow("Asset Image:", image_layout)
+        
+        # Show current image preview
+        self.image_preview = QLabel()
+        self.image_preview.setFixedSize(100, 100)
+        self.image_preview.setStyleSheet("border: 1px solid gray; background-color: #f0f0f0;")
+        self.image_preview.setAlignment(Qt.AlignmentFlag.AlignCenter)
+        self.image_preview.setText("No Image")
+        info_layout.addRow("Preview:", self.image_preview)
+        
+        layout.addWidget(info_group)
+        
+        # Asset settings
+        settings_group = QGroupBox("Asset Settings")
+        settings_layout = QFormLayout(settings_group)
+        
+        self.lod_combo = QComboBox()
+        self.lod_combo.addItems(["High", "Medium", "Low", "All"])
+        settings_layout.addRow("LOD Level:", self.lod_combo)
+        
+        self.rigged_check = QCheckBox("Rigged")
+        settings_layout.addRow("", self.rigged_check)
+        
+        self.animated_check = QCheckBox("Animated")
+        settings_layout.addRow("", self.animated_check)
+        
+        layout.addWidget(settings_group)
+        
+        # Meta data
+        meta_group = QGroupBox("Meta Data")
+        meta_layout = QFormLayout(meta_group)
+        
+        self.tags_edit = QLineEdit()
+        self.tags_edit.setPlaceholderText("Enter tags separated by commas...")
+        meta_layout.addRow("Tags:", self.tags_edit)
+        
+        self.artist_edit = QLineEdit()
+        self.artist_edit.setPlaceholderText("Asset artist...")
+        meta_layout.addRow("Artist:", self.artist_edit)
+        
+        layout.addWidget(meta_group)
+        
+        # Buttons
+        button_box = QDialogButtonBox(
+            QDialogButtonBox.StandardButton.Ok | QDialogButtonBox.StandardButton.Cancel
+        )
+        button_box.accepted.connect(self.accept)
+        button_box.rejected.connect(self.reject)
+        layout.addWidget(button_box)
+        
+    def populate_from_asset(self):
+        """Populate dialog from existing asset"""
+        if not self.asset:
+            return
+            
+        self.name_edit.setText(self.asset.name)
+        self.description_edit.setPlainText(self.asset.meta.get('description', ''))
+        self.tags_edit.setText(", ".join(self.asset.meta.get('tags', [])))
+        self.artist_edit.setText(self.asset.meta.get('artist', ''))
+        
+        # Set LOD level
+        lod = self.asset.meta.get('lod', 'High')
+        lod_index = self.lod_combo.findText(lod)
+        if lod_index >= 0:
+            self.lod_combo.setCurrentIndex(lod_index)
+        
+        # Set checkboxes
+        self.rigged_check.setChecked(self.asset.meta.get('rigged', False))
+        self.animated_check.setChecked(self.asset.meta.get('animated', False))
+        
+        # Set image path and preview
+        image_path = self.asset.meta.get('image_path', '')
+        if image_path:
+            self.image_path_edit.setText(image_path)
+            self.update_image_preview(image_path)
+    
+    def browse_image(self):
+        """Browse for asset image"""
+        from PyQt6.QtWidgets import QFileDialog
+        
+        file_path, _ = QFileDialog.getOpenFileName(
+            self,
+            "Select Asset Image",
+            "",
+            "Image Files (*.png *.jpg *.jpeg *.bmp *.gif);;All Files (*)"
+        )
+        
+        if file_path:
+            self.image_path_edit.setText(file_path)
+            self.update_image_preview(file_path)
+    
+    def clear_image(self):
+        """Clear the selected image"""
+        self.image_path_edit.clear()
+        self.image_preview.setText("No Image")
+        self.image_preview.setPixmap(QPixmap())
+    
+    def update_image_preview(self, image_path):
+        """Update the image preview"""
+        if os.path.exists(image_path):
+            try:
+                pixmap = QPixmap(image_path)
+                if not pixmap.isNull():
+                    # Scale to fit preview size
+                    scaled_pixmap = pixmap.scaled(100, 100, Qt.AspectRatioMode.KeepAspectRatio, Qt.TransformationMode.SmoothTransformation)
+                    self.image_preview.setPixmap(scaled_pixmap)
+                    self.image_preview.setText("")
+                else:
+                    self.image_preview.setText("Invalid Image")
+            except Exception as e:
+                self.image_preview.setText("Load Error")
+        else:
+            self.image_preview.setText("File Not Found")
+    
+    def get_asset_data(self):
+        """Get asset data from dialog"""
+        name = self.name_edit.text().strip()
+        description = self.description_edit.toPlainText().strip()
+        image_path = self.image_path_edit.text().strip()
+        tags = [t.strip() for t in self.tags_edit.text().split(",") if t.strip()]
+        artist = self.artist_edit.text().strip()
+        
+        if not name:
+            return None
+            
+        meta = {
+            "tags": tags,
+            "artist": artist,
+            "lod": self.lod_combo.currentText(),
+            "rigged": self.rigged_check.isChecked(),
+            "animated": self.animated_check.isChecked(),
+            "image_path": image_path if image_path else None
+        }
+        
+        return {
+            "name": name,
+            "description": description,
+            "image_path": image_path if image_path else None,
             "meta": meta
         }
 
