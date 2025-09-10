@@ -213,11 +213,55 @@ class VogueController(PrismMainWindow):
             item.setText(0, new_name)
     
     def delete_item(self, item):
-        """Delete item"""
+        """Delete item from both UI and project data"""
+        item_name = item.text(0)
+        item_type = item.data(0, Qt.ItemDataRole.UserRole)
+        
         reply = QMessageBox.question(self, "Delete Item", 
-                                   f"Delete '{item.text(0)}'?", 
+                                   f"Delete '{item_name}'?", 
                                    QMessageBox.StandardButton.Yes | QMessageBox.StandardButton.No)
         if reply == QMessageBox.StandardButton.Yes:
+            # Remove from project data first
+            if self.manager.current_project:
+                if item_type == "Asset":
+                    # Remove from assets list
+                    self.manager.current_project.assets = [
+                        asset for asset in self.manager.current_project.assets 
+                        if asset.name != item_name
+                    ]
+                    # Remove from folders
+                    if hasattr(self.manager.current_project, 'folders'):
+                        for folder in self.manager.current_project.folders:
+                            if folder.type == "asset" and hasattr(folder, 'assets'):
+                                folder.assets = [a for a in folder.assets if a != item_name]
+                elif item_type == "Shot":
+                    # Remove from shots list
+                    self.manager.current_project.shots = [
+                        shot for shot in self.manager.current_project.shots 
+                        if shot.name != item_name
+                    ]
+                    # Remove from folders
+                    if hasattr(self.manager.current_project, 'folders'):
+                        for folder in self.manager.current_project.folders:
+                            if folder.type == "shot" and hasattr(folder, 'shots'):
+                                folder.shots = [s for s in folder.shots if s != item_name]
+                elif item_type == "Folder":
+                    # Remove folder from project
+                    if hasattr(self.manager.current_project, 'folders'):
+                        self.manager.current_project.folders = [
+                            folder for folder in self.manager.current_project.folders 
+                            if folder.name != item_name
+                        ]
+                
+                # Save project to file
+                try:
+                    self.manager.save_project()
+                    self.logger.info(f"Deleted {item_type.lower()}: {item_name} and saved project")
+                except Exception as e:
+                    self.logger.error(f"Failed to save project after deletion: {e}")
+                    QMessageBox.warning(self, "Save Error", f"Item deleted from UI but failed to save project: {e}")
+            
+            # Remove from UI
             parent = item.parent()
             if parent:
                 parent.removeChild(item)
@@ -511,7 +555,7 @@ class VogueController(PrismMainWindow):
         super().show()
     
     def delete_selected_items(self):
-        """Delete all selected items"""
+        """Delete all selected items from both UI and project data"""
         tree = self.project_browser.asset_tree
         selected_items = tree.selectedItems()
         
@@ -530,7 +574,40 @@ class VogueController(PrismMainWindow):
         )
         
         if reply == QMessageBox.StandardButton.Yes:
-            # Delete items (in reverse order to avoid index issues)
+            # Remove from project data first
+            if self.manager.current_project:
+                for item in selected_items:
+                    item_name = item.text(0)
+                    item_type = item.data(0, Qt.ItemDataRole.UserRole)
+                    
+                    if item_type == "Asset":
+                        # Remove from assets list
+                        self.manager.current_project.assets = [
+                            asset for asset in self.manager.current_project.assets 
+                            if asset.name != item_name
+                        ]
+                        # Remove from folders
+                        if hasattr(self.manager.current_project, 'folders'):
+                            for folder in self.manager.current_project.folders:
+                                if folder.type == "asset" and hasattr(folder, 'assets'):
+                                    folder.assets = [a for a in folder.assets if a != item_name]
+                    elif item_type == "Folder":
+                        # Remove folder from project
+                        if hasattr(self.manager.current_project, 'folders'):
+                            self.manager.current_project.folders = [
+                                folder for folder in self.manager.current_project.folders 
+                                if folder.name != item_name
+                            ]
+                
+                # Save project to file
+                try:
+                    self.manager.save_project()
+                    self.logger.info(f"Deleted {len(selected_items)} items and saved project")
+                except Exception as e:
+                    self.logger.error(f"Failed to save project after bulk deletion: {e}")
+                    QMessageBox.warning(self, "Save Error", f"Items deleted from UI but failed to save project: {e}")
+            
+            # Delete items from UI (in reverse order to avoid index issues)
             for item in reversed(selected_items):
                 parent = item.parent()
                 if parent:
@@ -587,7 +664,7 @@ class VogueController(PrismMainWindow):
             folder_item.setData(0, Qt.ItemDataRole.UserRole, "Folder")
     
     def delete_selected_shot_items(self):
-        """Delete all selected shot items"""
+        """Delete all selected shot items from both UI and project data"""
         tree = self.project_browser.shot_tree
         selected_items = tree.selectedItems()
         
@@ -606,7 +683,40 @@ class VogueController(PrismMainWindow):
         )
         
         if reply == QMessageBox.StandardButton.Yes:
-            # Delete items (in reverse order to avoid index issues)
+            # Remove from project data first
+            if self.manager.current_project:
+                for item in selected_items:
+                    item_name = item.text(0)
+                    item_type = item.data(0, Qt.ItemDataRole.UserRole)
+                    
+                    if item_type == "Shot":
+                        # Remove from shots list
+                        self.manager.current_project.shots = [
+                            shot for shot in self.manager.current_project.shots 
+                            if shot.name != item_name
+                        ]
+                        # Remove from folders
+                        if hasattr(self.manager.current_project, 'folders'):
+                            for folder in self.manager.current_project.folders:
+                                if folder.type == "shot" and hasattr(folder, 'shots'):
+                                    folder.shots = [s for s in folder.shots if s != item_name]
+                    elif item_type == "Folder":
+                        # Remove folder from project
+                        if hasattr(self.manager.current_project, 'folders'):
+                            self.manager.current_project.folders = [
+                                folder for folder in self.manager.current_project.folders 
+                                if folder.name != item_name
+                            ]
+                
+                # Save project to file
+                try:
+                    self.manager.save_project()
+                    self.logger.info(f"Deleted {len(selected_items)} shot items and saved project")
+                except Exception as e:
+                    self.logger.error(f"Failed to save project after shot deletion: {e}")
+                    QMessageBox.warning(self, "Save Error", f"Items deleted from UI but failed to save project: {e}")
+            
+            # Delete items from UI (in reverse order to avoid index issues)
             for item in reversed(selected_items):
                 parent = item.parent()
                 if parent:
