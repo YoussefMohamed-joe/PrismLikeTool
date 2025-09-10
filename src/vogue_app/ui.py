@@ -293,7 +293,7 @@ class ProjectBrowser(PrismStyleWidget):
         assets_layout.setContentsMargins(5, 5, 5, 5)
         
         # Create simple asset tree
-        self.asset_tree = QTreeWidget()
+        self.asset_tree = AssetTreeWidget()
         self.asset_tree.setHeaderHidden(True)
         self.asset_tree.setRootIsDecorated(True)
         self.asset_tree.setAlternatingRowColors(True)
@@ -337,7 +337,7 @@ class ProjectBrowser(PrismStyleWidget):
         shots_layout.addLayout(shot_filter_layout)
         
         # Shot tree view (Using standard QTreeWidget for compatibility)
-        self.shot_tree = QTreeWidget()
+        self.shot_tree = ShotTreeWidget()
         self.shot_tree.setHeaderHidden(True)
         self.shot_tree.setRootIsDecorated(True)
         self.shot_tree.setAlternatingRowColors(True)
@@ -1715,17 +1715,87 @@ class AssetTreeWidget(QTreeWidget):
                 folder_name = target_item.text(0)
                 print(f"[LOG] Asset '{item_name}' moved to folder '{folder_name}'")
 
-                # Auto-save the project after drag and drop
-                if auto_save_project(self.parent()):
-                    print("[LOG] Project auto-saved after drag and drop")
-                else:
-                    print("[LOG] Auto-save skipped after drag and drop: no project loaded")
+                # Update the project data structure
+                self._update_asset_folder_assignment(item_name, folder_name)
         elif not target_item:
             # Allow drop on empty space (root level)
             super().dropEvent(event)
+            # Update the project data structure for root level
+            dragged_item = self.currentItem()
+            if dragged_item:
+                item_name = dragged_item.text(0)
+                print(f"[LOG] Asset '{item_name}' moved to root level")
+                self._update_asset_folder_assignment(item_name, None)
         else:
             # Reject drop on non-folder items
             event.ignore()
+    
+    def _update_asset_folder_assignment(self, asset_name, folder_name):
+        """Update asset folder assignment in project data"""
+        try:
+            print(f"[LOG] Starting asset folder assignment for '{asset_name}' to '{folder_name}'")
+            
+            # Try to get controller from global reference first
+            controller = get_current_controller()
+            print(f"[LOG] Global controller: {controller}")
+            
+            if not controller:
+                # Fallback: try to find controller via widget hierarchy
+                current_widget = self
+                max_depth = 10
+                depth = 0
+                while current_widget and depth < max_depth:
+                    print(f"[LOG] Checking widget at depth {depth}: {type(current_widget).__name__}")
+                    if hasattr(current_widget, 'manager') and hasattr(current_widget, 'current_project'):
+                        controller = current_widget
+                        print(f"[LOG] Found controller via hierarchy: {controller}")
+                        break
+                    current_widget = current_widget.parent()
+                    depth += 1
+            
+            if not controller:
+                print(f"[LOG] Error: Could not find controller for asset '{asset_name}'")
+                return
+                
+            if not hasattr(controller, 'manager'):
+                print(f"[LOG] Error: Controller has no manager for asset '{asset_name}'")
+                return
+                
+            if not controller.manager.current_project:
+                print(f"[LOG] Error: No current project for asset '{asset_name}'")
+                return
+            
+            project = controller.manager.current_project
+            print(f"[LOG] Found project: {project.name}")
+            
+            # Remove asset from all folders first
+            for folder in project.folders:
+                if folder.type == "asset" and asset_name in folder.assets:
+                    folder.assets.remove(asset_name)
+            
+            # Add asset to target folder
+            if folder_name:
+                # Find or create the target folder
+                target_folder = None
+                for folder in project.folders:
+                    if folder.type == "asset" and folder.name == folder_name:
+                        target_folder = folder
+                        break
+                
+                if target_folder:
+                    target_folder.assets.append(asset_name)
+                else:
+                    # Create new folder if it doesn't exist
+                    from vogue_core.models import Folder
+                    new_folder = Folder(name=folder_name, type="asset", assets=[asset_name])
+                    project.folders.append(new_folder)
+            
+            # Save the project
+            controller.manager.save_project()
+            print(f"[LOG] Updated asset '{asset_name}' folder assignment to '{folder_name}'")
+            
+        except Exception as e:
+            print(f"[LOG] Error updating asset folder assignment: {e}")
 
 class ShotTreeWidget(QTreeWidget):
     """Custom tree widget with enhanced drag and drop support for shots"""
@@ -1747,17 +1817,72 @@ class ShotTreeWidget(QTreeWidget):
                 folder_name = target_item.text(0)
                 print(f"[LOG] Shot '{item_name}' moved to folder '{folder_name}'")
 
-                # Auto-save the project after drag and drop
-                if auto_save_project(self.parent()):
-                    print("[LOG] Project auto-saved after drag and drop")
-                else:
-                    print("[LOG] Auto-save skipped after drag and drop: no project loaded")
+                # Update the project data structure
+                self._update_shot_folder_assignment(item_name, folder_name)
         elif not target_item:
             # Allow drop on empty space (root level)
             super().dropEvent(event)
+            # Update the project data structure for root level
+            dragged_item = self.currentItem()
+            if dragged_item:
+                item_name = dragged_item.text(0)
+                print(f"[LOG] Shot '{item_name}' moved to root level")
+                self._update_shot_folder_assignment(item_name, None)
         else:
             # Reject drop on non-folder items
             event.ignore()
+    
+    def _update_shot_folder_assignment(self, shot_name, folder_name):
+        """Update shot folder assignment in project data"""
+        try:
+            # Try to get controller from global reference first
+            controller = get_current_controller()
+            if not controller:
+                # Fallback: try to find controller via widget hierarchy
+                current_widget = self
+                max_depth = 10
+                depth = 0
+                while current_widget and depth < max_depth:
+                    if hasattr(current_widget, 'manager') and hasattr(current_widget, 'current_project'):
+                        controller = current_widget
+                        break
+                    current_widget = current_widget.parent()
+                    depth += 1
+            
+            if not controller or not hasattr(controller, 'manager') or not controller.manager.current_project:
+                print(f"[LOG] Error: Could not find controller or project for shot '{shot_name}'")
+                return
+            
+            project = controller.manager.current_project
+            
+            # Remove shot from all folders first
+            for folder in project.folders:
+                if folder.type == "shot" and shot_name in folder.assets:
+                    folder.assets.remove(shot_name)
+            
+            # Add shot to target folder
+            if folder_name:
+                # Find or create the target folder
+                target_folder = None
+                for folder in project.folders:
+                    if folder.type == "shot" and folder.name == folder_name:
+                        target_folder = folder
+                        break
+                
+                if target_folder:
+                    target_folder.assets.append(shot_name)
+                else:
+                    # Create new folder if it doesn't exist
+                    from vogue_core.models import Folder
+                    new_folder = Folder(name=folder_name, type="shot", assets=[shot_name])
+                    project.folders.append(new_folder)
+            
+            # Save the project
+            controller.manager.save_project()
+            print(f"[LOG] Updated shot '{shot_name}' folder assignment to '{folder_name}'")
+            
+        except Exception as e:
+            print(f"[LOG] Error updating shot folder assignment: {e}")
 
 class ThumbnailDelegate(QStyledItemDelegate):
     """Custom delegate for displaying thumbnails in tree widget"""

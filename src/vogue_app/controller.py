@@ -1,5 +1,6 @@
 # Clean controller implementation for asset tree
 import os
+from pathlib import Path
 from PyQt6.QtWidgets import (QApplication, QMainWindow, QWidget, QVBoxLayout, 
                              QHBoxLayout, QLabel, QPushButton, QTreeWidget, 
                              QTreeWidgetItem, QTabWidget, QSplitter, QComboBox, 
@@ -177,13 +178,13 @@ class VogueController(PrismMainWindow):
             placeholder_item.setText(0, "No project loaded")
             return
 
-        # Create icons with different sizes
+        # Create icons with different sizes - much bigger for shots like assets
         folder_icon = self.style().standardIcon(self.style().StandardPixmap.SP_DirOpenIcon)
         shot_icon = self.style().standardIcon(self.style().StandardPixmap.SP_MediaPlay)
         
-        # Scale folder icon to be smaller, shot icon larger
+        # Scale folder icon to be smaller, shot icon much bigger like assets
         folder_icon = folder_icon.pixmap(24, 24)
-        shot_icon = shot_icon.pixmap(48, 48)
+        shot_icon = shot_icon.pixmap(120, 120)  # Much bigger like assets
         
         # Add shot folders
         if hasattr(self.manager.current_project, 'folders') and self.manager.current_project.folders:
@@ -192,38 +193,41 @@ class VogueController(PrismMainWindow):
                     folder_item = QTreeWidgetItem(tree)
                     folder_item.setText(0, folder.name)
                     folder_item.setIcon(0, QIcon(folder_icon))
-                    folder_item.setData(0, Qt.ItemDataRole.UserRole, "ShotFolder")
+                    folder_item.setData(0, Qt.ItemDataRole.UserRole, "Folder")
                     
                     # Add shots to folder
-                    if hasattr(folder, 'shots') and folder.shots:
-                        for shot_name in folder.shots:
+                    if hasattr(folder, 'assets') and folder.assets:
+                        for shot_name in folder.assets:
                             shot_item = QTreeWidgetItem(folder_item)
-                            shot_item.setText(0, shot_name)
+                            shot_item.setText(0, shot_name)  # Just the shot name, not sequence/shot
                             shot_item.setIcon(0, QIcon(shot_icon))
                             shot_item.setData(0, Qt.ItemDataRole.UserRole, "Shot")
         
-        # Add unassigned shots
+        # Add unassigned shots (shots not in any folder)
         assigned_shots = set()
         if hasattr(self.manager.current_project, 'folders') and self.manager.current_project.folders:
             for folder in self.manager.current_project.folders:
-                if folder.type == "shot" and hasattr(folder, 'shots') and folder.shots:
-                    assigned_shots.update(folder.shots)
+                if folder.type == "shot" and hasattr(folder, 'assets') and folder.assets:
+                    assigned_shots.update(folder.assets)
         
-        for shot in self.manager.current_project.shots:
-            shot_key = f"{shot.sequence}/{shot.name}"
-            if shot_key not in assigned_shots:
-                shot_item = QTreeWidgetItem(tree)
-                shot_item.setText(0, shot_key)
-                shot_item.setIcon(0, QIcon(shot_icon))
-                shot_item.setData(0, Qt.ItemDataRole.UserRole, "Shot")
+        # Display all shots - either in folders or as unassigned
+        if hasattr(self.manager.current_project, 'shots') and self.manager.current_project.shots:
+            for shot in self.manager.current_project.shots:
+                # Check if this shot is already in a folder
+                if shot.name not in assigned_shots:
+                    # Display as unassigned shot
+                    shot_item = QTreeWidgetItem(tree)
+                    shot_item.setText(0, shot.name)  # Just the shot name, not sequence/shot
+                    shot_item.setIcon(0, QIcon(shot_icon))
+                    shot_item.setData(0, Qt.ItemDataRole.UserRole, "Shot")
         
-        # Set larger row height to accommodate bigger icons
-        tree.setIconSize(QSize(48, 48))
+        # Set much larger row height to accommodate bigger icons like assets
+        tree.setIconSize(QSize(120, 120))
         tree.setIndentation(20)  # More indentation for better visual hierarchy
         
-        # Set larger font for better readability (like Prism)
+        # Set larger font for better readability with bigger images (like Prism)
         font = tree.font()
-        font.setPointSize(12)  # Larger font size
+        font.setPointSize(14)  # Even larger font size for bigger images
         tree.setFont(font)
         
         tree.expandAll()
@@ -348,6 +352,8 @@ class VogueController(PrismMainWindow):
                 if self.clipboard_item:
                     menu.addAction("Paste", lambda: self.paste_item(item))
             else:  # Shot
+                menu.addAction("Properties...", lambda: self.show_shot_properties(item))
+                menu.addSeparator()
                 menu.addAction("Rename", lambda: self.rename_item(item))
                 menu.addAction("Delete", lambda: self.delete_item(item))
                 menu.addSeparator()
@@ -363,6 +369,43 @@ class VogueController(PrismMainWindow):
             menu.addAction(f"Cut Selected ({len(selected_items)})", lambda: self.cut_selected_shot_items())
         
         menu.exec(tree.mapToGlobal(position))
+    
+    def show_shot_properties(self, item):
+        """Show shot properties dialog"""
+        if not self.manager.current_project:
+            QMessageBox.warning(self, "No Project", "Load or create a project first.")
+            return
+        
+        # Find the shot object
+        shot_name = item.text(0)
+        shot = next((s for s in self.manager.current_project.shots if s.name == shot_name), None)
+        
+        if not shot:
+            QMessageBox.warning(self, "Shot Not Found", f"Could not find shot: {shot_name}")
+            return
+        
+        # Create and show properties dialog
+        from vogue_app.dialogs import ShotPropertiesDialog
+        dialog = ShotPropertiesDialog(self, shot)
+        if dialog.exec() == QDialog.DialogCode.Accepted:
+            # Update the shot with new properties
+            data = dialog.get_shot_data()
+            if data:
+                # Update shot properties
+                if data.get('description'):
+                    shot.meta['description'] = data['description']
+                if data.get('image_path'):
+                    shot.meta['image_path'] = data['image_path']
+                if data.get('meta'):
+                    shot.meta.update(data['meta'])
+                
+                # Save project
+                try:
+                    self.manager.save_project()
+                    self.update_shots_tree()  # Refresh the tree
+                    self.logger.info(f"Updated shot properties: {shot_name}")
+                except Exception as e:
+                    QMessageBox.warning(self, "Save Error", f"Failed to save shot properties: {e}")
     
     def add_asset_to_folder(self, folder_item):
         """Open AssetDialog with preselected folder and add asset"""
@@ -519,6 +562,11 @@ class VogueController(PrismMainWindow):
         self.project_browser.new_folder_btn.clicked.connect(self.add_folder)
         self.project_browser.refresh_assets_btn.clicked.connect(self.update_assets_tree)
         
+        # Connect shot button signals
+        self.project_browser.add_shot_btn.clicked.connect(self.add_shot)
+        self.project_browser.new_shot_folder_btn.clicked.connect(self.add_shot_folder)
+        self.project_browser.refresh_shots_btn.clicked.connect(self.update_shots_tree)
+        
         # Connect menu actions
         self.connect_menu_actions()
     
@@ -550,6 +598,7 @@ class VogueController(PrismMainWindow):
                     self.logger.info(f"Auto-loading last project: {last_project['name']} from {project_path}")
                     self.manager.load_project(project_path)
                     self.update_assets_tree()
+                    self.update_shots_tree()
                     self.setWindowTitle(f"Vogue Manager - {self.manager.current_project.name}")
                     self.update_project_info()
                     self.logger.info("Project loaded successfully")
@@ -660,6 +709,7 @@ class VogueController(PrismMainWindow):
                 if not hasattr(self.manager.current_project, 'folders'):
                     self.manager.current_project.folders = []
                 self.manager.current_project.folders.append(folder)
+                self.manager.save_project()  # Save to JSON
                 self.update_assets_tree()
                 self.logger.info(f"Added folder: {name}")
     
@@ -964,12 +1014,155 @@ class VogueController(PrismMainWindow):
         self.logger.info(f"Cut {len(selected_items)} items to clipboard")
     
     def add_shot_to_folder(self, folder_item):
-        """Add new shot to folder"""
-        name, ok = QInputDialog.getText(self, "New Shot", "Shot name:")
+        """Add new shot to folder with preselected folder"""
+        folder_name = folder_item.text(0)
+        self.add_shot(preselected_folder=folder_name)
+    
+    def add_shot(self, preselected_folder=None):
+        """Add a new shot with folder selection"""
+        if not self.manager.current_project:
+            QMessageBox.warning(self, "No Project", "Load or create a project first.")
+            return
+        
+        from vogue_app.dialogs import ShotDialog
+        dialog = ShotDialog(self, preselected_folder=preselected_folder)
+        if dialog.exec() == QDialog.DialogCode.Accepted:
+            data = dialog.get_shot_data()
+            if data:
+                self.create_shot(data)
+    
+    def create_shot(self, data):
+        """Create a new shot"""
+        if not self.manager.current_project:
+            QMessageBox.warning(self, "No Project", "Load or create a project first.")
+            return
+        
+        try:
+            project = self.manager.current_project
+            
+            # Handle folder/sequence relationship
+            sequence_name = data["sequence"].strip()
+            folder_name = data["folder"].strip() if data.get("folder") else "Main"
+            
+            folder = None
+            
+            # If user typed a new sequence name, create a new folder for it
+            if sequence_name and sequence_name != "Main":
+                # Check if this sequence already exists as a folder
+                for f in project.folders:
+                    if f.type == "shot" and f.name == sequence_name:
+                        folder = f
+                        break
+                
+                if not folder:
+                    # Create new folder for this sequence
+                    from vogue_core.models import Folder
+                    folder = Folder(name=sequence_name, type="shot", assets=[])
+                    project.folders.append(folder)
+            else:
+                # Use selected folder or Main (no folder)
+                if folder_name and folder_name != "Main":
+                    for f in project.folders:
+                        if f.type == "shot" and f.name == folder_name:
+                            folder = f
+                            break
+            
+            # Create shot object
+            from vogue_core.models import Shot
+            shot = Shot(
+                name=data['name'],
+                sequence=data['sequence'],
+                path=str(Path(project.path) / "02_Shots" / data['sequence'] / data['name']),
+                meta=data['meta'].copy()
+            )
+            
+            # Add description to meta if provided
+            if data.get('description'):
+                shot.meta['description'] = data['description']
+            
+            # Add image path to meta if provided
+            if data.get('image_path'):
+                shot.meta['image_path'] = data['image_path']
+            
+            # Add to project shots list
+            if not hasattr(project, 'shots') or project.shots is None:
+                project.shots = []
+            project.shots.append(shot)
+            
+            # Add to folder if not "Main"
+            if folder:
+                if not hasattr(folder, 'assets') or folder.assets is None:
+                    folder.assets = []
+                if data['name'] not in folder.assets:
+                    folder.assets.append(data['name'])
+            
+            # Persist to JSON
+            try:
+                self.manager.save_project()
+            except Exception as e:
+                self.logger.error(f"Failed saving project after shot add: {e}")
+                QMessageBox.warning(self, "Save Error", f"Shot added but failed to save project: {e}")
+                return
+            
+            # Refresh UI
+            self.update_shots_tree()
+            if folder:
+                self.logger.info(f"Added shot: {data['name']} to folder: {folder.name}")
+            else:
+                self.logger.info(f"Added shot: {data['name']} to root level")
+            
+            # Update sequence dropdown in any open dialogs
+            self.refresh_shot_dialogs()
+                
+        except Exception as e:
+            self.logger.error(f"Failed to create shot: {e}")
+            QMessageBox.critical(self, "Error", f"Failed to create shot: {e}")
+    
+    def refresh_shot_dialogs(self):
+        """Refresh sequence dropdowns in any open shot dialogs"""
+        # Find any open ShotDialog instances and refresh their sequence dropdowns
+        for widget in self.findChildren(QWidget):
+            if hasattr(widget, 'populate_sequences') and hasattr(widget, 'sequence_combo'):
+                widget.populate_sequences()
+    
+    def add_shot_folder(self):
+        """Add new shot folder"""
+        if not self.manager.current_project:
+            QMessageBox.warning(self, "No Project", "Load or create a project first.")
+            return
+        
+        name, ok = QInputDialog.getText(self, "New Shot Folder", "Folder name:")
         if ok and name:
-            shot_item = QTreeWidgetItem(folder_item)
-            shot_item.setText(0, name)
-            shot_item.setData(0, Qt.ItemDataRole.UserRole, "Shot")
+            try:
+                project = self.manager.current_project
+                
+                # Check if folder already exists
+                existing_folder = next((f for f in project.folders if f.name == name.strip() and f.type == "shot"), None)
+                if existing_folder:
+                    QMessageBox.warning(self, "Folder Exists", f"Shot folder '{name.strip()}' already exists.")
+                    return
+                
+                # Create new shot folder
+                from vogue_core.models import Folder
+                new_folder = Folder(name=name.strip(), type="shot", assets=[])
+                project.folders.append(new_folder)
+                
+                # Save project immediately
+                try:
+                    self.manager.save_project()
+                    self.logger.info(f"Added shot folder: {name.strip()} and saved project")
+                except Exception as e:
+                    self.logger.error(f"Failed saving project after shot folder add: {e}")
+                    QMessageBox.warning(self, "Save Error", f"Shot folder added but failed to save project: {e}")
+                    return
+                
+                # Refresh UI
+                self.update_shots_tree()
+                self.logger.info(f"Added shot folder: {name.strip()}")
+                
+            except Exception as e:
+                self.logger.error(f"Failed to create shot folder: {e}")
+                QMessageBox.critical(self, "Error", f"Failed to create shot folder: {e}")
     
     def add_shot_subfolder(self, parent_item):
         """Add new shot subfolder"""
@@ -1014,8 +1207,8 @@ class VogueController(PrismMainWindow):
                         # Remove from folders
                         if hasattr(self.manager.current_project, 'folders'):
                             for folder in self.manager.current_project.folders:
-                                if folder.type == "shot" and hasattr(folder, 'shots'):
-                                    folder.shots = [s for s in folder.shots if s != item_name]
+                                if folder.type == "shot" and hasattr(folder, 'assets'):
+                                    folder.assets = [s for s in folder.assets if s != item_name]
                     elif item_type == "Folder":
                         # Remove folder from project
                         if hasattr(self.manager.current_project, 'folders'):

@@ -770,15 +770,15 @@ class AssetPropertiesDialog(QDialog):
         }
 
 
-class ShotDialog(QDialog):
-    """Dialog for creating/editing shots"""
+class ShotPropertiesDialog(QDialog):
+    """Dialog for editing shot properties"""
     
     def __init__(self, parent=None, shot=None):
         super().__init__(parent)
         self.shot = shot
-        self.setWindowTitle("Edit Shot" if shot else "Create New Shot")
+        self.setWindowTitle(f"Shot Properties - {shot.name if shot else 'Unknown'}")
         self.setModal(True)
-        self.resize(500, 400)
+        self.resize(600, 500)
         self.setup_ui()
         
         if shot:
@@ -792,17 +792,273 @@ class ShotDialog(QDialog):
         info_layout = QFormLayout(info_group)
         
         self.name_edit = QLineEdit()
-        self.name_edit.setPlaceholderText("Enter shot name (e.g., 0010)...")
-        info_layout.addRow("Shot Name:", self.name_edit)
-        
-        self.sequence_edit = QLineEdit()
-        self.sequence_edit.setPlaceholderText("Enter sequence name (e.g., SEQ001)...")
-        info_layout.addRow("Sequence:", self.sequence_edit)
+        self.name_edit.setPlaceholderText("Enter shot name...")
+        self.name_edit.setReadOnly(True)  # Name cannot be changed in properties
+        info_layout.addRow("Name:", self.name_edit)
         
         self.description_edit = QTextEdit()
         self.description_edit.setMaximumHeight(80)
         self.description_edit.setPlaceholderText("Shot description (optional)...")
         info_layout.addRow("Description:", self.description_edit)
+        
+        # Shot image selection
+        self.image_path_edit = QLineEdit()
+        self.image_path_edit.setPlaceholderText("No image selected...")
+        self.image_path_edit.setReadOnly(True)
+        
+        self.browse_image_btn = QPushButton("Browse Image...")
+        self.browse_image_btn.clicked.connect(self.browse_image)
+        
+        self.clear_image_btn = QPushButton("Clear Image")
+        self.clear_image_btn.clicked.connect(self.clear_image)
+        
+        image_layout = QHBoxLayout()
+        image_layout.addWidget(self.image_path_edit)
+        image_layout.addWidget(self.browse_image_btn)
+        image_layout.addWidget(self.clear_image_btn)
+        info_layout.addRow("Shot Image:", image_layout)
+        
+        # Show current image preview
+        self.image_preview = QLabel()
+        self.image_preview.setFixedSize(100, 100)
+        self.image_preview.setStyleSheet("border: 1px solid gray; background-color: #f0f0f0;")
+        self.image_preview.setAlignment(Qt.AlignmentFlag.AlignCenter)
+        self.image_preview.setText("No Image")
+        info_layout.addRow("Preview:", self.image_preview)
+        
+        layout.addWidget(info_group)
+        
+        # Shot settings
+        settings_group = QGroupBox("Shot Settings")
+        settings_layout = QFormLayout(settings_group)
+        
+        self.frame_range_edit = QLineEdit()
+        self.frame_range_edit.setPlaceholderText("e.g., 1001-1200")
+        settings_layout.addRow("Frame Range:", self.frame_range_edit)
+        
+        self.fps_combo = QComboBox()
+        self.fps_combo.addItems(["24", "25", "30", "48", "60", "120"])
+        settings_layout.addRow("FPS:", self.fps_combo)
+        
+        self.resolution_combo = QComboBox()
+        self.resolution_combo.addItems(["1920x1080", "3840x2160", "2560x1440", "1280x720", "Custom"])
+        settings_layout.addRow("Resolution:", self.resolution_combo)
+        
+        self.status_combo = QComboBox()
+        self.status_combo.addItems(["Planning", "In Progress", "Review", "Approved", "Final"])
+        settings_layout.addRow("Status:", self.status_combo)
+        
+        layout.addWidget(settings_group)
+        
+        # Meta data
+        meta_group = QGroupBox("Meta Data")
+        meta_layout = QFormLayout(meta_group)
+        
+        self.tags_edit = QLineEdit()
+        self.tags_edit.setPlaceholderText("Enter tags separated by commas...")
+        meta_layout.addRow("Tags:", self.tags_edit)
+        
+        self.director_edit = QLineEdit()
+        self.director_edit.setPlaceholderText("Shot director...")
+        meta_layout.addRow("Director:", self.director_edit)
+        
+        self.artist_edit = QLineEdit()
+        self.artist_edit.setPlaceholderText("Shot artist...")
+        meta_layout.addRow("Artist:", self.artist_edit)
+        
+        layout.addWidget(meta_group)
+        
+        # Buttons
+        button_box = QDialogButtonBox(
+            QDialogButtonBox.StandardButton.Ok | QDialogButtonBox.StandardButton.Cancel
+        )
+        button_box.accepted.connect(self.accept)
+        button_box.rejected.connect(self.reject)
+        layout.addWidget(button_box)
+        
+    def populate_from_shot(self):
+        """Populate dialog from existing shot"""
+        if not self.shot:
+            return
+            
+        self.name_edit.setText(self.shot.name)
+        self.description_edit.setPlainText(self.shot.meta.get('description', ''))
+        self.tags_edit.setText(", ".join(self.shot.meta.get('tags', [])))
+        self.director_edit.setText(self.shot.meta.get('director', ''))
+        self.artist_edit.setText(self.shot.meta.get('artist', ''))
+        
+        # Set frame range
+        frame_range = self.shot.meta.get('frame_range', '')
+        self.frame_range_edit.setText(frame_range)
+        
+        # Set FPS
+        fps = self.shot.meta.get('fps', '24')
+        fps_index = self.fps_combo.findText(fps)
+        if fps_index >= 0:
+            self.fps_combo.setCurrentIndex(fps_index)
+        
+        # Set resolution
+        resolution = self.shot.meta.get('resolution', '1920x1080')
+        resolution_index = self.resolution_combo.findText(resolution)
+        if resolution_index >= 0:
+            self.resolution_combo.setCurrentIndex(resolution_index)
+        
+        # Set status
+        status = self.shot.meta.get('status', 'Planning')
+        status_index = self.status_combo.findText(status)
+        if status_index >= 0:
+            self.status_combo.setCurrentIndex(status_index)
+        
+        # Set image path and preview
+        image_path = self.shot.meta.get('image_path', '')
+        if image_path:
+            self.image_path_edit.setText(image_path)
+            self.update_image_preview(image_path)
+    
+    def browse_image(self):
+        """Browse for shot image"""
+        from PyQt6.QtWidgets import QFileDialog
+        
+        file_path, _ = QFileDialog.getOpenFileName(
+            self,
+            "Select Shot Image",
+            "",
+            "Image Files (*.png *.jpg *.jpeg *.bmp *.gif);;All Files (*)"
+        )
+        
+        if file_path:
+            self.image_path_edit.setText(file_path)
+            self.update_image_preview(file_path)
+    
+    def clear_image(self):
+        """Clear the selected image"""
+        self.image_path_edit.clear()
+        self.image_preview.setText("No Image")
+        self.image_preview.setPixmap(QPixmap())
+    
+    def update_image_preview(self, image_path):
+        """Update the image preview"""
+        if os.path.exists(image_path):
+            try:
+                pixmap = QPixmap(image_path)
+                if not pixmap.isNull():
+                    # Scale to fit preview size
+                    scaled_pixmap = pixmap.scaled(100, 100, Qt.AspectRatioMode.KeepAspectRatio, Qt.TransformationMode.SmoothTransformation)
+                    self.image_preview.setPixmap(scaled_pixmap)
+                    self.image_preview.setText("")
+                else:
+                    self.image_preview.setText("Invalid Image")
+            except Exception as e:
+                self.image_preview.setText("Load Error")
+        else:
+            self.image_preview.setText("File Not Found")
+    
+    def get_shot_data(self):
+        """Get shot data from dialog"""
+        name = self.name_edit.text().strip()
+        description = self.description_edit.toPlainText().strip()
+        image_path = self.image_path_edit.text().strip()
+        tags = [t.strip() for t in self.tags_edit.text().split(",") if t.strip()]
+        director = self.director_edit.text().strip()
+        artist = self.artist_edit.text().strip()
+        frame_range = self.frame_range_edit.text().strip()
+        fps = self.fps_combo.currentText()
+        resolution = self.resolution_combo.currentText()
+        status = self.status_combo.currentText()
+        
+        if not name:
+            return None
+            
+        meta = {
+            "tags": tags,
+            "director": director,
+            "artist": artist,
+            "frame_range": frame_range,
+            "fps": fps,
+            "resolution": resolution,
+            "status": status,
+            "image_path": image_path if image_path else None
+        }
+        
+        return {
+            "name": name,
+            "description": description,
+            "image_path": image_path if image_path else None,
+            "meta": meta
+        }
+
+
+class ShotDialog(QDialog):
+    """Dialog for creating/editing shots with folder selection"""
+    
+    def __init__(self, parent=None, shot=None, preselected_folder=None):
+        super().__init__(parent)
+        self.shot = shot
+        self.preselected_folder = preselected_folder
+        self.setWindowTitle("Edit Shot" if shot else "Create New Shot")
+        self.setModal(True)
+        self.resize(600, 500)
+        self.setup_ui()
+        
+        if shot:
+            self.populate_from_shot()
+        else:
+            self.populate_folders()
+            
+    def setup_ui(self):
+        layout = QVBoxLayout(self)
+        
+        # Shot info
+        info_group = QGroupBox("Shot Information")
+        info_layout = QFormLayout(info_group)
+        
+        self.name_edit = QLineEdit()
+        self.name_edit.setPlaceholderText("Enter shot name (e.g., 0010)...")
+        info_layout.addRow("Shot Name:", self.name_edit)
+        
+        # Folder selection (dropdown only - no typing)
+        self.folder_combo = QComboBox()
+        self.folder_combo.setPlaceholderText("Select folder...")
+        self.folder_combo.currentTextChanged.connect(self.on_folder_changed)
+        info_layout.addRow("Folder:", self.folder_combo)
+        
+        # Sequence selection (combo box with existing sequences + ability to type new)
+        self.sequence_combo = QComboBox()
+        self.sequence_combo.setEditable(True)  # Allow typing new sequence names
+        self.sequence_combo.setPlaceholderText("Enter sequence name (e.g., SEQ001)...")
+        self.sequence_combo.setInsertPolicy(QComboBox.InsertPolicy.NoInsert)  # Don't auto-add typed items
+        self.sequence_combo.currentTextChanged.connect(self.on_sequence_changed)
+        info_layout.addRow("Sequence:", self.sequence_combo)
+        
+        self.description_edit = QTextEdit()
+        self.description_edit.setMaximumHeight(80)
+        self.description_edit.setPlaceholderText("Shot description (optional)...")
+        info_layout.addRow("Description:", self.description_edit)
+        
+        # Shot image selection
+        self.image_path_edit = QLineEdit()
+        self.image_path_edit.setPlaceholderText("No image selected...")
+        self.image_path_edit.setReadOnly(True)
+        
+        self.browse_image_btn = QPushButton("Browse Image...")
+        self.browse_image_btn.clicked.connect(self.browse_image)
+        
+        self.clear_image_btn = QPushButton("Clear Image")
+        self.clear_image_btn.clicked.connect(self.clear_image)
+        
+        image_layout = QHBoxLayout()
+        image_layout.addWidget(self.image_path_edit)
+        image_layout.addWidget(self.browse_image_btn)
+        image_layout.addWidget(self.clear_image_btn)
+        info_layout.addRow("Shot Image:", image_layout)
+        
+        # Show current image preview
+        self.image_preview = QLabel()
+        self.image_preview.setFixedSize(100, 100)
+        self.image_preview.setStyleSheet("border: 1px solid gray; background-color: #f0f0f0;")
+        self.image_preview.setAlignment(Qt.AlignmentFlag.AlignCenter)
+        self.image_preview.setText("No Image")
+        info_layout.addRow("Preview:", self.image_preview)
         
         layout.addWidget(info_group)
         
@@ -823,7 +1079,15 @@ class ShotDialog(QDialog):
         self.fps_spin = QSpinBox()
         self.fps_spin.setRange(12, 120)
         self.fps_spin.setValue(24)
-        settings_layout.addRow("Frame Rate:", self.fps_spin)
+        settings_layout.addRow("FPS:", self.fps_spin)
+        
+        self.resolution_combo = QComboBox()
+        self.resolution_combo.addItems(["1920x1080", "3840x2160", "2560x1440", "1280x720", "Custom"])
+        settings_layout.addRow("Resolution:", self.resolution_combo)
+        
+        self.status_combo = QComboBox()
+        self.status_combo.addItems(["Planning", "In Progress", "Review", "Approved", "Final"])
+        settings_layout.addRow("Status:", self.status_combo)
         
         layout.addWidget(settings_group)
         
@@ -839,6 +1103,10 @@ class ShotDialog(QDialog):
         self.director_edit.setPlaceholderText("Shot director...")
         meta_layout.addRow("Director:", self.director_edit)
         
+        self.artist_edit = QLineEdit()
+        self.artist_edit.setPlaceholderText("Shot artist...")
+        meta_layout.addRow("Artist:", self.artist_edit)
+        
         layout.addWidget(meta_group)
         
         # Buttons
@@ -848,6 +1116,192 @@ class ShotDialog(QDialog):
         button_box.accepted.connect(self.accept)
         button_box.rejected.connect(self.reject)
         layout.addWidget(button_box)
+    
+    def populate_folders(self):
+        """Populate folder dropdown with available shot folders and sequences"""
+        from vogue_core.manager import ProjectManager
+        manager = ProjectManager()
+        
+        if not manager.current_project:
+            return
+        
+        # Get shot folders
+        shot_folders = [f for f in manager.current_project.folders if f.type == "shot"]
+        
+        # Clear and populate folders
+        self.folder_combo.clear()
+        self.folder_combo.addItem("Main")  # Always add "Main" first
+        
+        for folder in shot_folders:
+            self.folder_combo.addItem(folder.name)
+        
+        # Set preselected folder or default to "Main"
+        if self.preselected_folder:
+            index = self.folder_combo.findText(self.preselected_folder)
+            if index >= 0:
+                self.folder_combo.setCurrentIndex(index)
+            else:
+                self.folder_combo.setCurrentIndex(0)  # Default to "Main"
+        else:
+            self.folder_combo.setCurrentIndex(0)  # Default to "Main"
+        
+        # Populate sequences from existing shots
+        self.populate_sequences()
+    
+    def populate_sequences(self):
+        """Populate sequence dropdown with existing sequences"""
+        from vogue_core.manager import ProjectManager
+        manager = ProjectManager()
+        
+        if not manager.current_project:
+            return
+        
+        # Get unique sequences from existing shots
+        sequences = set()
+        if hasattr(manager.current_project, 'shots') and manager.current_project.shots:
+            for shot in manager.current_project.shots:
+                if hasattr(shot, 'sequence') and shot.sequence:
+                    sequences.add(shot.sequence)
+        
+        # Clear and populate sequences
+        self.sequence_combo.clear()
+        
+        # Add existing sequences
+        for sequence in sorted(sequences):
+            self.sequence_combo.addItem(sequence)
+        
+        # Set placeholder text
+        if not sequences:
+            self.sequence_combo.setPlaceholderText("Enter sequence name (e.g., SEQ001)...")
+    
+    def on_folder_changed(self, folder_name):
+        """Handle folder selection change - auto-fill sequence with folder name"""
+        if folder_name and folder_name != "Select folder...":
+            # Auto-fill the sequence field with the selected folder name
+            self.sequence_combo.setCurrentText(folder_name)
+    
+    def on_sequence_changed(self, sequence_name):
+        """Handle sequence text change - don't move existing shots"""
+        # Just keep the current folder selection, don't change it
+        pass
+    
+    def populate_from_shot(self):
+        """Populate dialog from existing shot"""
+        if not self.shot:
+            return
+            
+        self.name_edit.setText(self.shot.name)
+        self.sequence_combo.setCurrentText(self.shot.sequence)
+        self.description_edit.setPlainText(self.shot.meta.get('description', ''))
+        self.tags_edit.setText(", ".join(self.shot.meta.get('tags', [])))
+        self.director_edit.setText(self.shot.meta.get('director', ''))
+        self.artist_edit.setText(self.shot.meta.get('artist', ''))
+        
+        # Set frame range
+        start_frame = self.shot.meta.get('start_frame', 1001)
+        end_frame = self.shot.meta.get('end_frame', 1100)
+        self.start_frame_spin.setValue(start_frame)
+        self.end_frame_spin.setValue(end_frame)
+        
+        # Set FPS
+        fps = self.shot.meta.get('fps', 24)
+        self.fps_spin.setValue(fps)
+        
+        # Set resolution
+        resolution = self.shot.meta.get('resolution', '1920x1080')
+        resolution_index = self.resolution_combo.findText(resolution)
+        if resolution_index >= 0:
+            self.resolution_combo.setCurrentIndex(resolution_index)
+        
+        # Set status
+        status = self.shot.meta.get('status', 'Planning')
+        status_index = self.status_combo.findText(status)
+        if status_index >= 0:
+            self.status_combo.setCurrentIndex(status_index)
+        
+        # Set image path and preview
+        image_path = self.shot.meta.get('image_path', '')
+        if image_path:
+            self.image_path_edit.setText(image_path)
+            self.update_image_preview(image_path)
+    
+    def browse_image(self):
+        """Browse for shot image"""
+        from PyQt6.QtWidgets import QFileDialog
+        
+        file_path, _ = QFileDialog.getOpenFileName(
+            self,
+            "Select Shot Image",
+            "",
+            "Image Files (*.png *.jpg *.jpeg *.bmp *.gif);;All Files (*)"
+        )
+        
+        if file_path:
+            self.image_path_edit.setText(file_path)
+            self.update_image_preview(file_path)
+    
+    def clear_image(self):
+        """Clear the selected image"""
+        self.image_path_edit.clear()
+        self.image_preview.setText("No Image")
+        self.image_preview.setPixmap(QPixmap())
+    
+    def update_image_preview(self, image_path):
+        """Update the image preview"""
+        if os.path.exists(image_path):
+            try:
+                pixmap = QPixmap(image_path)
+                if not pixmap.isNull():
+                    # Scale to fit preview size
+                    scaled_pixmap = pixmap.scaled(100, 100, Qt.AspectRatioMode.KeepAspectRatio, Qt.TransformationMode.SmoothTransformation)
+                    self.image_preview.setPixmap(scaled_pixmap)
+                    self.image_preview.setText("")
+                else:
+                    self.image_preview.setText("Invalid Image")
+            except Exception as e:
+                self.image_preview.setText("Load Error")
+        else:
+            self.image_preview.setText("File Not Found")
+    
+    def get_shot_data(self):
+        """Get shot data from dialog"""
+        name = self.name_edit.text().strip()
+        sequence = self.sequence_combo.currentText().strip()
+        description = self.description_edit.toPlainText().strip()
+        image_path = self.image_path_edit.text().strip()
+        tags = [t.strip() for t in self.tags_edit.text().split(",") if t.strip()]
+        director = self.director_edit.text().strip()
+        artist = self.artist_edit.text().strip()
+        start_frame = self.start_frame_spin.value()
+        end_frame = self.end_frame_spin.value()
+        fps = self.fps_spin.value()
+        resolution = self.resolution_combo.currentText()
+        status = self.status_combo.currentText()
+        folder_name = self.folder_combo.currentText().strip()
+        
+        if not name or not sequence:
+            return None
+            
+        meta = {
+            "tags": tags,
+            "director": director,
+            "artist": artist,
+            "start_frame": start_frame,
+            "end_frame": end_frame,
+            "fps": fps,
+            "resolution": resolution,
+            "status": status,
+            "image_path": image_path if image_path else None
+        }
+        
+        return {
+            "name": name,
+            "sequence": sequence,
+            "description": description,
+            "image_path": image_path if image_path else None,
+            "folder": folder_name,
+            "meta": meta
+        }
         
     def populate_from_shot(self):
         """Populate dialog from existing shot"""
@@ -855,7 +1309,7 @@ class ShotDialog(QDialog):
             return
             
         self.name_edit.setText(self.shot.name)
-        self.sequence_edit.setText(self.shot.sequence)
+        self.sequence_combo.setCurrentText(self.shot.sequence)
         self.description_edit.setPlainText(self.shot.description or "")
         self.tags_edit.setText(", ".join(self.shot.meta.get("tags", [])))
         self.director_edit.setText(self.shot.meta.get("director", ""))
@@ -863,7 +1317,7 @@ class ShotDialog(QDialog):
     def get_shot_data(self):
         """Get shot data from dialog"""
         name = self.name_edit.text().strip()
-        sequence = self.sequence_edit.text().strip()
+        sequence = self.sequence_combo.currentText().strip()
         description = self.description_edit.toPlainText().strip()
         tags = [t.strip() for t in self.tags_edit.text().split(",") if t.strip()]
         director = self.director_edit.text().strip()
@@ -1288,9 +1742,11 @@ class CreateShotDialog(QDialog):
         self.name_edit.setPlaceholderText("Enter shot name (e.g., 0010)...")
         info_layout.addRow("Shot Name:", self.name_edit)
         
-        self.sequence_edit = QLineEdit()
-        self.sequence_edit.setPlaceholderText("Enter sequence name (e.g., SEQ001)...")
-        info_layout.addRow("Sequence:", self.sequence_edit)
+        self.sequence_combo = QComboBox()
+        self.sequence_combo.setEditable(True)  # Allow typing new sequence names
+        self.sequence_combo.setPlaceholderText("Enter sequence name (e.g., SEQ001)...")
+        self.sequence_combo.setInsertPolicy(QComboBox.InsertPolicy.NoInsert)  # Don't auto-add typed items
+        info_layout.addRow("Sequence:", self.sequence_combo)
         
         self.description_edit = QTextEdit()
         self.description_edit.setMaximumHeight(80)
@@ -1326,7 +1782,7 @@ class CreateShotDialog(QDialog):
     def get_shot_data(self):
         """Get shot data from dialog"""
         name = self.name_edit.text().strip()
-        sequence = self.sequence_edit.text().strip()
+        sequence = self.sequence_combo.currentText().strip()
         description = self.description_edit.toPlainText().strip()
         
         if not name or not sequence:
