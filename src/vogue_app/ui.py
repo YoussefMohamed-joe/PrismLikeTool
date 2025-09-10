@@ -2265,17 +2265,17 @@ class PrismMainWindow(QMainWindow):
         # Project submenu
         project_menu = file_menu.addMenu("&Project")
         
-        browse_action = QAction("&Browse Project...", self)
-        browse_action.setShortcut("Ctrl+O")
-        project_menu.addAction(browse_action)
+        self.browse_project_action = QAction("&Browse Project...", self)
+        self.browse_project_action.setShortcut("Ctrl+O")
+        project_menu.addAction(self.browse_project_action)
         
-        new_action = QAction("&New Project...", self)
-        new_action.setShortcut("Ctrl+N")
-        project_menu.addAction(new_action)
+        self.new_project_action = QAction("&New Project...", self)
+        self.new_project_action.setShortcut("Ctrl+N")
+        project_menu.addAction(self.new_project_action)
         
-        open_action = QAction("&Open Project...", self)
-        open_action.setShortcut("Ctrl+Shift+O")
-        project_menu.addAction(open_action)
+        self.open_project_action = QAction("&Open Project...", self)
+        self.open_project_action.setShortcut("Ctrl+Shift+O")
+        project_menu.addAction(self.open_project_action)
         
         project_menu.addSeparator()
 
@@ -2287,17 +2287,17 @@ class PrismMainWindow(QMainWindow):
         project_menu.addSeparator()
         
         # Prism-specific project actions
-        import_project_action = QAction("&Import Project...", self)
-        project_menu.addAction(import_project_action)
+        self.import_project_action = QAction("&Import Project...", self)
+        project_menu.addAction(self.import_project_action)
         
-        export_project_action = QAction("&Export Project...", self)
-        project_menu.addAction(export_project_action)
+        self.export_project_action = QAction("&Export Project...", self)
+        project_menu.addAction(self.export_project_action)
         
         project_menu.addSeparator()
         
-        project_settings_action = QAction("&Project Settings...", self)
-        project_settings_action.setShortcut("Ctrl+Shift+P")
-        project_menu.addAction(project_settings_action)
+        self.project_settings_action = QAction("&Project Settings...", self)
+        self.project_settings_action.setShortcut("Ctrl+Shift+P")
+        project_menu.addAction(self.project_settings_action)
         
         file_menu.addSeparator()
         

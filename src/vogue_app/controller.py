@@ -214,11 +214,14 @@ class VogueController(PrismMainWindow):
     def _auto_load_last_project(self):
         """Auto-load the last opened project"""
         try:
-            # Try to get last project from settings
-            if hasattr(settings, 'last_project') and settings.last_project:
-                project_path = settings.last_project
+            # Get recent projects from settings
+            recent_projects = settings.get_recent_projects()
+            if recent_projects:
+                # Load the most recent project
+                last_project = recent_projects[0]
+                project_path = last_project['path']
                 if os.path.exists(project_path):
-                    self.logger.info(f"Auto-loading last project from {project_path}")
+                    self.logger.info(f"Auto-loading last project: {last_project['name']} from {project_path}")
                     self.manager.load_project(project_path)
                     self.update_assets_tree()
                     self.setWindowTitle(f"Vogue Manager - {self.manager.current_project.name}")
@@ -226,7 +229,7 @@ class VogueController(PrismMainWindow):
                 else:
                     self.logger.info("Last project path no longer exists")
             else:
-                self.logger.info("No last project to load")
+                self.logger.info("No recent projects to load")
         except Exception as e:
             self.logger.error(f"Failed to auto-load last project: {e}")
     
@@ -308,35 +311,16 @@ class VogueController(PrismMainWindow):
     
     def connect_menu_actions(self):
         """Connect menu actions to their handlers"""
-        # Get menu actions from the UI
-        menubar = self.menuBar()
-        file_menu = menubar.findChild(QMenu, "File")
+        # Connect directly to the stored action instances
+        self.browse_project_action.triggered.connect(self.browse_project)
+        self.new_project_action.triggered.connect(self.new_project)
+        self.open_project_action.triggered.connect(self.open_project)
+        self.recent_projects_action.triggered.connect(self.show_recent_projects)
+        self.import_project_action.triggered.connect(self.import_project)
+        self.export_project_action.triggered.connect(self.export_project)
+        self.project_settings_action.triggered.connect(self.project_settings)
         
-        if file_menu:
-            # Find project submenu
-            project_menu = None
-            for action in file_menu.actions():
-                if action.menu() and "Project" in action.text():
-                    project_menu = action.menu()
-                    break
-            
-            if project_menu:
-                # Connect project actions
-                for action in project_menu.actions():
-                    if "Browse Project" in action.text():
-                        action.triggered.connect(self.browse_project)
-                    elif "New Project" in action.text():
-                        action.triggered.connect(self.new_project)
-                    elif "Open Project" in action.text():
-                        action.triggered.connect(self.open_project)
-                    elif "Recent Projects" in action.text():
-                        action.triggered.connect(self.show_recent_projects)
-                    elif "Import Project" in action.text():
-                        action.triggered.connect(self.import_project)
-                    elif "Export Project" in action.text():
-                        action.triggered.connect(self.export_project)
-                    elif "Project Settings" in action.text():
-                        action.triggered.connect(self.project_settings)
+        self.logger.info("Menu actions connected successfully")
     
     def browse_project(self):
         """Browse for project directory"""
@@ -398,10 +382,9 @@ class VogueController(PrismMainWindow):
         from vogue_app.dialogs import RecentProjectsDialog
         
         dialog = RecentProjectsDialog(self)
-        if dialog.exec() == QDialog.DialogCode.Accepted:
-            project_path = dialog.get_selected_project()
-            if project_path:
-                self.load_project(project_path)
+        # Connect the signal to load the project
+        dialog.project_selected.connect(self.load_project)
+        dialog.exec()
     
     def import_project(self):
         """Import project from external source"""
@@ -421,6 +404,10 @@ class VogueController(PrismMainWindow):
             self.manager.load_project(project_path)
             self.update_assets_tree()
             self.setWindowTitle(f"Vogue Manager - {self.manager.current_project.name}")
+            
+            # Add to recent projects
+            settings.add_recent_project(self.manager.current_project.name, project_path)
+            
             self.logger.info(f"Loaded project: {self.manager.current_project.name}")
         except Exception as e:
             QMessageBox.critical(self, "Error", f"Failed to load project: {e}")
