@@ -31,6 +31,18 @@ except ImportError:
 from vogue_core.logging_utils import setup_logging, get_logger
 from vogue_app.controller import VogueController
 
+# Global controller reference
+_current_controller = None
+
+def get_current_controller():
+    """Get the current controller instance"""
+    return _current_controller
+
+def set_current_controller(controller):
+    """Set the current controller instance"""
+    global _current_controller
+    _current_controller = controller
+
 
 def main():
     """Main entry point for Vogue Manager desktop application"""
@@ -59,6 +71,7 @@ def main():
     try:
         # Create and show main controller
         controller = VogueController()
+        set_current_controller(controller)  # Set global reference
         controller.show()
         
         logger.info("Vogue Manager started successfully")
