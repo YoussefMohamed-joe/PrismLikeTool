@@ -199,7 +199,7 @@ class VogueController(PrismMainWindow):
             QMessageBox.warning(self, "No Project", "Load or create a project first.")
             return
 
-        name, ok = QInputDialog.getText(self, "New Subfolder", "Folder name:")
+        name, ok = QInputDialog.getText(self, "New Folder", "Folder name:")
         if ok and name:
             # Ensure folders container
             project = self.manager.current_project
@@ -213,13 +213,13 @@ class VogueController(PrismMainWindow):
                 return
 
             from vogue_core.models import Folder
-            new_folder = Folder(name=name, type="asset", assets=[])
+            new_folder = Folder(name=name.strip(), type="asset", assets=[])
             project.folders.append(new_folder)
             
             # Save project immediately
             try:
                 self.manager.save_project()
-                self.logger.info(f"Added folder: {name} and saved project")
+                self.logger.info(f"Added folder: {name.strip()} and saved project")
             except Exception as e:
                 self.logger.error(f"Failed saving project after folder add: {e}")
                 QMessageBox.warning(self, "Save Error", f"Folder added but failed to save project: {e}")
@@ -419,17 +419,19 @@ class VogueController(PrismMainWindow):
             if not hasattr(project, 'folders') or project.folders is None:
                 project.folders = []
 
-            # Ensure folder exists
-            folder_name = data["folder"] or "Main"
+            # Handle folder selection - "Main" means root level, not a folder
+            folder_name = data["folder"].strip() if data.get("folder") else "Main"
             folder = None
-            for f in project.folders:
-                if f.type == "asset" and f.name == folder_name:
-                    folder = f
-                    break
-            if folder is None:
-                from vogue_core.models import Folder
-                folder = Folder(name=folder_name, type="asset", assets=[])
-                project.folders.append(folder)
+            if folder_name and folder_name != "Main":
+                # Find existing folder or create new one
+                for f in project.folders:
+                    if f.type == "asset" and f.name == folder_name:
+                        folder = f
+                        break
+                if folder is None:
+                    from vogue_core.models import Folder
+                    folder = Folder(name=folder_name, type="asset", assets=[])
+                    project.folders.append(folder)
 
             # Create asset and append to project assets list if not exists
             existing = next((a for a in getattr(project, 'assets', []) if a.name == data['name']), None)
@@ -448,10 +450,11 @@ class VogueController(PrismMainWindow):
                 project.assets.append(asset)
 
             # Add to folder list (string names)
-            if not hasattr(folder, 'assets') or folder.assets is None:
-                folder.assets = []
-            if data['name'] not in folder.assets:
-                folder.assets.append(data['name'])
+            if folder_name != "Main" and folder is not None:
+                if not hasattr(folder, 'assets') or folder.assets is None:
+                    folder.assets = []
+                if data['name'] not in folder.assets:
+                    folder.assets.append(data['name'])
 
             # Persist to JSON
             try:
@@ -462,7 +465,10 @@ class VogueController(PrismMainWindow):
 
             # Refresh UI
             self.update_assets_tree()
-            self.logger.info(f"Added asset: {data['name']} to folder: {folder_name}")
+            if folder_name == "Main":
+                self.logger.info(f"Added asset: {data['name']} to root level")
+            else:
+                self.logger.info(f"Added asset: {data['name']} to folder: {folder_name}")
     
     def add_folder(self):
         """Add new folder"""

@@ -489,21 +489,21 @@ class AssetDialog(QDialog):
             
             # Add folders to combo box
             self.folder_combo.clear()
+            
+            # Always add "Main" as the first option
+            self.folder_combo.addItem("Main")
+            
+            # Add other folders
             for folder in asset_folders:
                 self.folder_combo.addItem(folder.name)
             
-            # If no folders exist, add "Main" as default
-            if self.folder_combo.count() == 0:
-                self.folder_combo.addItem("Main")
-            
-            # Set "Main" as default selection
-            main_index = self.folder_combo.findText("Main")
-            if main_index >= 0:
-                self.folder_combo.setCurrentIndex(main_index)
+            # Set "Main" as default selection (index 0)
+            self.folder_combo.setCurrentIndex(0)
         else:
             # No project loaded, just add Main
             self.folder_combo.clear()
             self.folder_combo.addItem("Main")
+            self.folder_combo.setCurrentIndex(0)
     
     def populate_from_asset(self):
         """Populate dialog from existing asset"""
