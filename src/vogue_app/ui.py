@@ -342,6 +342,8 @@ class ProjectBrowser(PrismStyleWidget):
         self.shot_tree.setRootIsDecorated(True)
         self.shot_tree.setAlternatingRowColors(True)
         self.shot_tree.setMinimumHeight(300)
+        # Enable multi-selection for bulk operations
+        self.shot_tree.setSelectionMode(QAbstractItemView.SelectionMode.ExtendedSelection)
 
         # Enable drag and drop
         self.shot_tree.setDragEnabled(True)
@@ -639,15 +641,8 @@ class ProjectBrowser(PrismStyleWidget):
 
     def setup_context_menus(self):
         """Setup context menus for asset and shot trees"""
-        # Asset tree context menu
-        self.asset_tree.setContextMenuPolicy(Qt.ContextMenuPolicy.CustomContextMenu)
-        self.asset_tree.customContextMenuRequested.connect(self.show_asset_context_menu)
-
-        # Shot tree context menu
-        self.shot_tree.setContextMenuPolicy(Qt.ContextMenuPolicy.CustomContextMenu)
-        self.shot_tree.customContextMenuRequested.connect(self.show_shot_context_menu)
-        
-        # Setup keyboard shortcuts
+        # Context menus are now handled by the controller
+        # Just setup keyboard shortcuts
         self.setup_keyboard_shortcuts()
     
     def setup_keyboard_shortcuts(self):

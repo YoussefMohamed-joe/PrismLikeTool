@@ -28,14 +28,18 @@ class VogueController(PrismMainWindow):
         
         # Initialize clipboard state for cut/copy operations
         self.clipboard_item = None
+        self.clipboard_items = None  # For multi-select operations
         self.clipboard_operation = None  # 'cut' or 'copy'
-        self.clipboard_type = None  # 'asset' or 'shot'
+        self.clipboard_type = None  # 'asset', 'shot', or 'multiple'
         
         # Connect signals after UI is set up
         self.setup_connections()
         
         # Setup asset tree context menu
         self.setup_asset_tree_context_menu()
+        
+        # Setup shot tree context menu
+        self.setup_shot_tree_context_menu()
         
         # Setup keyboard shortcuts
         self.setup_keyboard_shortcuts()
@@ -93,6 +97,12 @@ class VogueController(PrismMainWindow):
         tree.setContextMenuPolicy(Qt.ContextMenuPolicy.CustomContextMenu)
         tree.customContextMenuRequested.connect(self.show_asset_context_menu)
     
+    def setup_shot_tree_context_menu(self):
+        """Setup context menu for shot tree"""
+        tree = self.project_browser.shot_tree
+        tree.setContextMenuPolicy(Qt.ContextMenuPolicy.CustomContextMenu)
+        tree.customContextMenuRequested.connect(self.show_shot_context_menu)
+    
     def show_asset_context_menu(self, position):
         """Show context menu for asset tree"""
         tree = self.project_browser.asset_tree
@@ -100,23 +110,80 @@ class VogueController(PrismMainWindow):
         if not item:
             return
         
+        # Get selected items
+        selected_items = tree.selectedItems()
+        
         menu = QMenu(tree)
         
-        # Add actions based on item type
-        if item.data(0, Qt.ItemDataRole.UserRole) == "Folder":
-            menu.addAction("New Asset", lambda: self.add_asset_to_folder(item))
-            menu.addAction("New Subfolder", lambda: self.add_subfolder(item))
+        if len(selected_items) == 1:
+            # Single item selected
+            if item.data(0, Qt.ItemDataRole.UserRole) == "Folder":
+                menu.addAction("New Asset", lambda: self.add_asset_to_folder(item))
+                menu.addAction("New Subfolder", lambda: self.add_subfolder(item))
+                menu.addSeparator()
+                menu.addAction("Rename", lambda: self.rename_item(item))
+                menu.addAction("Delete", lambda: self.delete_item(item))
+                menu.addSeparator()
+                menu.addAction("Copy", lambda: self.copy_item(item))
+                menu.addAction("Cut", lambda: self.cut_item(item))
+                if self.clipboard_item:
+                    menu.addAction("Paste", lambda: self.paste_item(item))
+            else:  # Asset
+                menu.addAction("Rename", lambda: self.rename_item(item))
+                menu.addAction("Delete", lambda: self.delete_item(item))
+                menu.addSeparator()
+                menu.addAction("Copy", lambda: self.copy_item(item))
+                menu.addAction("Cut", lambda: self.cut_item(item))
+                if self.clipboard_item:
+                    menu.addAction("Paste", lambda: self.paste_item(item))
+        else:
+            # Multiple items selected
+            menu.addAction(f"Delete Selected ({len(selected_items)})", lambda: self.delete_selected_items())
             menu.addSeparator()
-            menu.addAction("Rename", lambda: self.rename_item(item))
-            menu.addAction("Delete", lambda: self.delete_item(item))
-        else:  # Asset
-            menu.addAction("Rename", lambda: self.rename_item(item))
-            menu.addAction("Delete", lambda: self.delete_item(item))
+            menu.addAction(f"Copy Selected ({len(selected_items)})", lambda: self.copy_selected_items())
+            menu.addAction(f"Cut Selected ({len(selected_items)})", lambda: self.cut_selected_items())
+        
+        menu.exec(tree.mapToGlobal(position))
+    
+    def show_shot_context_menu(self, position):
+        """Show context menu for shot tree"""
+        tree = self.project_browser.shot_tree
+        item = tree.itemAt(position)
+        if not item:
+            return
+        
+        # Get selected items
+        selected_items = tree.selectedItems()
+        
+        menu = QMenu(tree)
+        
+        if len(selected_items) == 1:
+            # Single item selected
+            if item.data(0, Qt.ItemDataRole.UserRole) == "Folder":
+                menu.addAction("New Shot", lambda: self.add_shot_to_folder(item))
+                menu.addAction("New Subfolder", lambda: self.add_shot_subfolder(item))
+                menu.addSeparator()
+                menu.addAction("Rename", lambda: self.rename_item(item))
+                menu.addAction("Delete", lambda: self.delete_item(item))
+                menu.addSeparator()
+                menu.addAction("Copy", lambda: self.copy_item(item))
+                menu.addAction("Cut", lambda: self.cut_item(item))
+                if self.clipboard_item:
+                    menu.addAction("Paste", lambda: self.paste_item(item))
+            else:  # Shot
+                menu.addAction("Rename", lambda: self.rename_item(item))
+                menu.addAction("Delete", lambda: self.delete_item(item))
+                menu.addSeparator()
+                menu.addAction("Copy", lambda: self.copy_item(item))
+                menu.addAction("Cut", lambda: self.cut_item(item))
+                if self.clipboard_item:
+                    menu.addAction("Paste", lambda: self.paste_item(item))
+        else:
+            # Multiple items selected
+            menu.addAction(f"Delete Selected ({len(selected_items)})", lambda: self.delete_selected_shot_items())
             menu.addSeparator()
-            menu.addAction("Copy", lambda: self.copy_item(item))
-            menu.addAction("Cut", lambda: self.cut_item(item))
-            if self.clipboard_item:
-                menu.addAction("Paste", lambda: self.paste_item(item))
+            menu.addAction(f"Copy Selected ({len(selected_items)})", lambda: self.copy_selected_shot_items())
+            menu.addAction(f"Cut Selected ({len(selected_items)})", lambda: self.cut_selected_shot_items())
         
         menu.exec(tree.mapToGlobal(position))
     
@@ -155,8 +222,17 @@ class VogueController(PrismMainWindow):
             if parent:
                 parent.removeChild(item)
             else:
-                tree = self.project_browser.asset_tree
-                tree.takeTopLevelItem(tree.indexOfTopLevelItem(item))
+                # Find which tree the item belongs to
+                if hasattr(self.project_browser, 'asset_tree'):
+                    for i in range(self.project_browser.asset_tree.topLevelItemCount()):
+                        if self.project_browser.asset_tree.topLevelItem(i) == item:
+                            self.project_browser.asset_tree.takeTopLevelItem(i)
+                            return
+                if hasattr(self.project_browser, 'shot_tree'):
+                    for i in range(self.project_browser.shot_tree.topLevelItemCount()):
+                        if self.project_browser.shot_tree.topLevelItem(i) == item:
+                            self.project_browser.shot_tree.takeTopLevelItem(i)
+                            return
     
     def copy_item(self, item):
         """Copy item to clipboard"""
@@ -282,18 +358,30 @@ class VogueController(PrismMainWindow):
         delete_shortcut.activated.connect(self.delete_selected_item)
     
     def copy_selected_item(self):
-        """Copy selected item"""
+        """Copy selected item(s)"""
         tree = self.project_browser.asset_tree
-        current_item = tree.currentItem()
-        if current_item:
-            self.copy_item(current_item)
+        selected_items = tree.selectedItems()
+        
+        if not selected_items:
+            return
+        
+        if len(selected_items) == 1:
+            self.copy_item(selected_items[0])
+        else:
+            self.copy_selected_items()
     
     def cut_selected_item(self):
-        """Cut selected item"""
+        """Cut selected item(s)"""
         tree = self.project_browser.asset_tree
-        current_item = tree.currentItem()
-        if current_item:
-            self.cut_item(current_item)
+        selected_items = tree.selectedItems()
+        
+        if not selected_items:
+            return
+        
+        if len(selected_items) == 1:
+            self.cut_item(selected_items[0])
+        else:
+            self.cut_selected_items()
     
     def paste_to_selected_item(self):
         """Paste to selected item"""
@@ -303,11 +391,17 @@ class VogueController(PrismMainWindow):
             self.paste_item(current_item)
     
     def delete_selected_item(self):
-        """Delete selected item"""
+        """Delete selected item(s)"""
         tree = self.project_browser.asset_tree
-        current_item = tree.currentItem()
-        if current_item:
-            self.delete_item(current_item)
+        selected_items = tree.selectedItems()
+        
+        if not selected_items:
+            return
+        
+        if len(selected_items) == 1:
+            self.delete_item(selected_items[0])
+        else:
+            self.delete_selected_items()
     
     def connect_menu_actions(self):
         """Connect menu actions to their handlers"""
@@ -415,3 +509,139 @@ class VogueController(PrismMainWindow):
     def show(self):
         """Show the main window"""
         super().show()
+    
+    def delete_selected_items(self):
+        """Delete all selected items"""
+        tree = self.project_browser.asset_tree
+        selected_items = tree.selectedItems()
+        
+        if not selected_items:
+            return
+        
+        # Confirm deletion
+        item_names = [item.text(0) for item in selected_items]
+        item_list = "\n".join(f"• {name}" for name in item_names)
+        
+        reply = QMessageBox.question(
+            self, 
+            "Delete Selected Items", 
+            f"Are you sure you want to delete the following {len(selected_items)} items?\n\n{item_list}",
+            QMessageBox.StandardButton.Yes | QMessageBox.StandardButton.No
+        )
+        
+        if reply == QMessageBox.StandardButton.Yes:
+            # Delete items (in reverse order to avoid index issues)
+            for item in reversed(selected_items):
+                parent = item.parent()
+                if parent:
+                    parent.removeChild(item)
+                else:
+                    tree.takeTopLevelItem(tree.indexOfTopLevelItem(item))
+            
+            self.logger.info(f"Deleted {len(selected_items)} selected items")
+    
+    def copy_selected_items(self):
+        """Copy all selected items to clipboard"""
+        tree = self.project_browser.asset_tree
+        selected_items = tree.selectedItems()
+        
+        if not selected_items:
+            return
+        
+        # Store multiple items in clipboard
+        self.clipboard_items = selected_items
+        self.clipboard_operation = "copy"
+        self.clipboard_type = "multiple"
+        
+        self.logger.info(f"Copied {len(selected_items)} items to clipboard")
+    
+    def cut_selected_items(self):
+        """Cut all selected items to clipboard"""
+        tree = self.project_browser.asset_tree
+        selected_items = tree.selectedItems()
+        
+        if not selected_items:
+            return
+        
+        # Store multiple items in clipboard
+        self.clipboard_items = selected_items
+        self.clipboard_operation = "cut"
+        self.clipboard_type = "multiple"
+        
+        self.logger.info(f"Cut {len(selected_items)} items to clipboard")
+    
+    def add_shot_to_folder(self, folder_item):
+        """Add new shot to folder"""
+        name, ok = QInputDialog.getText(self, "New Shot", "Shot name:")
+        if ok and name:
+            shot_item = QTreeWidgetItem(folder_item)
+            shot_item.setText(0, name)
+            shot_item.setData(0, Qt.ItemDataRole.UserRole, "Shot")
+    
+    def add_shot_subfolder(self, parent_item):
+        """Add new shot subfolder"""
+        name, ok = QInputDialog.getText(self, "New Subfolder", "Folder name:")
+        if ok and name:
+            folder_item = QTreeWidgetItem(parent_item)
+            folder_item.setText(0, name)
+            folder_item.setData(0, Qt.ItemDataRole.UserRole, "Folder")
+    
+    def delete_selected_shot_items(self):
+        """Delete all selected shot items"""
+        tree = self.project_browser.shot_tree
+        selected_items = tree.selectedItems()
+        
+        if not selected_items:
+            return
+        
+        # Confirm deletion
+        item_names = [item.text(0) for item in selected_items]
+        item_list = "\n".join(f"• {name}" for name in item_names)
+        
+        reply = QMessageBox.question(
+            self, 
+            "Delete Selected Items", 
+            f"Are you sure you want to delete the following {len(selected_items)} items?\n\n{item_list}",
+            QMessageBox.StandardButton.Yes | QMessageBox.StandardButton.No
+        )
+        
+        if reply == QMessageBox.StandardButton.Yes:
+            # Delete items (in reverse order to avoid index issues)
+            for item in reversed(selected_items):
+                parent = item.parent()
+                if parent:
+                    parent.removeChild(item)
+                else:
+                    tree.takeTopLevelItem(tree.indexOfTopLevelItem(item))
+            
+            self.logger.info(f"Deleted {len(selected_items)} selected shot items")
+    
+    def copy_selected_shot_items(self):
+        """Copy all selected shot items to clipboard"""
+        tree = self.project_browser.shot_tree
+        selected_items = tree.selectedItems()
+        
+        if not selected_items:
+            return
+        
+        # Store multiple items in clipboard
+        self.clipboard_items = selected_items
+        self.clipboard_operation = "copy"
+        self.clipboard_type = "multiple"
+        
+        self.logger.info(f"Copied {len(selected_items)} shot items to clipboard")
+    
+    def cut_selected_shot_items(self):
+        """Cut all selected shot items to clipboard"""
+        tree = self.project_browser.shot_tree
+        selected_items = tree.selectedItems()
+        
+        if not selected_items:
+            return
+        
+        # Store multiple items in clipboard
+        self.clipboard_items = selected_items
+        self.clipboard_operation = "cut"
+        self.clipboard_type = "multiple"
+        
+        self.logger.info(f"Cut {len(selected_items)} shot items to clipboard")
