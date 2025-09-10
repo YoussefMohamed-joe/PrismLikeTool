@@ -17,6 +17,12 @@ class Department:
     description: str = ""
     color: str = "#3498db"
 
+class Task:
+    """Represents a task in the pipeline"""
+    def __init__(self, name: str, status: str = "Pending", description: str = ""):
+        self.name = name
+        self.status = status
+        self.description = description
 
 @dataclass
 class Folder:
@@ -112,8 +118,8 @@ class Project:
     path: str
     fps: int = 24
     resolution: List[int] = field(default_factory=lambda: [1920, 1080])
-    departments: List[str] = field(default_factory=lambda: ["Model", "Rig", "Anim", "LookDev", "FX", "Lighting", "Comp"])
-    tasks: List[str] = field(default_factory=lambda: ["WIP", "Review", "Final"])
+    departments: List[str] = field(default_factory=list)
+    tasks: List[Task] = field(default_factory=list)
     assets: List[Asset] = field(default_factory=list)
     shots: List[Shot] = field(default_factory=list)
     folders: List[Folder] = field(default_factory=list)  # Custom folder structure

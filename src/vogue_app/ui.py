@@ -253,7 +253,7 @@ class ProjectBrowser(PrismStyleWidget):
         self.setup_tabs_section()
         self.horizontal_splitter.addWidget(self.tabs_widget)
 
-        # Right side: Tasks section
+        # Right side: Departments and Tasks section (switched order)
         self.setup_tasks_section()
         self.horizontal_splitter.addWidget(self.tasks_widget)
 
@@ -380,7 +380,47 @@ class ProjectBrowser(PrismStyleWidget):
         self.setup_project_info_section()
         tasks_layout.addWidget(self.project_info_widget)
 
-        # Tasks Section
+        # Departments Section (moved to top)
+        dept_group = QGroupBox("Departments")
+        dept_layout = QVBoxLayout(dept_group)
+
+        self.departments_list = QListWidget()
+        self.departments_list.setAlternatingRowColors(True)
+        self.departments_list.setSelectionMode(QAbstractItemView.SelectionMode.ExtendedSelection)  # Enable multi-select
+        # Removed maximum height restriction to allow full vertical expansion
+
+        # Add default departments
+        departments = [
+            "Modeling - Active",
+            "Texturing - Active",
+            "Rigging - Active",
+            "Animation - Active",
+            "Lighting - Standby",
+            "Rendering - Standby"
+        ]
+
+        for dept in departments:
+            item = QListWidgetItem(dept)
+            self.departments_list.addItem(item)
+
+        dept_layout.addWidget(self.departments_list)
+
+        # Department Actions
+        dept_actions_layout = QHBoxLayout()
+        self.add_dept_btn = QPushButton("Add Dept")
+        self.add_dept_btn.setProperty("class", "primary")
+        self.edit_dept_btn = QPushButton("Edit")
+        self.remove_dept_btn = QPushButton("Remove")
+
+        dept_actions_layout.addWidget(self.add_dept_btn)
+        dept_actions_layout.addWidget(self.edit_dept_btn)
+        dept_actions_layout.addWidget(self.remove_dept_btn)
+        dept_actions_layout.addStretch()
+
+        dept_layout.addLayout(dept_actions_layout)
+        tasks_layout.addWidget(dept_group)
+
+        # Tasks Section (moved below departments)
         tasks_group = QGroupBox("Tasks")
         tasks_section_layout = QVBoxLayout(tasks_group)
 
@@ -396,6 +436,7 @@ class ProjectBrowser(PrismStyleWidget):
         # Tasks List
         self.tasks_list = QListWidget()
         self.tasks_list.setAlternatingRowColors(True)
+        self.tasks_list.setSelectionMode(QAbstractItemView.SelectionMode.ExtendedSelection)  # Enable multi-select
         # Removed maximum height restriction to allow full vertical expansion
 
         # Add some sample tasks
@@ -422,56 +463,16 @@ class ProjectBrowser(PrismStyleWidget):
         self.new_task_btn.setProperty("class", "primary")
         self.assign_task_btn = QPushButton("Assign")
         self.complete_task_btn = QPushButton("Complete")
+        self.delete_task_btn = QPushButton("Delete")
 
         task_actions_layout.addWidget(self.new_task_btn)
         task_actions_layout.addWidget(self.assign_task_btn)
         task_actions_layout.addWidget(self.complete_task_btn)
+        task_actions_layout.addWidget(self.delete_task_btn)
         task_actions_layout.addStretch()
 
         tasks_section_layout.addLayout(task_actions_layout)
         tasks_layout.addWidget(tasks_group)
-
-        # Departments Section (underneath tasks)
-        dept_group = QGroupBox("Departments")
-        dept_layout = QVBoxLayout(dept_group)
-
-        self.departments_list = QListWidget()
-        self.departments_list.setAlternatingRowColors(True)
-        # Removed maximum height restriction to allow full vertical expansion
-
-        # Add default departments
-        departments = [
-            "Modeling - Active",
-            "Texturing - Active",
-            "Rigging - Active",
-            "Animation - Active",
-            "Lighting - Standby",
-            "Rendering - Standby"
-        ]
-
-        for dept in departments:
-            item = QListWidgetItem(dept)
-            self.departments_list.addItem(item)
-
-        dept_layout.addWidget(self.departments_list)
-
-        # Add stretch to allow departments list to expand
-        dept_layout.addStretch()
-
-        # Department Actions
-        dept_actions_layout = QHBoxLayout()
-        self.add_dept_btn = QPushButton("Add Dept")
-        self.add_dept_btn.setProperty("class", "primary")
-        self.edit_dept_btn = QPushButton("Edit")
-        self.remove_dept_btn = QPushButton("Remove")
-
-        dept_actions_layout.addWidget(self.add_dept_btn)
-        dept_actions_layout.addWidget(self.edit_dept_btn)
-        dept_actions_layout.addWidget(self.remove_dept_btn)
-        dept_actions_layout.addStretch()
-
-        dept_layout.addLayout(dept_actions_layout)
-        tasks_layout.addWidget(dept_group)
 
         tasks_layout.addStretch()
 

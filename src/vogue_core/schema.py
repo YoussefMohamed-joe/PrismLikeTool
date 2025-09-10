@@ -46,19 +46,27 @@ def validate_pipeline(data: Dict[str, Any]) -> None:
     if not all(isinstance(r, int) and r > 0 for r in data["resolution"]):
         raise ValidationError("Resolution values must be positive integers")
     
-    # Validate departments
-    if not isinstance(data["departments"], list) or not data["departments"]:
-        raise ValidationError("Departments must be a non-empty list of strings")
+    # Validate departments (allow empty list)
+    if not isinstance(data["departments"], list):
+        raise ValidationError("Departments must be a list")
     
-    if not all(isinstance(d, str) and d.strip() for d in data["departments"]):
+    if data["departments"] and not all(isinstance(d, str) and d.strip() for d in data["departments"]):
         raise ValidationError("All departments must be non-empty strings")
     
-    # Validate tasks
-    if not isinstance(data["tasks"], list) or not data["tasks"]:
-        raise ValidationError("Tasks must be a non-empty list of strings")
+    # Validate tasks (allow empty list and mixed string/object format)
+    if not isinstance(data["tasks"], list):
+        raise ValidationError("Tasks must be a list")
     
-    if not all(isinstance(t, str) and t.strip() for t in data["tasks"]):
-        raise ValidationError("All tasks must be non-empty strings")
+    if data["tasks"]:
+        for i, task in enumerate(data["tasks"]):
+            if isinstance(task, str):
+                if not task.strip():
+                    raise ValidationError(f"Task {i} cannot be empty")
+            elif isinstance(task, dict):
+                if "name" not in task or not isinstance(task["name"], str) or not task["name"].strip():
+                    raise ValidationError(f"Task {i} must have a non-empty 'name' field")
+            else:
+                raise ValidationError(f"Task {i} must be a string or dictionary")
     
     # Validate assets (optional)
     if "assets" in data:
@@ -151,8 +159,8 @@ def create_default_pipeline(name: str, path: str, fps: int = 24, resolution: Lis
         "path": path,
         "fps": fps,
         "resolution": resolution,
-        "departments": ["Model", "Rig", "Anim", "LookDev", "FX", "Lighting", "Comp"],
-        "tasks": ["WIP", "Review", "Final"],
+        "departments": [],
+        "tasks": [],
         "assets": [],
         "shots": [],
         "versions": {}
@@ -193,6 +201,24 @@ def pipeline_to_project(data: Dict[str, Any]) -> Project:
             meta=shot_data.get("meta", {})
         )
         shots.append(shot)
+    
+    # Create tasks
+    tasks = []
+    for task_data in data.get("tasks", []):
+        from .models import Task
+        if isinstance(task_data, str):
+            # Legacy string format
+            task = Task(name=task_data, status="Pending")
+        elif isinstance(task_data, dict):
+            # New object format
+            task = Task(
+                name=task_data.get("name", "Unknown"),
+                status=task_data.get("status", "Pending"),
+                description=task_data.get("description", "")
+            )
+        else:
+            continue
+        tasks.append(task)
     
     # Create folders
     folders = []

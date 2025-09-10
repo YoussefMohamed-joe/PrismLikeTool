@@ -375,7 +375,7 @@ class VogueController(PrismMainWindow):
         if not self.manager.current_project:
             QMessageBox.warning(self, "No Project", "Load or create a project first.")
             return
-        
+
         # Find the shot object
         shot_name = item.text(0)
         shot = next((s for s in self.manager.current_project.shots if s.name == shot_name), None)
@@ -517,7 +517,7 @@ class VogueController(PrismMainWindow):
             for i in range(self.project_browser.shot_tree.topLevelItemCount()):
                 if self.project_browser.shot_tree.topLevelItem(i) == item:
                     self.project_browser.shot_tree.takeTopLevelItem(i)
-            return
+                return
 
     def copy_item(self, item):
         """Copy item to clipboard"""
@@ -601,6 +601,8 @@ class VogueController(PrismMainWindow):
                     self.update_shots_tree()
                     self.setWindowTitle(f"Vogue Manager - {self.manager.current_project.name}")
                     self.update_project_info()
+                    self.load_tasks_from_project()
+                    self.load_departments_from_project()
                     self.logger.info("Project loaded successfully")
                 else:
                     self.logger.info(f"Last project path no longer exists: {project_path}")
@@ -612,6 +614,8 @@ class VogueController(PrismMainWindow):
                             self.update_assets_tree()
                             self.setWindowTitle(f"Vogue Manager - {self.manager.current_project.name}")
                             self.update_project_info()
+                            self.load_tasks_from_project()
+                            self.load_departments_from_project()
                             self.logger.info("Project loaded successfully")
                             break
             else:
@@ -635,8 +639,8 @@ class VogueController(PrismMainWindow):
             data = dialog.get_asset_data()
             if not data:
                 QMessageBox.warning(self, "Invalid Data", "Please enter a valid asset name.")
-            return
-        
+                return
+            
             from vogue_core.models import Asset
             project = self.manager.current_project
 
@@ -653,10 +657,10 @@ class VogueController(PrismMainWindow):
                     if f.type == "asset" and f.name == folder_name:
                         folder = f
                         break
-            if folder is None:
-                from vogue_core.models import Folder
-                folder = Folder(name=folder_name, type="asset", assets=[])
-                project.folders.append(folder)
+                if folder is None:
+                    from vogue_core.models import Folder
+                    folder = Folder(name=folder_name, type="asset", assets=[])
+                    project.folders.append(folder)
 
             # Create asset and append to project assets list if not exists
             existing = next((a for a in getattr(project, 'assets', []) if a.name == data['name']), None)
@@ -792,6 +796,15 @@ class VogueController(PrismMainWindow):
         self.export_project_action.triggered.connect(self.export_project)
         self.project_settings_action.triggered.connect(self.project_settings)
         
+        # Connect task and department actions
+        self.project_browser.new_task_btn.clicked.connect(self.new_task)
+        self.project_browser.assign_task_btn.clicked.connect(self.assign_task)
+        self.project_browser.complete_task_btn.clicked.connect(self.complete_task)
+        self.project_browser.delete_task_btn.clicked.connect(self.delete_task)
+        self.project_browser.add_dept_btn.clicked.connect(self.add_department)
+        self.project_browser.edit_dept_btn.clicked.connect(self.edit_department)
+        self.project_browser.remove_dept_btn.clicked.connect(self.remove_department)
+        
         self.logger.info("Menu actions connected successfully")
     
     def browse_project(self):
@@ -810,30 +823,38 @@ class VogueController(PrismMainWindow):
     
     def new_project(self):
         """Create new project"""
-        from PyQt6.QtWidgets import QInputDialog
+        from .dialogs import NewProjectDialog
+        from PyQt6.QtWidgets import QDialog
         
-        project_name, ok = QInputDialog.getText(
-            self, 
-            "New Project", 
-            "Enter project name:"
-        )
-        
-        if ok and project_name:
-            # Create project directory
-            from pathlib import Path
-            import os
+        dialog = NewProjectDialog(self)
+        if dialog.exec() == QDialog.DialogCode.Accepted:
+            project_data = dialog.get_project_data()
+            if project_data:
+                self.create_new_project(project_data)
+    
+    def create_new_project(self, project_data):
+        """Create a new project from dialog data"""
+        try:
+            self.logger.info(f"Creating new project: {project_data['name']}")
             
-            # Get projects directory from settings
-            projects_dir = getattr(settings, 'projects_dir', os.path.expanduser("~/VogueProjects"))
-            project_path = Path(projects_dir) / project_name
+            # Create project using manager
+            self.manager.create_project(
+                project_data['name'],
+                str(project_data['path']),
+                fps=project_data['fps'],
+                resolution=project_data['resolution']
+            )
             
-            try:
-                # Create project structure
-                self.manager.create_project(str(project_path), project_name)
-                self.load_project(str(project_path))
-                self.logger.info(f"Created new project: {project_name}")
-            except Exception as e:
-                QMessageBox.critical(self, "Error", f"Failed to create project: {e}")
+            # Load the new project
+            project_path = project_data['path'] / project_data['name']
+            self.load_project(str(project_path))
+            
+            self.logger.info(f"Created new project: {project_data['name']}")
+            
+        except Exception as e:
+            self.logger.error(f"Failed to create project: {e}")
+            from PyQt6.QtWidgets import QMessageBox
+            QMessageBox.critical(self, "Error", f"Failed to create project: {e}")
     
     def open_project(self):
         """Open existing project"""
@@ -880,6 +901,10 @@ class VogueController(PrismMainWindow):
             
             # Update project info display
             self.update_project_info()
+            
+            # Load tasks and departments from project data
+            self.load_tasks_from_project()
+            self.load_departments_from_project()
             
             # Add to recent projects
             settings.add_recent_project(self.manager.current_project.name, project_path)
@@ -1102,8 +1127,7 @@ class VogueController(PrismMainWindow):
             except Exception as e:
                 self.logger.error(f"Failed saving project after shot add: {e}")
                 QMessageBox.warning(self, "Save Error", f"Shot added but failed to save project: {e}")
-                return
-            
+
             # Refresh UI
             self.update_shots_tree()
             if folder:
@@ -1113,7 +1137,7 @@ class VogueController(PrismMainWindow):
             
             # Update sequence dropdown in any open dialogs
             self.refresh_shot_dialogs()
-                
+            
         except Exception as e:
             self.logger.error(f"Failed to create shot: {e}")
             QMessageBox.critical(self, "Error", f"Failed to create shot: {e}")
@@ -1130,7 +1154,7 @@ class VogueController(PrismMainWindow):
         if not self.manager.current_project:
             QMessageBox.warning(self, "No Project", "Load or create a project first.")
             return
-        
+
         name, ok = QInputDialog.getText(self, "New Shot Folder", "Folder name:")
         if ok and name:
             try:
@@ -1141,7 +1165,7 @@ class VogueController(PrismMainWindow):
                 if existing_folder:
                     QMessageBox.warning(self, "Folder Exists", f"Shot folder '{name.strip()}' already exists.")
                     return
-                
+
                 # Create new shot folder
                 from vogue_core.models import Folder
                 new_folder = Folder(name=name.strip(), type="shot", assets=[])
@@ -1154,7 +1178,6 @@ class VogueController(PrismMainWindow):
                 except Exception as e:
                     self.logger.error(f"Failed saving project after shot folder add: {e}")
                     QMessageBox.warning(self, "Save Error", f"Shot folder added but failed to save project: {e}")
-                    return
                 
                 # Refresh UI
                 self.update_shots_tree()
@@ -1171,7 +1194,7 @@ class VogueController(PrismMainWindow):
             folder_item = QTreeWidgetItem(parent_item)
             folder_item.setText(0, name)
             folder_item.setData(0, Qt.ItemDataRole.UserRole, "Folder")
-    
+
     def delete_selected_shot_items(self):
         """Delete all selected shot items from both UI and project data"""
         tree = self.project_browser.shot_tree
@@ -1264,3 +1287,273 @@ class VogueController(PrismMainWindow):
         self.clipboard_type = "multiple"
         
         self.logger.info(f"Cut {len(selected_items)} shot items to clipboard")
+    
+    # Task Management Methods
+    def new_task(self):
+        """Create a new task"""
+        from vogue_app.dialogs import CreateTaskDialog
+
+        dialog = CreateTaskDialog(self)
+        if dialog.exec() == QDialog.DialogCode.Accepted:
+            data = dialog.get_task_data()
+            if data:
+                # Add task to the tasks list
+                task_text = f"{data['name']} - {data['status']}"
+                if data['description']:
+                    task_text += f" ({data['description']})"
+                
+                self.project_browser.tasks_list.addItem(task_text)
+                
+                # Save to project data
+                if self.manager.current_project:
+                    if not hasattr(self.manager.current_project, 'tasks'):
+                        self.manager.current_project.tasks = []
+                    
+                    # Add task object to project
+                    from vogue_core.models import Task
+                    task = Task(
+                        name=data['name'],
+                        status=data['status'],
+                        description=data['description']
+                    )
+                    self.manager.current_project.tasks.append(task)
+                    self.manager.save_project()
+                
+                self.logger.info(f"Created new task: {data['name']}")
+
+    def assign_task(self):
+        """Assign selected task"""
+        current_item = self.project_browser.tasks_list.currentItem()
+        if current_item:
+            task_name = current_item.text().split(" - ")[0]
+            QMessageBox.information(self, "Task Assignment", f"Task '{task_name}' assigned successfully!")
+            self.logger.info(f"Assigned task: {task_name}")
+        else:
+            QMessageBox.warning(self, "No Selection", "Please select a task to assign.")
+
+    def complete_task(self):
+        """Mark selected task as complete"""
+        current_item = self.project_browser.tasks_list.currentItem()
+        if current_item:
+            task_text = current_item.text()
+            if " - Complete" not in task_text:
+                # Update task status to complete
+                if " - " in task_text:
+                    task_name = task_text.split(" - ")[0]
+                    new_text = f"{task_name} - Complete"
+                else:
+                    new_text = f"{task_text} - Complete"
+                
+                current_item.setText(new_text)
+                self.logger.info(f"Completed task: {task_name}")
+            else:
+                QMessageBox.information(self, "Already Complete", "This task is already marked as complete.")
+        else:
+            QMessageBox.warning(self, "No Selection", "Please select a task to complete.")
+    
+    def delete_task(self):
+        """Delete selected task(s)"""
+        selected_items = self.project_browser.tasks_list.selectedItems()
+        if not selected_items:
+            QMessageBox.warning(self, "No Selection", "Please select task(s) to delete.")
+            return
+
+        if len(selected_items) == 1:
+            task_name = selected_items[0].text().split(" - ")[0]
+            message = f"Are you sure you want to delete the task '{task_name}'?"
+        else:
+            task_names = [item.text().split(" - ")[0] for item in selected_items]
+            message = f"Are you sure you want to delete {len(selected_items)} tasks?\n\nTasks: {', '.join(task_names)}"
+        
+            reply = QMessageBox.question(
+            self, 
+            "Delete Task(s)", 
+            message,
+            QMessageBox.StandardButton.Yes | QMessageBox.StandardButton.No
+            )
+
+            if reply == QMessageBox.StandardButton.Yes:
+                # Store task names for logging
+                deleted_tasks = []
+                
+                # Remove from UI (in reverse order to maintain indices)
+                for item in reversed(selected_items):
+                    task_name = item.text().split(" - ")[0]
+                    deleted_tasks.append(task_name)
+                    row = self.project_browser.tasks_list.row(item)
+                    self.project_browser.tasks_list.takeItem(row)
+            
+            # Remove from project data if available
+            if self.manager.current_project and hasattr(self.manager.current_project, 'tasks'):
+                for task_name in deleted_tasks:
+                    self.manager.current_project.tasks = [
+                        task for task in self.manager.current_project.tasks 
+                        if (hasattr(task, 'name') and task.name != task_name) or
+                           (isinstance(task, dict) and task.get('name', '') != task_name)
+                    ]
+                self.manager.save_project()
+            
+            self.logger.info(f"Deleted {len(deleted_tasks)} task(s): {', '.join(deleted_tasks)}")
+    
+    # Department Management Methods
+    def add_department(self):
+        """Add a new department"""
+        from PyQt6.QtWidgets import QInputDialog, QColorDialog
+        
+        name, ok = QInputDialog.getText(self, "New Department", "Department name:")
+        if ok and name:
+            # Get color for the department
+            color = QColorDialog.getColor()
+            if color.isValid():
+                color_hex = color.name()
+                
+                # Add to departments list
+                dept_text = f"{name} - Active"
+                self.project_browser.departments_list.addItem(dept_text)
+                
+                # Store department data in project if available
+                if self.manager.current_project:
+                    from vogue_core.models import Department
+                    dept = Department(name=name, color=color_hex)
+                    if not hasattr(self.manager.current_project, 'departments'):
+                        self.manager.current_project.departments = []
+                    self.manager.current_project.departments.append(dept)
+                    self.manager.save_project()
+                
+                self.logger.info(f"Added department: {name}")
+            else:
+                QMessageBox.warning(self, "Invalid Color", "Please select a valid color for the department.")
+
+    def edit_department(self):
+        """Edit selected department"""
+        current_item = self.project_browser.departments_list.currentItem()
+        if current_item:
+            current_text = current_item.text()
+            current_name = current_text.split(" - ")[0]
+            
+            from PyQt6.QtWidgets import QInputDialog, QColorDialog
+            
+            name, ok = QInputDialog.getText(self, "Edit Department", "Department name:", text=current_name)
+            if ok and name:
+                # Get new color
+                color = QColorDialog.getColor()
+                if color.isValid():
+                    # Update the item
+                    status = current_text.split(" - ")[1] if " - " in current_text else "Active"
+                    new_text = f"{name} - {status}"
+                    current_item.setText(new_text)
+                    
+                    # Update in project data if available
+                    if self.manager.current_project and hasattr(self.manager.current_project, 'departments'):
+                        for dept in self.manager.current_project.departments:
+                            if dept.name == current_name:
+                                dept.name = name
+                                dept.color = color.name()
+                                break
+                        self.manager.save_project()
+                    
+                    self.logger.info(f"Edited department: {current_name} -> {name}")
+                else:
+                    QMessageBox.warning(self, "Invalid Color", "Please select a valid color for the department.")
+            else:
+                QMessageBox.warning(self, "No Selection", "Please select a department to edit.")
+
+    def remove_department(self):
+        """Remove selected department(s)"""
+        selected_items = self.project_browser.departments_list.selectedItems()
+        if not selected_items:
+            QMessageBox.warning(self, "No Selection", "Please select department(s) to remove.")
+            return
+
+        if len(selected_items) == 1:
+            dept_name = selected_items[0].text().split(" - ")[0]
+            message = f"Are you sure you want to remove the department '{dept_name}'?"
+        else:
+            dept_names = [item.text().split(" - ")[0] for item in selected_items]
+            message = f"Are you sure you want to remove {len(selected_items)} departments?\n\nDepartments: {', '.join(dept_names)}"
+        
+            reply = QMessageBox.question(
+            self, 
+            "Remove Department(s)", 
+            message,
+            QMessageBox.StandardButton.Yes | QMessageBox.StandardButton.No
+            )
+
+            if reply == QMessageBox.StandardButton.Yes:
+                # Store department names for logging
+                removed_departments = []
+                
+                # Remove from UI (in reverse order to maintain indices)
+                for item in reversed(selected_items):
+                    dept_name = item.text().split(" - ")[0]
+                    removed_departments.append(dept_name)
+                    row = self.project_browser.departments_list.row(item)
+                    self.project_browser.departments_list.takeItem(row)
+            
+            # Remove from project data if available
+            if self.manager.current_project and hasattr(self.manager.current_project, 'departments'):
+                for dept_name in removed_departments:
+                    self.manager.current_project.departments = [
+                        dept for dept in self.manager.current_project.departments 
+                        if (hasattr(dept, 'name') and dept.name != dept_name) or 
+                           (isinstance(dept, str) and dept.split(" - ")[0] != dept_name)
+                    ]
+                self.manager.save_project()
+            
+            self.logger.info(f"Removed {len(removed_departments)} department(s): {', '.join(removed_departments)}")
+    
+    def load_tasks_from_project(self):
+        """Load tasks from project data into UI"""
+        if not self.manager.current_project:
+            return
+        
+        # Clear existing tasks
+        self.project_browser.tasks_list.clear()
+        
+        # Load tasks from project data if they exist
+        if hasattr(self.manager.current_project, 'tasks') and self.manager.current_project.tasks:
+            for task in self.manager.current_project.tasks:
+                if hasattr(task, 'name'):
+                    # Task object
+                    task_text = f"{task.name} - {task.status}"
+                    if task.description:
+                        task_text += f" ({task.description})"
+                elif isinstance(task, dict):
+                    # Legacy dict format
+                    task_text = f"{task.get('name', 'Unknown')} - {task.get('status', 'Pending')}"
+                    if task.get('description'):
+                        task_text += f" ({task['description']})"
+                else:
+                    continue
+                
+                self.project_browser.tasks_list.addItem(task_text)
+            
+            self.logger.info(f"Loaded {len(self.manager.current_project.tasks)} tasks from project")
+        else:
+            self.logger.info("No tasks found in project")
+    
+    def load_departments_from_project(self):
+        """Load departments from project data into UI"""
+        if not self.manager.current_project:
+            return
+        
+        # Clear existing departments
+        self.project_browser.departments_list.clear()
+        
+        # Load departments from project data if they exist
+        if hasattr(self.manager.current_project, 'departments') and self.manager.current_project.departments:
+            for dept in self.manager.current_project.departments:
+                if hasattr(dept, 'name'):
+                    # Department object
+                    dept_text = f"{dept.name} - Active"
+                elif isinstance(dept, str):
+                    # Department string
+                    dept_text = dept
+                else:
+                    continue
+                
+                self.project_browser.departments_list.addItem(dept_text)
+            
+            self.logger.info(f"Loaded {len(self.manager.current_project.departments)} departments from project")
+        else:
+            self.logger.info("No departments found in project")

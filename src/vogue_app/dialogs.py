@@ -108,26 +108,16 @@ class NewProjectDialog(QDialog):
         dept_group = QGroupBox("Departments & Tasks")
         dept_layout = QVBoxLayout(dept_group)
         
-        # Default departments
-        self.departments = [
-            {"name": "Modeling", "color": "#FF7F7F", "tasks": ["High", "Mid", "Low"]},
-            {"name": "Texturing", "color": "#5FD4C7", "tasks": ["Diffuse", "Normal", "Roughness"]},
-            {"name": "Rigging", "color": "#73C2FB", "tasks": ["Rig", "Controls", "Skinning"]},
-            {"name": "Animation", "color": "#7FB97F", "tasks": ["Blocking", "Spline", "Polish"]},
-            {"name": "Lighting", "color": "#FFD700", "tasks": ["Key", "Fill", "Rim"]},
-            {"name": "Rendering", "color": "#E6A3E6", "tasks": ["Beauty", "AOVs", "Comp"]}
-        ]
+        # Simple departments list
+        self.dept_list = QListWidget()
+        self.dept_list.setMaximumHeight(100)
         
-        self.dept_table = QTableWidget()
-        self.dept_table.setColumnCount(3)
-        self.dept_table.setHorizontalHeaderLabels(["Department", "Color", "Tasks"])
-        self.dept_table.horizontalHeader().setStretchLastSection(True)
-        self.dept_table.setMaximumHeight(150)
+        # Add default departments
+        default_departments = ["Modeling", "Texturing", "Rigging", "Animation", "Lighting", "Rendering"]
+        for dept in default_departments:
+            self.dept_list.addItem(dept)
         
-        # Populate departments
-        self.populate_departments()
-        
-        dept_layout.addWidget(self.dept_table)
+        dept_layout.addWidget(self.dept_list)
         
         # Department buttons
         dept_btn_layout = QHBoxLayout()
@@ -161,51 +151,22 @@ class NewProjectDialog(QDialog):
         self.custom_res_widget.setVisible(text == "Custom")
         
     def populate_departments(self):
-        """Populate departments table"""
-        self.dept_table.setRowCount(len(self.departments))
-        
-        for row, dept in enumerate(self.departments):
-            # Department name
-            name_item = QTableWidgetItem(dept["name"])
-            self.dept_table.setItem(row, 0, name_item)
-            
-            # Color
-            color_item = QTableWidgetItem(dept["color"])
-            self.dept_table.setItem(row, 1, color_item)
-            
-            # Tasks
-            tasks_item = QTableWidgetItem(", ".join(dept["tasks"]))
-            self.dept_table.setItem(row, 2, tasks_item)
+        """Populate departments list (simplified)"""
+        pass  # No longer needed with simple list
     
     def add_department(self):
         """Add a new department"""
-        # Add new department to the list
-        new_dept = {
-            "name": "New Department",
-            "color": "#73C2FB",
-            "tasks": ["WIP", "Review", "Final"]
-        }
-        self.departments.append(new_dept)
-        self.populate_departments()
-        
-        # Select the new row for editing
-        new_row = len(self.departments) - 1
-        self.dept_table.selectRow(new_row)
-        self.dept_table.edit(self.dept_table.item(new_row, 0))
+        from PyQt6.QtWidgets import QInputDialog
+        name, ok = QInputDialog.getText(self, "New Department", "Department name:")
+        if ok and name:
+            self.dept_list.addItem(name)
     
     def remove_department(self):
         """Remove selected department"""
-        current_row = self.dept_table.currentRow()
-        if current_row >= 0 and current_row < len(self.departments):
-            # Remove from departments list
-            del self.departments[current_row]
-            self.populate_departments()
-            
-            # Select the next available row
-            if current_row < len(self.departments):
-                self.dept_table.selectRow(current_row)
-            elif len(self.departments) > 0:
-                self.dept_table.selectRow(len(self.departments) - 1)
+        current_item = self.dept_list.currentItem()
+        if current_item:
+            row = self.dept_list.row(current_item)
+            self.dept_list.takeItem(row)
             
     def get_project_data(self):
         """Get project data from dialog"""
@@ -227,31 +188,19 @@ class NewProjectDialog(QDialog):
             width, height = map(int, res_part.split("x"))
             
         # Get departments
+        # Get departments (simplified)
         departments = []
-        for row in range(self.dept_table.rowCount()):
-            name_item = self.dept_table.item(row, 0)
-            color_item = self.dept_table.item(row, 1)
-            tasks_item = self.dept_table.item(row, 2)
-            
-            if name_item and color_item and tasks_item:
-                dept_name = name_item.text().strip()
-                dept_color = color_item.text().strip()
-                dept_tasks = [t.strip() for t in tasks_item.text().split(",") if t.strip()]
-                
-                if dept_name:
-                    departments.append({
-                        "name": dept_name,
-                        "color": dept_color,
-                        "tasks": dept_tasks
-                    })
+        for i in range(self.dept_list.count()):
+            item = self.dept_list.item(i)
+            if item:
+                departments.append(item.text().strip())
         
         return {
             "name": name,
             "path": Path(path),
             "description": description,
             "fps": self.fps_spin.value(),
-            "width": width,
-            "height": height,
+            "resolution": [width, height],
             "departments": departments
         }
 
