@@ -17,6 +17,7 @@ from vogue_core.manager import ProjectManager
 from vogue_core.logging_utils import get_logger
 from vogue_core.settings import settings
 from vogue_app.ui import PrismMainWindow
+from vogue_app.dialogs import AssetDialog
 
 class VogueController(PrismMainWindow):
     """Clean controller for Vogue Manager desktop application"""
@@ -188,21 +189,42 @@ class VogueController(PrismMainWindow):
         menu.exec(tree.mapToGlobal(position))
     
     def add_asset_to_folder(self, folder_item):
-        """Add new asset to folder"""
-        name, ok = QInputDialog.getText(self, "New Asset", "Asset name:")
-        if ok and name:
-            asset_item = QTreeWidgetItem(folder_item)
-            asset_item.setText(0, name)
-            asset_item.setData(0, Qt.ItemDataRole.UserRole, "Asset")
-            self.update_assets_tree()
+        """Open AssetDialog with preselected folder and add asset"""
+        folder_name = folder_item.text(0)
+        self.add_asset(preselected_folder=folder_name)
     
     def add_subfolder(self, parent_item):
         """Add new subfolder"""
+        if not self.manager.current_project:
+            QMessageBox.warning(self, "No Project", "Load or create a project first.")
+            return
+
         name, ok = QInputDialog.getText(self, "New Subfolder", "Folder name:")
         if ok and name:
-            folder_item = QTreeWidgetItem(parent_item)
-            folder_item.setText(0, name)
-            folder_item.setData(0, Qt.ItemDataRole.UserRole, "Folder")
+            # Ensure folders container
+            project = self.manager.current_project
+            if not hasattr(project, 'folders') or project.folders is None:
+                project.folders = []
+
+            # Check if folder already exists
+            existing = next((f for f in project.folders if f.name == name and f.type == "asset"), None)
+            if existing:
+                QMessageBox.warning(self, "Folder Exists", f"Folder '{name}' already exists.")
+                return
+
+            from vogue_core.models import Folder
+            new_folder = Folder(name=name, type="asset", assets=[])
+            project.folders.append(new_folder)
+            
+            # Save project immediately
+            try:
+                self.manager.save_project()
+                self.logger.info(f"Added folder: {name} and saved project")
+            except Exception as e:
+                self.logger.error(f"Failed saving project after folder add: {e}")
+                QMessageBox.warning(self, "Save Error", f"Folder added but failed to save project: {e}")
+                return
+                
             self.update_assets_tree()
     
     def rename_item(self, item):
@@ -353,6 +375,7 @@ class VogueController(PrismMainWindow):
                     self.manager.load_project(project_path)
                     self.update_assets_tree()
                     self.setWindowTitle(f"Vogue Manager - {self.manager.current_project.name}")
+                    self.update_project_info()
                     self.logger.info("Project loaded successfully")
                 else:
                     self.logger.info(f"Last project path no longer exists: {project_path}")
@@ -363,6 +386,7 @@ class VogueController(PrismMainWindow):
                             self.manager.load_project(project['path'])
                             self.update_assets_tree()
                             self.setWindowTitle(f"Vogue Manager - {self.manager.current_project.name}")
+                            self.update_project_info()
                             self.logger.info("Project loaded successfully")
                             break
             else:
@@ -370,17 +394,75 @@ class VogueController(PrismMainWindow):
         except Exception as e:
             self.logger.error(f"Failed to auto-load last project: {e}")
     
-    def add_asset(self):
-        """Add new asset"""
-        name, ok = QInputDialog.getText(self, "New Asset", "Asset name:")
-        if ok and name:
-            # Add to current project
-            if self.manager.current_project:
-                from vogue_core.models import Asset
-                asset = Asset(name=name)
-                self.manager.current_project.assets.append(asset)
-                self.update_assets_tree()
-                self.logger.info(f"Added asset: {name}")
+    def add_asset(self, preselected_folder: str | None = None):
+        """Open AssetDialog and add asset to project and JSON"""
+        if not self.manager.current_project:
+            QMessageBox.warning(self, "No Project", "Load or create a project first.")
+            return
+
+        dialog = AssetDialog(self)
+        if preselected_folder:
+            idx = dialog.folder_combo.findText(preselected_folder)
+            if idx >= 0:
+                dialog.folder_combo.setCurrentIndex(idx)
+
+        if dialog.exec() == QDialog.DialogCode.Accepted:
+            data = dialog.get_asset_data()
+            if not data:
+                QMessageBox.warning(self, "Invalid Data", "Please enter a valid asset name.")
+                return
+
+            from vogue_core.models import Asset
+            project = self.manager.current_project
+
+            # Ensure folders container
+            if not hasattr(project, 'folders') or project.folders is None:
+                project.folders = []
+
+            # Ensure folder exists
+            folder_name = data["folder"] or "Main"
+            folder = None
+            for f in project.folders:
+                if f.type == "asset" and f.name == folder_name:
+                    folder = f
+                    break
+            if folder is None:
+                from vogue_core.models import Folder
+                folder = Folder(name=folder_name, type="asset", assets=[])
+                project.folders.append(folder)
+
+            # Create asset and append to project assets list if not exists
+            existing = next((a for a in getattr(project, 'assets', []) if a.name == data['name']), None)
+            if existing is None:
+                if not hasattr(project, 'assets') or project.assets is None:
+                    project.assets = []
+                # Asset model requires 'type' parameter, use folder name as type or default
+                asset_type = folder_name if folder_name != "Main" else "Props"
+                asset = Asset(name=data['name'], type=asset_type)
+                # Store description in meta
+                if data.get('description'):
+                    asset.meta['description'] = data['description']
+                # Attach other meta data
+                if hasattr(asset, 'meta') and isinstance(asset.meta, dict):
+                    asset.meta.update(data.get('meta', {}))
+                project.assets.append(asset)
+
+            # Add to folder list (string names)
+            if not hasattr(folder, 'assets') or folder.assets is None:
+                folder.assets = []
+            if data['name'] not in folder.assets:
+                folder.assets.append(data['name'])
+
+            # Persist to JSON
+            try:
+                self.manager.save_project()
+            except Exception as e:
+                self.logger.error(f"Failed saving project after asset add: {e}")
+                QMessageBox.warning(self, "Save Error", f"Asset added but failed to save project: {e}")
+
+            # Refresh UI
+            self.update_assets_tree()
+            self.logger.info(f"Added asset: {data['name']} to folder: {folder_name}")
     
     def add_folder(self):
         """Add new folder"""
@@ -560,12 +642,43 @@ class VogueController(PrismMainWindow):
             self.update_assets_tree()
             self.setWindowTitle(f"Vogue Manager - {self.manager.current_project.name}")
             
+            # Update project info display
+            self.update_project_info()
+            
             # Add to recent projects
             settings.add_recent_project(self.manager.current_project.name, project_path)
             
             self.logger.info(f"Loaded project: {self.manager.current_project.name}")
         except Exception as e:
             QMessageBox.critical(self, "Error", f"Failed to load project: {e}")
+    
+    def update_project_info(self):
+        """Update the project info display"""
+        if self.manager.current_project:
+            # Update project name and path labels (they're direct attributes of project_browser)
+            if hasattr(self.project_browser, 'project_name_label'):
+                self.project_browser.project_name_label.setText(f"Project: {self.manager.current_project.name}")
+            
+            if hasattr(self.project_browser, 'project_path_label'):
+                self.project_browser.project_path_label.setText(f"Path: {self.manager.current_project.path}")
+            
+            # Update status menu
+            if hasattr(self, 'project_status_action'):
+                self.project_status_action.setText(f"Project: {self.manager.current_project.name}")
+                self.project_status_action.setEnabled(True)
+            
+            self.logger.info(f"Updated project info display: {self.manager.current_project.name}")
+        else:
+            # No project loaded
+            if hasattr(self.project_browser, 'project_name_label'):
+                self.project_browser.project_name_label.setText("Project: No Project Loaded")
+            
+            if hasattr(self.project_browser, 'project_path_label'):
+                self.project_browser.project_path_label.setText("Path: Not Available")
+            
+            if hasattr(self, 'project_status_action'):
+                self.project_status_action.setText("Project: No project loaded")
+                self.project_status_action.setEnabled(False)
     
     def show(self):
         """Show the main window"""
