@@ -336,10 +336,18 @@ class VogueController(PrismMainWindow):
         try:
             # Get recent projects from settings
             recent_projects = settings.get_recent_projects()
+            self.logger.info(f"Found {len(recent_projects)} recent projects")
+            
             if recent_projects:
+                # Log all recent projects for debugging
+                for i, project in enumerate(recent_projects):
+                    self.logger.info(f"  {i+1}. {project['name']} - {project['path']}")
+                
                 # Load the most recent project
                 last_project = recent_projects[0]
                 project_path = last_project['path']
+                self.logger.info(f"Attempting to load: {last_project['name']} from {project_path}")
+                
                 if os.path.exists(project_path):
                     self.logger.info(f"Auto-loading last project: {last_project['name']} from {project_path}")
                     self.manager.load_project(project_path)
@@ -347,7 +355,16 @@ class VogueController(PrismMainWindow):
                     self.setWindowTitle(f"Vogue Manager - {self.manager.current_project.name}")
                     self.logger.info("Project loaded successfully")
                 else:
-                    self.logger.info("Last project path no longer exists")
+                    self.logger.info(f"Last project path no longer exists: {project_path}")
+                    # Try next project if first doesn't exist
+                    for project in recent_projects[1:]:
+                        if os.path.exists(project['path']):
+                            self.logger.info(f"Trying next project: {project['name']} from {project['path']}")
+                            self.manager.load_project(project['path'])
+                            self.update_assets_tree()
+                            self.setWindowTitle(f"Vogue Manager - {self.manager.current_project.name}")
+                            self.logger.info("Project loaded successfully")
+                            break
             else:
                 self.logger.info("No recent projects to load")
         except Exception as e:
