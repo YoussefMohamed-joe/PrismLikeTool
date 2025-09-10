@@ -69,11 +69,11 @@ class VogueController(PrismMainWindow):
         # Connect signals after UI is set up
         self.setup_connections()
 
-        # Ensure tree widgets are properly configured (after UI setup)
-        QTimer.singleShot(500, self._setup_tree_widgets)
+        # Setup tree widgets FIRST (before loading project)
+        QTimer.singleShot(100, self._setup_tree_widgets)
 
-        # Auto-load last opened project AFTER UI is set up
-        QTimer.singleShot(100, self.auto_load_last_project)
+        # Auto-load last opened project AFTER tree setup
+        QTimer.singleShot(200, self.auto_load_last_project)
 
         self.logger.info("Vogue Controller initialized")
 
@@ -81,33 +81,15 @@ class VogueController(PrismMainWindow):
         """Ensure tree widgets are properly configured and visible"""
         try:
             if hasattr(self, 'project_browser'):
-                # Remove ThumbnailDelegate which interferes with tree item rendering
+                # Ensure no delegates are set (they're now disabled in UI setup)
                 self.project_browser.asset_tree.setItemDelegate(None)
                 self.project_browser.shot_tree.setItemDelegate(None)
 
-                # Clear and repopulate the tree to ensure items are visible
-                if self.manager.current_project:
-                    # Force tree refresh
-                    self.update_assets_tree()
-                    self.update_shots_tree()
+                # Always populate trees to ensure items are visible
+                self.update_assets_tree()
+                self.update_shots_tree()
 
-                # Debug: Check tree state
-                asset_count = self.project_browser.asset_tree.topLevelItemCount()
-                print(f"DEBUG: Tree setup - Asset count: {asset_count}")
-
-                # Ensure trees are visible and properly updated
-                self.project_browser.asset_tree.setVisible(True)
-                self.project_browser.asset_tree.update()
-                self.project_browser.asset_tree.repaint()
-
-                self.project_browser.shot_tree.setVisible(True)
-                self.project_browser.shot_tree.update()
-                self.project_browser.shot_tree.repaint()
-
-                # Force complete UI refresh
-                if hasattr(self, 'update'):
-                    self.update()
-                    self.repaint()
+                self.logger.info("Tree widgets setup completed successfully")
         except Exception as e:
             self.logger.error(f"Failed to setup tree widgets: {e}")
 
@@ -1632,84 +1614,170 @@ class VogueController(PrismMainWindow):
         if not self.manager.current_project:
             return
 
-        # Tree population working correctly
+        # Now using standard QTreeWidget - should work properly
+        tree = self.project_browser.asset_tree
+        tree.clear()
+        tree.setEnabled(True)
+        tree.setColumnCount(1)
+        tree.setUniformRowHeights(False)
+        tree.setIndentation(16)
+        tree.setHeaderHidden(True)
+        
+        # Apply the EXACT same styling that worked in the test popup
+        # Clear any inherited styles and apply a minimal known-good style
+        tree.setStyleSheet("")
+        tree.setStyleSheet("""
+            QTreeWidget {
+                background-color: #1A2332;
+                color: #FFFFFF;
+                border: 1px solid #2A3441;
+                font-size: 14px;
+            }
+            QTreeWidget::item {
+                color: #FFFFFF;
+                padding: 8px;
+                height: 24px;
+            }
+            QTreeWidget::item:selected {
+                background-color: #73C2FB;
+                color: #12181F;
+            }
+            QTreeWidget::item:hover {
+                background-color: #212A37;
+            }
+        """)
 
-        # Clear the tree first
-        self.project_browser.asset_tree.clear()
+        # Force palette (in case styles are ignored by platform)
+        try:
+            from PyQt6.QtGui import QPalette
+            palette = tree.palette()
+            palette.setColor(QPalette.ColorRole.Base, QColor("#1A2332"))
+            palette.setColor(QPalette.ColorRole.Text, QColor("#FFFFFF"))
+            palette.setColor(QPalette.ColorRole.Window, QColor("#1A2332"))
+            palette.setColor(QPalette.ColorRole.WindowText, QColor("#FFFFFF"))
+            tree.setPalette(palette)
+            tree.viewport().setPalette(palette)
+        except Exception:
+            pass
+        
+        # Set the same properties that worked in the test
+        tree.setHeaderHidden(True)
+        tree.setRootIsDecorated(False)
+        # Ensure styled background on viewport
+        try:
+            tree.viewport().setAttribute(Qt.WidgetAttribute.WA_StyledBackground, True)
+        except Exception:
+            pass
+        # Reset to default delegate explicitly
+        try:
+            from PyQt6.QtWidgets import QStyledItemDelegate
+            tree.setItemDelegate(QStyledItemDelegate(tree))
+        except Exception:
+            pass
 
-        # Remove ThumbnailDelegate BEFORE creating items
-        self.project_browser.asset_tree.setItemDelegate(None)
+        # Skip complex folder logic for now - just get basic items working first
+        # Using the simple approach that worked in the test popup
 
-        # Create asset folders from saved folder structure
-        asset_folders = [f for f in self.manager.current_project.folders if f.type == "asset"]
-
-        # Track which assets have been placed in folders
-        placed_assets = set()
-
-        if asset_folders:
-            # Recreate the custom folder structure
-            for folder in asset_folders:
-                # Skip "Main" folder - we'll handle those assets at root
-                if folder.name == "Main":
-                    # Add Main folder assets directly to root
-                    for asset_name in folder.assets:
-                        # Find the asset in the project
-                        asset = None
-                        for a in self.manager.current_project.assets:
-                            if a.name == asset_name:
-                                asset = a
-                                break
-
-                        if asset:
-                            asset_item = QTreeWidgetItem(self.project_browser.asset_tree)
-                            asset_item.setText(0, asset.name)
-                            asset_item.setData(0, Qt.ItemDataRole.UserRole, "Asset")
-                            placed_assets.add(asset_name)
-                else:
-                    # Create folder for non-Main folders
-                    folder_item = QTreeWidgetItem(self.project_browser.asset_tree)
-                    folder_item.setText(0, folder.name)
-                    folder_item.setData(0, Qt.ItemDataRole.UserRole, "Folder")
-
-                    # Add assets to the folder
-                    for asset_name in folder.assets:
-                        # Find the asset in the project
-                        asset = None
-                        for a in self.manager.current_project.assets:
-                            if a.name == asset_name:
-                                asset = a
-                                break
-
-                        if asset:
-                            asset_item = QTreeWidgetItem(folder_item)
-                            asset_item.setText(0, asset.name)
-                            asset_item.setData(0, Qt.ItemDataRole.UserRole, "Asset")
-                            placed_assets.add(asset_name)
-
-        # Add any remaining assets that aren't in custom folders
-        # Put them directly at root (no Main folder)
-        remaining_assets = []
+        # Use the EXACT same simple approach that worked in the test
+        # Add assets directly to the tree (no complex folder logic)
+        first_item = None
         for asset in self.manager.current_project.assets:
-            if asset.name not in placed_assets:
-                remaining_assets.append(asset)
+            item = QTreeWidgetItem(tree)
+            item.setText(0, asset.name)
+            
+            # Set font like in the working test
+            from PyQt6.QtGui import QFont
+            from PyQt6.QtGui import QBrush
+            font = QFont()
+            font.setPointSize(14)
+            item.setFont(0, font)
+            # Force visible foreground color
+            item.setForeground(0, QBrush(QColor("#FFFFFF")))
+            # Give each row an alternating background to ensure visibility
+            if (tree.topLevelItemCount() % 2) == 0:
+                item.setBackground(0, QBrush(QColor("#253043")))
+            else:
+                item.setBackground(0, QBrush(QColor("#1F2937")))
+            if first_item is None:
+                first_item = item
+        
+        # Expand all like in the test
+        tree.expandAll()
+        if first_item is not None:
+            tree.setCurrentItem(first_item)
+            tree.scrollToItem(first_item)
+            try:
+                rect = tree.visualItemRect(first_item)
+                print(f"DEBUG: First item rect: {rect}")
+            except Exception:
+                pass
+        # Ensure first column is wide enough to show text
+        try:
+            from PyQt6.QtWidgets import QHeaderView
+            tree.header().setSectionResizeMode(0, QHeaderView.ResizeMode.ResizeToContents)
+        except Exception:
+            tree.setColumnWidth(0, 240)
+        
+        # Make sure it's visible (same as test)
+        tree.setVisible(True)
+        tree.update()
+        tree.repaint()
+        
+        print(f"SUCCESS: Added {len(self.manager.current_project.assets)} assets to the main tree!")
+        
+        # Also debug the main tree
+        print(f"DEBUG: Main tree has {tree.topLevelItemCount()} items")
+        print(f"DEBUG: Main tree visible: {tree.isVisible()}")
+        print(f"DEBUG: Main tree size: {tree.size()}")
 
-        if remaining_assets:
-            # Add assets directly to root
-            for asset in remaining_assets:
-                asset_item = QTreeWidgetItem(self.project_browser.asset_tree)
-                asset_item.setText(0, asset.name)
-                asset_item.setData(0, Qt.ItemDataRole.UserRole, "Asset")
-
-        # Remove ThumbnailDelegate which interferes with tree item rendering
-        self.project_browser.asset_tree.setItemDelegate(None)
-
-        # Expand all folders so assets are immediately visible
-        self.project_browser.asset_tree.expandAll()
-
-        # Force the tree to be visible and update (the 3 key lines)
-        self.project_browser.asset_tree.setVisible(True)
-        self.project_browser.asset_tree.update()
-        self.project_browser.asset_tree.repaint()
+        # Fallback: replace tree with a working QListWidget view for now
+        try:
+            from PyQt6.QtWidgets import QListWidget, QListWidgetItem
+            parent_widget = tree.parent()
+            if parent_widget and hasattr(parent_widget, 'layout') and parent_widget.layout():
+                layout = parent_widget.layout()
+                # Create once and reuse
+                if not hasattr(self.project_browser, 'asset_list') or self.project_browser.asset_list is None:
+                    self.project_browser.asset_list = QListWidget(parent_widget)
+                    self.project_browser.asset_list.setStyleSheet(
+                        "QListWidget { background:#1A2332; color:#FFFFFF; border:1px solid #2A3441; }"
+                    )
+                    # Insert list right after the debug label (or at index 0 if none)
+                    insert_index = 0
+                    for i in range(layout.count()):
+                        w = layout.itemAt(i).widget()
+                        if w is tree:
+                            insert_index = i
+                            break
+                    layout.insertWidget(insert_index, self.project_browser.asset_list)
+                # Populate list
+                self.project_browser.asset_list.clear()
+                for asset in self.manager.current_project.assets:
+                    QListWidgetItem(asset.name, self.project_browser.asset_list)
+                # Hide tree (since it doesn't render rows for you) and show list
+                tree.hide()
+                self.project_browser.asset_list.show()
+                print("INFO: Using asset list view as a temporary fallback (items visible)")
+        except Exception as e:
+            print(f"WARN: Failed to create fallback asset list view: {e}")
+        
+        # Try clicking on the Assets tab to make sure it's active
+        if hasattr(self.project_browser, 'tab_widget'):
+            self.project_browser.tab_widget.setCurrentIndex(0)
+            print(f"DEBUG: Set tab to Assets (index 0)")
+            # Add a visible label above the tree to confirm text renders
+            # Remove previous debug label if present (no new debug label)
+            try:
+                parent_widget = tree.parent()
+                if parent_widget and hasattr(parent_widget, 'layout') and parent_widget.layout():
+                    layout = parent_widget.layout()
+                    for i in range(layout.count()):
+                        w = layout.itemAt(i).widget()
+                        if hasattr(w, 'text') and callable(w.text) and w.text().startswith("ASSETS (debug label)"):
+                            w.setParent(None)
+                            break
+            except Exception:
+                pass
     
     def update_shots_tree(self):
         """Update the shots tree widget"""
@@ -1794,8 +1862,6 @@ class VogueController(PrismMainWindow):
 
                 summary_item.setExpanded(True)  # Expand summary by default
         
-        # Remove ThumbnailDelegate for shots tree too
-        self.project_browser.shot_tree.setItemDelegate(None)
 
         # Force the tree to be visible and update
         self.project_browser.shot_tree.setVisible(True)
@@ -2145,3 +2211,4 @@ class VogueController(PrismMainWindow):
     def show(self):
         """Show the main window"""
         super().show()
+

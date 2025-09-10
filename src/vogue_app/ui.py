@@ -224,6 +224,7 @@ class PrismStyleWidget(QWidget):
     
     def __init__(self, parent=None):
         super().__init__(parent)
+        # Re-enable global QSS styling
         self.setStyleSheet(build_qss())
 
 
@@ -258,11 +259,12 @@ class ProjectBrowser(PrismStyleWidget):
 
         layout.addWidget(self.horizontal_splitter)
 
-        # Set up thumbnail delegates
-        self.asset_delegate = ThumbnailDelegate(self.asset_tree)
-        self.shot_delegate = ThumbnailDelegate(self.shot_tree)
-        self.asset_tree.setItemDelegate(self.asset_delegate)
-        self.shot_tree.setItemDelegate(self.shot_delegate)
+        # Set up thumbnail delegates - DISABLED for visibility
+        # The ThumbnailDelegate causes items to be invisible with dark themes
+        # self.asset_delegate = ThumbnailDelegate(self.asset_tree)
+        # self.shot_delegate = ThumbnailDelegate(self.shot_tree)
+        # self.asset_tree.setItemDelegate(self.asset_delegate)
+        # self.shot_tree.setItemDelegate(self.shot_delegate)
 
         # Don't populate with sample data initially - let project loading handle it
         # self.populate_asset_tree()
@@ -292,8 +294,8 @@ class ProjectBrowser(PrismStyleWidget):
         filter_layout.addStretch()
         assets_layout.addLayout(filter_layout)
         
-        # Asset tree view (Prism-style hierarchical with thumbnails)
-        self.asset_tree = AssetTreeWidget()
+        # Asset tree view (Using standard QTreeWidget for compatibility)
+        self.asset_tree = QTreeWidget()
         self.asset_tree.setHeaderHidden(True)
         self.asset_tree.setRootIsDecorated(True)
         self.asset_tree.setAlternatingRowColors(True)
@@ -304,38 +306,7 @@ class ProjectBrowser(PrismStyleWidget):
         self.asset_tree.setAcceptDrops(True)
         self.asset_tree.setDragDropMode(QAbstractItemView.DragDropMode.InternalMove)
         self.asset_tree.setDropIndicatorShown(True)
-        self.asset_tree.setStyleSheet("""
-            QTreeWidget {
-                background-color: #1A2332;
-                border: 1px solid #2A3441;
-                border-radius: 5px;
-                alternate-background-color: #1E2533;
-            }
-            QTreeWidget::item {
-                padding: 5px;
-                border-bottom: 1px solid #2A3441;
-            }
-            QTreeWidget::item:hover {
-                background-color: #212A37;
-            }
-            QTreeWidget::item:selected {
-                background-color: #73C2FB;
-                color: #12181F;
-            }
-            QTreeWidget::branch {
-                background: transparent;
-            }
-            QTreeWidget::branch:has-children:!has-siblings:closed,
-            QTreeWidget::branch:closed:has-children:has-siblings {
-                border-image: none;
-                image: none;
-            }
-            QTreeWidget::branch:open:has-children:!has-siblings,
-            QTreeWidget::branch:open:has-children:has-siblings {
-                border-image: none;
-                image: none;
-            }
-        """)
+        # Remove problematic styling - let controller apply working styles
         assets_layout.addWidget(self.asset_tree)
         
         # Asset buttons
@@ -366,8 +337,8 @@ class ProjectBrowser(PrismStyleWidget):
         shot_filter_layout.addStretch()
         shots_layout.addLayout(shot_filter_layout)
         
-        # Shot tree view (Prism-style hierarchical with thumbnails)
-        self.shot_tree = ShotTreeWidget()
+        # Shot tree view (Using standard QTreeWidget for compatibility)
+        self.shot_tree = QTreeWidget()
         self.shot_tree.setHeaderHidden(True)
         self.shot_tree.setRootIsDecorated(True)
         self.shot_tree.setAlternatingRowColors(True)
@@ -378,38 +349,7 @@ class ProjectBrowser(PrismStyleWidget):
         self.shot_tree.setAcceptDrops(True)
         self.shot_tree.setDragDropMode(QAbstractItemView.DragDropMode.InternalMove)
         self.shot_tree.setDropIndicatorShown(True)
-        self.shot_tree.setStyleSheet("""
-            QTreeWidget {
-                background-color: #1A2332;
-                border: 1px solid #2A3441;
-                border-radius: 5px;
-                alternate-background-color: #1E2533;
-            }
-            QTreeWidget::item {
-                padding: 5px;
-                border-bottom: 1px solid #2A3441;
-            }
-            QTreeWidget::item:hover {
-                background-color: #212A37;
-            }
-            QTreeWidget::item:selected {
-                background-color: #73C2FB;
-                color: #12181F;
-            }
-            QTreeWidget::branch {
-                background: transparent;
-            }
-            QTreeWidget::branch:has-children:!has-siblings:closed,
-            QTreeWidget::branch:closed:has-children:has-siblings {
-                border-image: none;
-                image: none;
-            }
-            QTreeWidget::branch:open:has-children:!has-siblings,
-            QTreeWidget::branch:open:has-children:has-siblings {
-                border-image: none;
-                image: none;
-            }
-        """)
+        # Remove problematic styling - let controller apply working styles
         shots_layout.addWidget(self.shot_tree)
         
         # Shot buttons
@@ -1569,10 +1509,10 @@ class ThumbnailDelegate(QStyledItemDelegate):
             painter.setPen(QColor("#12181F"))
         elif option.state & QStyle.StateFlag.State_MouseOver:
             painter.fillRect(option.rect, QColor("#212A37"))
-            painter.setPen(QColor("#E0E0E0"))
+            painter.setPen(QColor("#FFFFFF"))
         else:
-            painter.fillRect(option.rect, QColor("transparent"))
-            painter.setPen(QColor("#E0E0E0"))
+            painter.fillRect(option.rect, QColor("#12181F"))  # Match QSS background
+            painter.setPen(QColor("#FFFFFF"))  # Match QSS text color
 
         # Draw thumbnail if available
         if item_data and isinstance(item_data, str) and item_data != "Folder":
@@ -1996,7 +1936,7 @@ class PrismMainWindow(QMainWindow):
         self.setWindowTitle("Vogue Manager - Prism Interface")
         self.setMinimumSize(1600, 1000)  # Larger size for better layout
         
-        # Apply Prism-like styling with enhanced design
+        # Re-apply global QSS
         self.setStyleSheet(build_qss())
 
         # Set window properties for better appearance

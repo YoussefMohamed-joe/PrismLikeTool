@@ -221,25 +221,27 @@ def build_qss(colors: dict = None) -> str:
     /* Tree Widget */
     QTreeWidget {{
         background-color: {colors['bg']};
-        color: {colors['fg']};
+        color: #FFFFFF;
         border: 1px solid {colors['border']};
         border-radius: 4px;
         selection-background-color: {colors['selection']};
         alternate-background-color: {colors['panel']};
     }}
-    
+
     QTreeWidget::item {{
         padding: 4px;
         border: none;
+        color: #FFFFFF;
     }}
-    
+
     QTreeWidget::item:selected {{
         background-color: {colors['selection']};
         color: white;
     }}
-    
+
     QTreeWidget::item:hover {{
         background-color: {colors['hover']};
+        color: #FFFFFF;
     }}
     
     QTreeWidget::branch {{
