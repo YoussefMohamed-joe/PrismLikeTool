@@ -37,9 +37,9 @@ from vogue_app.qss import build_qss
 _vogue_controller = None
 
 
-def show_vogue_manager(title: str = "Vogue Manager") -> bool:
+def show_vogue_manager(title: str = "Vogue Launcher") -> bool:
     """
-    Show the Vogue Manager widget in Maya
+    Show the Vogue Launcher widget in Maya
     
     Args:
         title: Title for the dock widget
@@ -73,13 +73,13 @@ def show_vogue_manager(title: str = "Vogue Manager") -> bool:
         success = _vogue_controller.show_in_maya(title)
         
         if success:
-            logger.info(f"Vogue Manager shown in Maya: {title}")
+            logger.info(f"Vogue Launcher shown in Maya: {title}")
             
             # Apply styling to the widget
             if _vogue_controller.widget:
                 _vogue_controller.widget.setStyleSheet(build_qss())
         else:
-            logger.error("Failed to show Vogue Manager in Maya")
+            logger.error("Failed to show Vogue Launcher in Maya")
         
         return success
         

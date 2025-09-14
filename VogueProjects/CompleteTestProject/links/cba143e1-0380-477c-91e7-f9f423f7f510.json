@@ -1,0 +1,9 @@
+{
+    "id": "cba143e1-0380-477c-91e7-f9f423f7f510",
+    "input_id": "entity1",
+    "output_id": "entity2",
+    "link_type": "reference",
+    "project_name": "CompleteTestProject",
+    "created_at": "2025-09-14T17:44:57.148574",
+    "created_by": "local_user"
+}

@@ -1,0 +1,16 @@
+{
+    "id": "d08e2466-0e4c-4de5-96d4-8134141d2619",
+    "name": "maya",
+    "version_id": "29aa89fe-4725-4bf7-a76b-b5eb5065f555",
+    "attrib": {},
+    "data": {},
+    "active": true,
+    "status": "Not Started",
+    "tags": [],
+    "created_at": "2025-09-14T17:39:08.054046",
+    "updated_at": "2025-09-14T17:39:08.054046",
+    "created_by": "local_user",
+    "updated_by": "local_user",
+    "project_name": "TestProject",
+    "files": []
+}

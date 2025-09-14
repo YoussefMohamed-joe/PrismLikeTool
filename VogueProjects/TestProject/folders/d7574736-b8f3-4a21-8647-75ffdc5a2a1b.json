@@ -1,0 +1,23 @@
+{
+    "id": "d7574736-b8f3-4a21-8647-75ffdc5a2a1b",
+    "name": "SH001",
+    "label": "SH001",
+    "folder_type": "Shot",
+    "parent_id": null,
+    "path": "SH001",
+    "thumbnail_id": null,
+    "attrib": {},
+    "data": {},
+    "active": true,
+    "status": "Not Started",
+    "tags": [],
+    "created_at": "2025-09-14T17:39:08.033023",
+    "updated_at": "2025-09-14T17:39:08.033023",
+    "created_by": "local_user",
+    "updated_by": "local_user",
+    "project_name": "TestProject",
+    "has_versions": false,
+    "children": [],
+    "products": [],
+    "tasks": []
+}

@@ -1,0 +1,20 @@
+{
+    "id": "ddc70909-a6ca-4e6c-bca7-c702b50fc8c4",
+    "name": "Character_Prop",
+    "folder_id": "004eae8c-8df0-4acc-806b-e4d1667739c6",
+    "product_type": "Asset",
+    "attrib": {},
+    "data": {},
+    "active": true,
+    "status": "Not Started",
+    "tags": [],
+    "created_at": "2025-09-14T17:39:08.041289",
+    "updated_at": "2025-09-14T17:39:08.041289",
+    "created_by": "local_user",
+    "updated_by": "local_user",
+    "project_name": "TestProject",
+    "versions": [
+        "358a8758-ea8f-4cae-b772-6a26bf681c86"
+    ],
+    "representations": []
+}

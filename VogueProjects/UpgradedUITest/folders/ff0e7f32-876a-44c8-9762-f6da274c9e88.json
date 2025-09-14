@@ -1,0 +1,23 @@
+{
+    "id": "ff0e7f32-876a-44c8-9762-f6da274c9e88",
+    "name": "as",
+    "label": "as",
+    "folder_type": "Asset",
+    "parent_id": null,
+    "path": "as",
+    "thumbnail_id": null,
+    "attrib": {},
+    "data": {},
+    "active": true,
+    "status": "Not Started",
+    "tags": [],
+    "created_at": "2025-09-14T18:16:30.459010",
+    "updated_at": "2025-09-14T18:16:30.459010",
+    "created_by": "local_user",
+    "updated_by": "local_user",
+    "project_name": "UpgradedUITest",
+    "has_versions": false,
+    "children": [],
+    "products": [],
+    "tasks": []
+}

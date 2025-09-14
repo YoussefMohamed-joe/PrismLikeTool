@@ -1,0 +1,19 @@
+{
+    "id": "90b93fe0-2eda-4583-b7ac-f441ea77e735",
+    "name": "Rigging",
+    "label": "Rigging",
+    "task_type": "Rigging",
+    "folder_id": "004eae8c-8df0-4acc-806b-e4d1667739c6",
+    "assignees": [],
+    "thumbnail_id": null,
+    "attrib": {},
+    "data": {},
+    "active": true,
+    "status": "Not Started",
+    "tags": [],
+    "created_at": "2025-09-14T17:39:08.047625",
+    "updated_at": "2025-09-14T17:39:08.047625",
+    "created_by": "local_user",
+    "updated_by": "local_user",
+    "project_name": "TestProject"
+}

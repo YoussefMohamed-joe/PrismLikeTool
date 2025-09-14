@@ -1,0 +1,10 @@
+{
+    "id": "10a0ff84-2049-41ee-91d3-625d512b9663",
+    "type": "test.event",
+    "project_name": "CompleteTestProject",
+    "data": {
+        "message": "Test event data"
+    },
+    "timestamp": "2025-09-14T17:44:57.150104",
+    "sender": "local_user"
+}

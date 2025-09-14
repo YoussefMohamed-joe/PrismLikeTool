@@ -1,0 +1,23 @@
+{
+    "id": "0faec566-08bb-4870-9634-43125b6e3cd0",
+    "name": "SEQ001",
+    "label": "SEQ001",
+    "folder_type": "Sequence",
+    "parent_id": null,
+    "path": "SEQ001",
+    "thumbnail_id": null,
+    "attrib": {},
+    "data": {},
+    "active": true,
+    "status": "Not Started",
+    "tags": [],
+    "created_at": "2025-09-14T17:39:08.034559",
+    "updated_at": "2025-09-14T17:39:08.034559",
+    "created_by": "local_user",
+    "updated_by": "local_user",
+    "project_name": "TestProject",
+    "has_versions": false,
+    "children": [],
+    "products": [],
+    "tasks": []
+}

@@ -29,7 +29,6 @@ except ImportError:
         QT_VERSION = None
 
 from vogue_core.logging_utils import setup_logging, get_logger
-from vogue_app.controller import VogueController
 
 # Global controller reference
 _current_controller = None
@@ -38,8 +37,10 @@ def get_current_controller():
     """Get the current controller instance"""
     return _current_controller
 
-# Import set_current_controller from ui module
-from vogue_app.ui import set_current_controller
+def set_current_controller(controller):
+    """Set the current controller instance"""
+    global _current_controller
+    _current_controller = controller
 
 
 def main():
@@ -67,8 +68,10 @@ def main():
     app.setStyle('Fusion')  # Use Fusion style for better cross-platform appearance
     
     try:
-        # Create and show main controller
-        controller = VogueController()
+        # Import and create main controller
+        from vogue_app.ayon_ui_with_prism_backend import VogueLauncherWindow
+        
+        controller = VogueLauncherWindow()
         set_current_controller(controller)  # Set global reference
         controller.show()
         

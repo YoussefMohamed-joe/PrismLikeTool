@@ -1,0 +1,30 @@
+{
+    "id": "004eae8c-8df0-4acc-806b-e4d1667739c6",
+    "name": "Character",
+    "label": "Character",
+    "folder_type": "Asset",
+    "parent_id": null,
+    "path": "Character",
+    "thumbnail_id": null,
+    "attrib": {},
+    "data": {},
+    "active": true,
+    "status": "In Progress",
+    "tags": [],
+    "created_at": "2025-09-14T17:39:08.031498",
+    "updated_at": "2025-09-14T17:39:08.066038",
+    "created_by": "local_user",
+    "updated_by": "local_user",
+    "project_name": "TestProject",
+    "has_versions": false,
+    "children": [],
+    "products": [
+        "bc5e1092-c038-4d19-bc96-1651091c8cde",
+        "ddc70909-a6ca-4e6c-bca7-c702b50fc8c4"
+    ],
+    "tasks": [
+        "d650b10d-bd6e-4de0-b288-09d8e380b5a5",
+        "f28a2654-30ed-4e87-8ac4-12b0a1f8708f",
+        "90b93fe0-2eda-4583-b7ac-f441ea77e735"
+    ]
+}

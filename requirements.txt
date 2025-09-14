@@ -1,27 +1,22 @@
-# Vogue Manager Production Pipeline System
-# Core dependencies
+# Vogue Manager Requirements
 
-# Qt GUI framework (PyQt6 is primary, PySide2 and PyQt5 as fallbacks)
-PyQt6>=6.0.0
-# PySide2>=5.15.0  # Uncomment if PyQt6 is not available
-# PyQt5>=5.15.0  # Uncomment if PyQt6 and PySide2 are not available
+# Core GUI Framework
+PyQt6>=6.5.0
 
-# Data validation and serialization
-pydantic>=1.8.0
-jsonschema>=3.2.0
+# Backend Integration
+gazu>=0.8.28
+requests>=2.28.0
 
-# Optional: FastAPI for local HTTP API
-fastapi>=0.68.0
-uvicorn>=0.15.0
+# Image Processing
+Pillow>=9.0.0
 
-# Image processing for thumbnails
-Pillow>=8.0.0
+# Logging and Configuration
+pyyaml>=6.0
 
-# Testing framework
-pytest>=6.0.0
-pytest-cov>=2.12.0
+# Development and Testing
+pytest>=7.0.0
+pytest-qt>=4.0.0
 
-# Development tools
-black>=21.0.0
-flake8>=3.9.0
-mypy>=0.910
+# Optional: For advanced features
+psutil>=5.8.0  # System monitoring
+watchdog>=2.1.0  # File system monitoring

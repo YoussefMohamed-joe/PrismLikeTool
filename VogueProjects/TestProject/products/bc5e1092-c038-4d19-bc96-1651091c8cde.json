@@ -1,0 +1,21 @@
+{
+    "id": "bc5e1092-c038-4d19-bc96-1651091c8cde",
+    "name": "Character_Main",
+    "folder_id": "004eae8c-8df0-4acc-806b-e4d1667739c6",
+    "product_type": "Asset",
+    "attrib": {},
+    "data": {},
+    "active": true,
+    "status": "Review",
+    "tags": [],
+    "created_at": "2025-09-14T17:39:08.037071",
+    "updated_at": "2025-09-14T17:39:08.067042",
+    "created_by": "local_user",
+    "updated_by": "local_user",
+    "project_name": "TestProject",
+    "versions": [
+        "29aa89fe-4725-4bf7-a76b-b5eb5065f555",
+        "58815595-c586-48d6-8680-ba230c470682"
+    ],
+    "representations": []
+}

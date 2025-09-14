@@ -38,10 +38,13 @@ except ImportError:
         PYSIDE2_AVAILABLE = True
     except ImportError:
         PYSIDE2_AVAILABLE = False
+        # Create dummy QWidget class for when Qt is not available
+        class QWidget:
+            pass
         def wrapInstance(*args, **kwargs):
             return None
 
-from ..vogue_core.logging_utils import get_logger
+from vogue_core.logging_utils import get_logger
 
 
 def open_scene(file_path: str, force: bool = True) -> bool:

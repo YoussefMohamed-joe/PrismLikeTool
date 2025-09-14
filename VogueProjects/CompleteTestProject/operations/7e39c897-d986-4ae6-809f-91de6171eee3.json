@@ -1,0 +1,11 @@
+{
+    "id": "7e39c897-d986-4ae6-809f-91de6171eee3",
+    "type": "test_operation",
+    "data": {
+        "test": "data"
+    },
+    "project_name": "CompleteTestProject",
+    "status": "pending",
+    "created_at": "2025-09-14T17:44:57.151659",
+    "created_by": "local_user"
+}
