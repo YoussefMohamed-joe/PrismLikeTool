@@ -15,7 +15,8 @@ from PyQt6.QtWidgets import (
     QFileDialog, QMessageBox, QGroupBox, QCheckBox, QListWidget,
     QListWidgetItem, QTabWidget, QWidget, QTableWidget, QTableWidgetItem,
     QHeaderView, QAbstractItemView, QSplitter, QFrame, QScrollArea,
-    QButtonGroup, QRadioButton, QSlider, QProgressBar, QDialogButtonBox
+    QButtonGroup, QRadioButton, QSlider, QProgressBar, QDialogButtonBox,
+    QTableWidgetSelectionRange
 )
 from PyQt6.QtCore import Qt, QThread, pyqtSignal, QTimer, QSize
 from PyQt6.QtGui import QPixmap, QFont, QIcon, QPalette, QColor
@@ -26,6 +27,7 @@ from vogue_core.settings import settings
 from vogue_core.fs import ensure_layout, atomic_write_json
 from vogue_core.schema import project_to_pipeline, pipeline_to_project
 from .colors import COLORS
+from vogue_core.dcc_detection import detect_dcc_apps
 
 
 class NewProjectDialog(QDialog):
@@ -1612,6 +1614,91 @@ class SettingsDialog(QDialog):
             "theme": self.theme_combo.currentText(),
             "font_size": self.font_size_spin.value()
         }
+
+
+class DccLauncherDialog(QDialog):
+    """Dialog to list detected DCC applications and launch them."""
+
+    def __init__(self, parent=None):
+        super().__init__(parent)
+        self.setWindowTitle("DCC Launcher")
+        self.setModal(True)
+        self.resize(700, 420)
+        self._apps: List[Dict[str, str]] = []
+        self.setup_ui()
+        self.refresh()
+
+    def setup_ui(self):
+        layout = QVBoxLayout(self)
+
+        header = QLabel("Detected Digital Content Creation (DCC) applications")
+        header.setAlignment(Qt.AlignmentFlag.AlignLeft)
+        layout.addWidget(header)
+
+        self.table = QTableWidget(0, 4)
+        self.table.setHorizontalHeaderLabels(["Name", "Version", "Path", "Args"])
+        self.table.horizontalHeader().setSectionResizeMode(0, QHeaderView.ResizeMode.ResizeToContents)
+        self.table.horizontalHeader().setSectionResizeMode(1, QHeaderView.ResizeMode.ResizeToContents)
+        self.table.horizontalHeader().setSectionResizeMode(2, QHeaderView.ResizeMode.Stretch)
+        self.table.horizontalHeader().setSectionResizeMode(3, QHeaderView.ResizeMode.ResizeToContents)
+        self.table.setSelectionBehavior(QAbstractItemView.SelectionBehavior.SelectRows)
+        self.table.setEditTriggers(QAbstractItemView.EditTrigger.NoEditTriggers)
+        layout.addWidget(self.table)
+
+        buttons = QHBoxLayout()
+        self.refresh_btn = QPushButton("Refresh")
+        self.launch_btn = QPushButton("Launch")
+        self.launch_btn.setProperty("class", "primary")
+        self.launch_btn.setEnabled(False)
+        self.close_btn = QPushButton("Close")
+        buttons.addWidget(self.refresh_btn)
+        buttons.addStretch()
+        buttons.addWidget(self.launch_btn)
+        buttons.addWidget(self.close_btn)
+        layout.addLayout(buttons)
+
+        self.refresh_btn.clicked.connect(self.refresh)
+        self.launch_btn.clicked.connect(self.launch_selected)
+        self.close_btn.clicked.connect(self.accept)
+        self.table.itemSelectionChanged.connect(self.on_selection_changed)
+
+    def refresh(self):
+        try:
+            self._apps = detect_dcc_apps()
+            self.populate()
+        except Exception as e:
+            QMessageBox.critical(self, "DCC Detection Error", str(e))
+
+    def populate(self):
+        self.table.setRowCount(0)
+        for app in self._apps:
+            row = self.table.rowCount()
+            self.table.insertRow(row)
+            self.table.setItem(row, 0, QTableWidgetItem(app.get("name", "")))
+            self.table.setItem(row, 1, QTableWidgetItem(app.get("version", "")))
+            self.table.setItem(row, 2, QTableWidgetItem(app.get("path", "")))
+            self.table.setItem(row, 3, QTableWidgetItem(app.get("args", "[]")))
+        self.launch_btn.setEnabled(self.table.rowCount() > 0)
+
+    def on_selection_changed(self):
+        has_sel = len(self.table.selectedItems()) > 0
+        self.launch_btn.setEnabled(has_sel)
+
+    def launch_selected(self):
+        items = self.table.selectedItems()
+        if not items:
+            return
+        row = self.table.row(items[0])
+        app = self._apps[row]
+        exe_path = app.get("path", "")
+        args_json = app.get("args", "[]")
+        try:
+            import subprocess
+            args = json.loads(args_json) if args_json else []
+            subprocess.Popen([exe_path] + args, shell=False)
+            self.accept()
+        except Exception as e:
+            QMessageBox.critical(self, "Launch Error", f"Failed to launch {app.get('name')}:\n\n{e}")
 
 
 class CreateTaskDialog(QDialog):

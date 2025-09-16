@@ -22,6 +22,7 @@ from PyQt6.QtCore import *
 from PyQt6.QtGui import *
 from vogue_core.logging_utils import get_logger
 from vogue_core.real_ayon_backend import get_real_ayon_backend, VogueProjectBackend, VogueProject, AyonFolder, AyonProduct, AyonTask, AyonVersion, AyonUser
+from .dialogs import DccLauncherDialog
 
 
 class PrismLocalBackend:
@@ -828,6 +829,23 @@ class VogueLauncherWindow(QMainWindow):
         new_review_action.setStatusTip("Create new review")
         new_review_action.triggered.connect(self.create_review)
         create_menu.addAction(new_review_action)
+
+        # Quick Create (Prism-like)
+        create_menu.addSeparator()
+        quick_folder_action = QAction("Quick Create Folder", self)
+        quick_folder_action.setStatusTip("Quickly create a folder in the selected context")
+        quick_folder_action.triggered.connect(self.quick_create_folder)
+        create_menu.addAction(quick_folder_action)
+
+        quick_asset_action = QAction("Quick Create Asset (Product)", self)
+        quick_asset_action.setStatusTip("Quickly create an asset/product under the selected folder")
+        quick_asset_action.triggered.connect(self.quick_create_product)
+        create_menu.addAction(quick_asset_action)
+
+        quick_shot_action = QAction("Quick Create Shot (Task)", self)
+        quick_shot_action.setStatusTip("Quickly create a shot/task under the selected folder")
+        quick_shot_action.triggered.connect(self.quick_create_task)
+        create_menu.addAction(quick_shot_action)
         
         # Tools Menu
         tools_menu = menubar.addMenu("&Tools")
@@ -863,6 +881,13 @@ class VogueLauncherWindow(QMainWindow):
         validation_action.setStatusTip("Validate project data integrity")
         validation_action.triggered.connect(self.validate_project_data)
         tools_menu.addAction(validation_action)
+
+        # DCC Launcher
+        dcc_action = QAction("DCC Launcher...", self)
+        dcc_action.setStatusTip("Detect and launch installed DCC applications")
+        dcc_action.triggered.connect(self.open_dcc_launcher)
+        tools_menu.addSeparator()
+        tools_menu.addAction(dcc_action)
         
         # Help Menu
         help_menu = menubar.addMenu("&Help")
@@ -1058,6 +1083,12 @@ class VogueLauncherWindow(QMainWindow):
         publisher_action = QAction("&Publisher", self)
         publisher_action.setShortcut("Ctrl+P")
         tools_menu.addAction(publisher_action)
+
+        # DCC Launcher (simple UI variant)
+        dcc_action = QAction("DCC Launcher...", self)
+        dcc_action.triggered.connect(self.open_dcc_launcher)
+        tools_menu.addSeparator()
+        tools_menu.addAction(dcc_action)
         
         # Help menu
         help_menu = menubar.addMenu("&Help")
@@ -2286,6 +2317,79 @@ class VogueLauncherWindow(QMainWindow):
         self.hierarchy_tree.itemSelectionChanged.connect(self.on_hierarchy_selection)
         self.search_input.textChanged.connect(self.on_search_changed)
         self.folder_types.currentTextChanged.connect(self.on_filter_changed)
+
+    def open_dcc_launcher(self):
+        dialog = DccLauncherDialog(self)
+        dialog.exec()
+
+    # Quick Create helpers
+    def quick_create_folder(self):
+        try:
+            if not self.backend.current_project:
+                QMessageBox.warning(self, "No Project", "Please select a project first.")
+                return
+            name, ok = QInputDialog.getText(self, "Quick Create Folder", "Folder name:")
+            if not ok or not name.strip():
+                return
+            folder_type, ok = QInputDialog.getItem(self, "Folder Type", "Type:", ["Asset", "Shot", "Sequence", "Episode"], 0, False)
+            if not ok:
+                return
+            folder = self.backend.create_folder(name.strip(), folder_type)
+            self.status_label.setText(f"Created folder: {folder.name}")
+            self.load_hierarchy(self.backend.current_project.name)
+        except Exception as e:
+            QMessageBox.critical(self, "Create Folder Error", str(e))
+
+    def _get_selected_folder_id(self) -> Optional[str]:
+        selected = self.hierarchy_tree.selectedItems()
+        if not selected:
+            return None
+        data = selected[0].data(0, Qt.ItemDataRole.UserRole)
+        return data.get("id") if isinstance(data, dict) else None
+
+    def quick_create_product(self):
+        try:
+            if not self.backend.current_project:
+                QMessageBox.warning(self, "No Project", "Please select a project first.")
+                return
+            folder_id = self._get_selected_folder_id()
+            if not folder_id:
+                QMessageBox.warning(self, "No Folder", "Select a folder in the hierarchy first.")
+                return
+            name, ok = QInputDialog.getText(self, "Quick Create Asset (Product)", "Asset name:")
+            if not ok or not name.strip():
+                return
+            product_type, ok = QInputDialog.getItem(self, "Product Type", "Type:", ["Asset", "Shot"], 0, False)
+            if not ok:
+                return
+            product = self.backend.create_product(name.strip(), product_type, folder_id)
+            self.status_label.setText(f"Created product: {product.name}")
+            self.load_hierarchy(self.backend.current_project.name)
+        except Exception as e:
+            QMessageBox.critical(self, "Create Product Error", str(e))
+
+    def quick_create_task(self):
+        try:
+            if not self.backend.current_project:
+                QMessageBox.warning(self, "No Project", "Please select a project first.")
+                return
+            folder_id = self._get_selected_folder_id()
+            if not folder_id:
+                QMessageBox.warning(self, "No Folder", "Select a folder in the hierarchy first.")
+                return
+            name, ok = QInputDialog.getText(self, "Quick Create Shot (Task)", "Task name:")
+            if not ok or not name.strip():
+                return
+            task_type, ok = QInputDialog.getItem(self, "Task Type", "Type:", [
+                "Modeling", "Texturing", "Rigging", "Animation", "Lighting", "Rendering", "Compositing", "Review"
+            ], 0, False)
+            if not ok:
+                return
+            task = self.backend.create_task(name.strip(), task_type, folder_id)
+            self.status_label.setText(f"Created task: {task.name}")
+            self.load_hierarchy(self.backend.current_project.name)
+        except Exception as e:
+            QMessageBox.critical(self, "Create Task Error", str(e))
         
     def apply_styling(self):
         """Apply Ayon styling"""
