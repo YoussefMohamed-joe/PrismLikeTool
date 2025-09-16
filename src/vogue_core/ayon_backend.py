@@ -57,6 +57,9 @@ class AyonProject(BaseEntity):
     code: str = ""
     library: bool = False
     config: Dict[str, Any] = field(default_factory=dict)
+    attrib: Dict[str, Any] = field(default_factory=dict)  # Add attrib field
+    data: Dict[str, Any] = field(default_factory=dict)    # Add data field
+    active: bool = True                                    # Add active field
     folder_types: List[Dict[str, Any]] = field(default_factory=list)
     task_types: List[Dict[str, Any]] = field(default_factory=list)
     statuses: List[Dict[str, Any]] = field(default_factory=list)
@@ -65,7 +68,6 @@ class AyonProject(BaseEntity):
     anatomy: Dict[str, Any] = field(default_factory=dict)
     
     def __post_init__(self):
-        super().__post_init__()
         if not self.folder_types:
             self.folder_types = [
                 {"name": "Asset", "icon": "folder", "color": "#4A9EFF"},
@@ -414,6 +416,13 @@ class AyonBackend:
             try:
                 with open(folder_file, 'r') as f:
                     data = json.load(f)
+                
+                # Convert datetime strings back to datetime objects
+                if 'created_at' in data and isinstance(data['created_at'], str):
+                    data['created_at'] = datetime.fromisoformat(data['created_at'])
+                if 'updated_at' in data and isinstance(data['updated_at'], str):
+                    data['updated_at'] = datetime.fromisoformat(data['updated_at'])
+                
                 folders.append(AyonFolder(**data))
             except Exception as e:
                 self.logger.error(f"Failed to load folder from {folder_file}: {e}")

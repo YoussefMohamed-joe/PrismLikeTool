@@ -62,6 +62,7 @@ class VogueProject:
     attrib: Dict[str, Any] = field(default_factory=dict)
     data: Dict[str, Any] = field(default_factory=dict)
     active: bool = True
+    path: str = ""  # Add path attribute
     created_at: datetime = field(default_factory=datetime.now)
     updated_at: datetime = field(default_factory=datetime.now)
     created_by: str = ""
@@ -384,6 +385,9 @@ class VogueProjectBackend:
             if 'updated_at' in data:
                 data['updated_at'] = datetime.fromisoformat(data['updated_at'])
             
+            # Set the path for the project
+            data['path'] = str(project_path)
+            
             project = VogueProject(**data)
             self._projects_cache[project.id] = project
             self.current_project = project
@@ -549,9 +553,9 @@ class VogueProjectBackend:
                     data = json.load(f)
                 
                 # Convert datetime strings back to datetime objects
-                if 'created_at' in data:
+                if 'created_at' in data and isinstance(data['created_at'], str):
                     data['created_at'] = datetime.fromisoformat(data['created_at'])
-                if 'updated_at' in data:
+                if 'updated_at' in data and isinstance(data['updated_at'], str):
                     data['updated_at'] = datetime.fromisoformat(data['updated_at'])
                 
                 folders.append(AyonFolder(**data))

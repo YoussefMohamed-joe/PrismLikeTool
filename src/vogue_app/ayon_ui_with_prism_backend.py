@@ -2677,13 +2677,7 @@ class VogueLauncherWindow(QMainWindow):
             
             QCheckBox::indicator:checked {
                 background: #4A9EFF;
-                border-color: #4A9EFF;
-            }
-            
-            QCheckBox::indicator:checked::after {
-                content: "✓";
-                color: white;
-                font-weight: bold;
+                border: 2px solid #4A9EFF;
             }
             
             QSpinBox {
@@ -2747,27 +2741,52 @@ class VogueLauncherWindow(QMainWindow):
         
     def load_projects(self):
         """Load local projects"""
-        projects = self.backend.get_projects()
-        
-        self.project_combo.clear()
-        self.project_combo.addItem("Select Project...")
-        
-        for project in projects:
-            self.project_combo.addItem(project.name, project)
+        try:
+            self.logger.info("Loading local projects...")
+            projects = self.backend.get_projects()
             
-        self.status_label.setText(f"Loaded {len(projects)} local projects")
+            self.project_combo.clear()
+            self.project_combo.addItem("Select Project...")
+            
+            for project in projects:
+                self.project_combo.addItem(project.name, project)
+                
+            self.status_label.setText(f"Loaded {len(projects)} local projects")
+            self.logger.info(f"Successfully loaded {len(projects)} projects")
+        except Exception as e:
+            self.logger.error(f"Failed to load projects: {e}")
+            self.project_combo.clear()
+            self.project_combo.addItem("Select Project...")
+            self.status_label.setText("Failed to load projects")
+            QMessageBox.critical(self, "Project Load Error", 
+                               f"Failed to load projects:\n\n{str(e)}")
         
     def on_project_changed(self, project_name):
         """Handle project change"""
         if project_name == "Select Project...":
+            self.hierarchy_tree.clear()
+            self.status_label.setText("No project selected")
             return
             
-        project = self.project_combo.currentData()
-        if project:
-            self.backend.current_project = project
-            self.backend.current_project_path = Path(project.path)
-            self.load_hierarchy(project_name)
-        self.status_label.setText(f"Opened project: {project_name}")
+        try:
+            project = self.project_combo.currentData()
+            if project:
+                self.logger.info(f"Switching to project: {project_name}")
+                self.backend.current_project = project
+                self.backend.current_project_path = Path(project.path)
+                self.load_hierarchy(project_name)
+                self.status_label.setText(f"Opened project: {project_name}")
+            else:
+                self.logger.error(f"No project data found for: {project_name}")
+                QMessageBox.warning(self, "Project Error", f"Project data not found for: {project_name}")
+        except Exception as e:
+            self.logger.error(f"Failed to switch project: {e}")
+            QMessageBox.critical(self, "Project Switch Error", 
+                               f"Failed to switch to project '{project_name}':\n\n{str(e)}")
+            # Reset to no project selected
+            self.project_combo.setCurrentIndex(0)
+            self.hierarchy_tree.clear()
+            self.status_label.setText("Project switch failed")
         
     # Dashboard helper methods
     def create_stat_card(self, title, value, color, icon):
@@ -3493,11 +3512,16 @@ class VogueLauncherWindow(QMainWindow):
     def load_hierarchy(self, project_name):
         """Load hierarchy for project - optimized to prevent blocking"""
         try:
+            self.logger.info(f"Loading hierarchy for project: {project_name}")
             hierarchy_data = self.backend.get_hierarchy(project_name)
+            self.logger.info(f"Loaded hierarchy data: {len(hierarchy_data) if hierarchy_data else 0} items")
             self.populate_hierarchy_tree(hierarchy_data)
         except Exception as e:
             self.logger.error(f"Failed to load hierarchy: {e}")
             self.hierarchy_tree.clear()
+            # Show user-friendly error message
+            QMessageBox.warning(self, "Project Load Error", 
+                              f"Failed to load project hierarchy:\n\n{str(e)}\n\nPlease try selecting a different project.")
         
     def populate_hierarchy_tree(self, hierarchy_data):
         """Populate hierarchy tree"""

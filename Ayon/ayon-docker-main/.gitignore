@@ -1,0 +1,11 @@
+addons/*
+backend/
+frontend/
+storage/
+RELEASE
+
+# Ignore dumped projects from git
+/*.sql
+
+# JetBrains IDE data
+.idea
