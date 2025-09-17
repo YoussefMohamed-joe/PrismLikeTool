@@ -1204,6 +1204,24 @@ class VogueLauncherWindow(QMainWindow):
         self.folder_types.setMinimumWidth(120)
         toolbar_layout.addWidget(self.folder_types)
         
+        # Toolbar actions: quick create folder/task
+        toolbar_layout.addStretch()
+        new_folder_btn = QPushButton("📁")
+        new_folder_btn.setToolTip("New Folder")
+        try:
+            new_folder_btn.clicked.connect(self.new_folder)
+        except Exception:
+            pass
+        toolbar_layout.addWidget(new_folder_btn)
+        
+        new_task_btn = QPushButton("➕📋")
+        new_task_btn.setToolTip("New Task")
+        try:
+            new_task_btn.clicked.connect(self.quick_create_task)
+        except Exception:
+            pass
+        toolbar_layout.addWidget(new_task_btn)
+        
         hierarchy_layout.addWidget(toolbar)
         
         # Hierarchy tree
@@ -1215,23 +1233,7 @@ class VogueLauncherWindow(QMainWindow):
         
         hierarchy_layout.addWidget(self.hierarchy_tree)
         
-        # Task list (max height 300)
-        task_frame = QFrame()
-        task_frame.setMaximumHeight(300)
-        task_frame.setObjectName("AyonTaskFrame")
-        
-        task_layout = QVBoxLayout(task_frame)
-        task_layout.setContentsMargins(12, 8, 12, 8)
-        
-        task_title = QLabel("Tasks")
-        task_title.setObjectName("AyonPanelTitle")
-        task_layout.addWidget(task_title)
-        
-        self.task_list = QListWidget()
-        self.task_list.setObjectName("AyonTaskList")
-        task_layout.addWidget(self.task_list)
-        
-        hierarchy_layout.addWidget(task_frame)
+        # Removed bottom-left Tasks frame to simplify left panel
         
         main_splitter.addWidget(hierarchy_panel)
         
@@ -1245,14 +1247,17 @@ class VogueLauncherWindow(QMainWindow):
         
         # Details panel (right, clamp width)
         self.details_panel = self.create_details_panel()
-        self.details_panel.setMinimumWidth(533)
-        self.details_panel.setMaximumWidth(700)
+        self.details_panel.setMinimumWidth(360)
+        self.details_panel.setMaximumWidth(520)
         right_splitter.addWidget(self.details_panel)
         
         main_splitter.addWidget(right_splitter)
         
         # Set splitter proportions
         main_splitter.setSizes([324, 1476])  # 18% / 82%
+        right_splitter.setSizes([1100, 376])  # Make Products wider by default
+        right_splitter.setStretchFactor(0, 1)
+        right_splitter.setStretchFactor(1, 0)
         
         layout.addWidget(main_splitter)
         
@@ -1548,13 +1553,28 @@ class VogueLauncherWindow(QMainWindow):
         
         layout.addWidget(header)
         
-        # Details content
+        # Details content with image preview
+        content_frame = QFrame()
+        content_layout = QVBoxLayout(content_frame)
+        content_layout.setContentsMargins(12, 12, 12, 12)
+        content_layout.setSpacing(8)
+        
+        # Image preview
+        self.preview_image = QLabel()
+        self.preview_image.setObjectName("AyonPreviewImage")
+        self.preview_image.setMinimumHeight(220)
+        self.preview_image.setAlignment(Qt.AlignmentFlag.AlignCenter)
+        self.preview_image.setStyleSheet("border: 1px solid #333; background: #111;")
+        content_layout.addWidget(self.preview_image)
+        
+        # Metadata/details
         self.details_content = QTextEdit()
         self.details_content.setReadOnly(True)
         self.details_content.setPlaceholderText("Select an item to view details...")
         self.details_content.setObjectName("AyonDetailsContent")
+        content_layout.addWidget(self.details_content)
         
-        layout.addWidget(self.details_content)
+        layout.addWidget(content_frame)
         
         return panel
         
