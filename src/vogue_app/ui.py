@@ -371,28 +371,84 @@ class ProjectBrowser(PrismStyleWidget):
         tabs_layout.addWidget(self.tab_widget)
 
     def setup_tasks_section(self):
-        """Setup the Tasks section with project info, tasks, and departments underneath"""
+        """Setup the Tasks section with Ayon-style design"""
         self.tasks_widget = QWidget()
         tasks_layout = QVBoxLayout(self.tasks_widget)
-        tasks_layout.setContentsMargins(5, 5, 5, 5)
+        tasks_layout.setContentsMargins(8, 8, 8, 8)
+        tasks_layout.setSpacing(12)
 
-        # Project Info Section
+        # Project Info Section (Ayon style)
         self.setup_project_info_section()
         tasks_layout.addWidget(self.project_info_widget)
 
-        # Departments Section (moved to top)
-        dept_group = QGroupBox("Departments")
-        dept_layout = QVBoxLayout(dept_group)
+        # Departments Section (Ayon style)
+        self.setup_departments_section()
+        tasks_layout.addWidget(self.departments_widget)
 
+        # Tasks Section (Ayon style)
+        self.setup_tasks_section_ayon()
+        tasks_layout.addWidget(self.tasks_widget_ayon)
+
+    def setup_departments_section(self):
+        """Setup departments section in Ayon style"""
+        self.departments_widget = QWidget()
+        dept_layout = QVBoxLayout(self.departments_widget)
+        dept_layout.setContentsMargins(0, 0, 0, 0)
+        dept_layout.setSpacing(8)
+
+        # Departments title
+        dept_title = QLabel("Departments")
+        dept_title.setStyleSheet(f"""
+            QLabel {{
+                font-size: 18px;
+                font-weight: 700;
+                color: {COLORS['fg']};
+                margin: 0;
+                padding: 4px 0;
+            }}
+        """)
+        dept_layout.addWidget(dept_title)
+
+        # Departments list
         self.departments_list = QListWidget()
         self.departments_list.setAlternatingRowColors(True)
-        self.departments_list.setSelectionMode(QAbstractItemView.SelectionMode.ExtendedSelection)  # Enable multi-select
-        # Removed maximum height restriction to allow full vertical expansion
+        self.departments_list.setSelectionMode(QAbstractItemView.SelectionMode.ExtendedSelection)
+        self.departments_list.setStyleSheet(f"""
+            QListWidget {{
+                background-color: {COLORS['surface']};
+                color: {COLORS['fg']};
+                border: 1px solid {COLORS['outline']};
+                border-radius: 8px;
+                selection-background-color: {COLORS['accent']};
+                alternate-background-color: {COLORS['surface_high']};
+                font-size: 13px;
+                font-weight: 500;
+            }}
+            QListWidget::item {{
+                padding: 8px 12px;
+                border: none;
+                color: {COLORS['fg']};
+                border-radius: 4px;
+                margin: 1px;
+                border: 1px solid transparent;
+            }}
+            QListWidget::item:selected {{
+                background-color: {COLORS['accent']};
+                color: white;
+                border: 1px solid {COLORS['accent_hover']};
+                font-weight: 600;
+            }}
+            QListWidget::item:hover {{
+                background-color: {COLORS['hover']};
+                color: {COLORS['fg']};
+                border: 1px solid {COLORS['accent']};
+            }}
+        """)
 
         # Add default departments
         departments = [
             "Modeling - Active",
-            "Texturing - Active",
+            "Texturing - Active", 
             "Rigging - Active",
             "Animation - Active",
             "Lighting - Standby",
@@ -405,30 +461,117 @@ class ProjectBrowser(PrismStyleWidget):
 
         dept_layout.addWidget(self.departments_list)
 
-        # Create a vertical splitter for departments and tasks with 1:1 ratio
-        vertical_splitter = QSplitter(Qt.Orientation.Vertical)
-        
-        # Add departments to splitter
-        vertical_splitter.addWidget(dept_group)
+    def setup_tasks_section_ayon(self):
+        """Setup tasks section in Ayon style"""
+        self.tasks_widget_ayon = QWidget()
+        tasks_layout = QVBoxLayout(self.tasks_widget_ayon)
+        tasks_layout.setContentsMargins(0, 0, 0, 0)
+        tasks_layout.setSpacing(8)
 
-        # Tasks Section
-        tasks_group = QGroupBox("Tasks")
-        tasks_section_layout = QVBoxLayout(tasks_group)
+        # Tasks title
+        tasks_title = QLabel("Tasks")
+        tasks_title.setStyleSheet(f"""
+            QLabel {{
+                font-size: 18px;
+                font-weight: 700;
+                color: {COLORS['fg']};
+                margin: 0;
+                padding: 4px 0;
+            }}
+        """)
+        tasks_layout.addWidget(tasks_title)
 
         # Task Filter
         filter_layout = QHBoxLayout()
-        filter_layout.addWidget(QLabel("Filter:"))
+        filter_layout.setContentsMargins(0, 0, 0, 0)
+        filter_layout.setSpacing(8)
+
+        filter_label = QLabel("Filter:")
+        filter_label.setStyleSheet(f"""
+            QLabel {{
+                font-size: 12px;
+                color: {COLORS['fg_variant']};
+            }}
+        """)
+        filter_layout.addWidget(filter_label)
+
         self.task_filter_combo = QComboBox()
         self.task_filter_combo.addItems(["All Tasks", "My Tasks", "Active", "Completed", "Pending"])
+        self.task_filter_combo.setStyleSheet(f"""
+            QComboBox {{
+                background-color: {COLORS['surface']};
+                color: {COLORS['fg']};
+                border: 1px solid {COLORS['outline']};
+                border-radius: 6px;
+                padding: 6px 10px;
+                min-width: 120px;
+                font-size: 12px;
+            }}
+            QComboBox:hover {{
+                border-color: {COLORS['accent']};
+            }}
+            QComboBox:focus {{
+                border-color: {COLORS['accent']};
+                border-width: 2px;
+            }}
+            QComboBox::drop-down {{
+                border: none;
+                width: 20px;
+            }}
+            QComboBox::down-arrow {{
+                image: url(data:image/svg+xml;base64,PHN2ZyB3aWR0aD0iMTIiIGhlaWdodD0iMTIiIHZpZXdCb3g9IjAgMCAxMiAxMiIgZmlsbD0ibm9uZSIgeG1sbnM9Imh0dHA6Ly93d3cudzMub3JnLzIwMDAvc3ZnIj4KPHBhdGggZD0iTTMgNEw2IDdMOCA0SDNaIiBmaWxsPSIjRENERERERCIvPgo8L3N2Zz4K);
+                width: 12px;
+                height: 12px;
+            }}
+            QComboBox QAbstractItemView {{
+                background-color: {COLORS['surface_high']};
+                color: {COLORS['fg']};
+                border: 1px solid {COLORS['outline']};
+                border-radius: 6px;
+                selection-background-color: {COLORS['accent']};
+                font-size: 12px;
+            }}
+        """)
         filter_layout.addWidget(self.task_filter_combo)
         filter_layout.addStretch()
-        tasks_section_layout.addLayout(filter_layout)
+
+        tasks_layout.addLayout(filter_layout)
 
         # Tasks List
         self.tasks_list = QListWidget()
         self.tasks_list.setAlternatingRowColors(True)
-        self.tasks_list.setSelectionMode(QAbstractItemView.SelectionMode.ExtendedSelection)  # Enable multi-select
-        # Removed maximum height restriction to allow full vertical expansion
+        self.tasks_list.setSelectionMode(QAbstractItemView.SelectionMode.ExtendedSelection)
+        self.tasks_list.setStyleSheet(f"""
+            QListWidget {{
+                background-color: {COLORS['surface']};
+                color: {COLORS['fg']};
+                border: 1px solid {COLORS['outline']};
+                border-radius: 8px;
+                selection-background-color: {COLORS['accent']};
+                alternate-background-color: {COLORS['surface_high']};
+                font-size: 13px;
+                font-weight: 500;
+            }}
+            QListWidget::item {{
+                padding: 8px 12px;
+                border: none;
+                color: {COLORS['fg']};
+                border-radius: 4px;
+                margin: 1px;
+                border: 1px solid transparent;
+            }}
+            QListWidget::item:selected {{
+                background-color: {COLORS['accent']};
+                color: white;
+                border: 1px solid {COLORS['accent_hover']};
+                font-weight: 600;
+            }}
+            QListWidget::item:hover {{
+                background-color: {COLORS['hover']};
+                color: {COLORS['fg']};
+                border: 1px solid {COLORS['accent']};
+            }}
+        """)
 
         # Add some sample tasks
         sample_tasks = [
@@ -446,38 +589,64 @@ class ProjectBrowser(PrismStyleWidget):
             item = QListWidgetItem(task)
             self.tasks_list.addItem(item)
 
-        tasks_section_layout.addWidget(self.tasks_list)
-
-        # Add tasks to splitter
-        vertical_splitter.addWidget(tasks_group)
-        
-        # Set equal sizes for departments and tasks (1:1 ratio)
-        vertical_splitter.setSizes([1, 1])
-        
-        # Add the splitter to the main layout
-        tasks_layout.addWidget(vertical_splitter)
+        tasks_layout.addWidget(self.tasks_list)
 
     def setup_project_info_section(self):
-        """Setup the Project Info section above tasks"""
+        """Setup the Project Info section in Ayon style"""
         self.project_info_widget = QWidget()
         info_layout = QVBoxLayout(self.project_info_widget)
-        info_layout.setContentsMargins(5, 5, 5, 5)
+        info_layout.setContentsMargins(0, 0, 0, 0)
+        info_layout.setSpacing(8)
 
-        # Project info group
-        project_group = QGroupBox("Project Info")
-        project_layout = QVBoxLayout(project_group)
+        # Project Info title
+        info_title = QLabel("Project Info")
+        info_title.setStyleSheet(f"""
+            QLabel {{
+                font-size: 18px;
+                font-weight: 700;
+                color: {COLORS['fg']};
+                margin: 0;
+                padding: 4px 0;
+            }}
+        """)
+        info_layout.addWidget(info_title)
 
-        # Project name and path display
-        self.project_name_label = QLabel("Project: No Project Loaded")
-        self.project_name_label.setStyleSheet("font-weight: bold; color: #73C2FB;")
-        project_layout.addWidget(self.project_name_label)
+        # Project info content
+        info_content = QWidget()
+        info_content_layout = QFormLayout(info_content)
+        info_content_layout.setContentsMargins(0, 0, 0, 0)
+        info_content_layout.setSpacing(6)
 
-        self.project_path_label = QLabel("Path: Not Available")
-        self.project_path_label.setStyleSheet("font-size: 10px; color: #788490;")
+        self.project_name_label = QLabel("No Project Loaded")
+        self.project_name_label.setStyleSheet(f"""
+            QLabel {{
+                font-size: 14px;
+                font-weight: 600;
+                color: {COLORS['fg']};
+                background-color: {COLORS['surface']};
+                padding: 6px 12px;
+                border-radius: 6px;
+                border: 1px solid {COLORS['outline']};
+            }}
+        """)
+        
+        self.project_path_label = QLabel("Not Available")
+        self.project_path_label.setStyleSheet(f"""
+            QLabel {{
+                font-size: 12px;
+                color: {COLORS['fg_variant']};
+                background-color: {COLORS['surface']};
+                padding: 4px 8px;
+                border-radius: 4px;
+                border: 1px solid {COLORS['outline']};
+            }}
+        """)
         self.project_path_label.setWordWrap(True)
-        project_layout.addWidget(self.project_path_label)
 
-        info_layout.addWidget(project_group)
+        info_content_layout.addRow("Project:", self.project_name_label)
+        info_content_layout.addRow("Path:", self.project_path_label)
+
+        info_layout.addWidget(info_content)
 
     def generate_thumbnail(self, asset_type: str, asset_name: str) -> QPixmap:
         """Generate a thumbnail for an asset/shot based on its type"""
@@ -2087,80 +2256,254 @@ class PrismRightPanel(PrismStyleWidget):
 
 
     def setup_asset_info_widget(self):
-        """Setup the Asset Info widget like Prism VFX"""
+        """Setup the Asset Info widget in Ayon style"""
         self.asset_info_widget = QWidget()
         info_layout = QVBoxLayout(self.asset_info_widget)
-        info_layout.setContentsMargins(5, 5, 5, 5)
+        info_layout.setContentsMargins(8, 8, 8, 8)
+        info_layout.setSpacing(12)
 
-        # Current Asset Info
-        asset_group = QGroupBox("Current Asset")
-        asset_info_layout = QFormLayout(asset_group)
+        # Header section with thumbnail and title (Ayon style)
+        self.setup_asset_header()
+        info_layout.addWidget(self.asset_header_widget)
 
+        # Preview section with larger thumbnail
+        self.setup_asset_preview()
+        info_layout.addWidget(self.asset_preview_widget)
+
+        # Details section with status and metadata
+        self.setup_asset_details()
+        info_layout.addWidget(self.asset_details_widget)
+
+        # Actions toolbar (Ayon style)
+        self.setup_asset_actions()
+        info_layout.addWidget(self.asset_actions_widget)
+
+        info_layout.addStretch()
+
+    def setup_asset_header(self):
+        """Setup asset header with thumbnail and title like Ayon"""
+        self.asset_header_widget = QWidget()
+        header_layout = QHBoxLayout(self.asset_header_widget)
+        header_layout.setContentsMargins(0, 0, 0, 0)
+        header_layout.setSpacing(12)
+
+        # Thumbnail preview (left side)
+        self.asset_thumbnail = QLabel()
+        self.asset_thumbnail.setFixedSize(64, 64)
+        self.asset_thumbnail.setAlignment(Qt.AlignmentFlag.AlignCenter)
+        self.asset_thumbnail.setStyleSheet(f"""
+            QLabel {{
+                background-color: {COLORS['surface']};
+                border: 1px solid {COLORS['outline']};
+                border-radius: 8px;
+                color: {COLORS['muted']};
+                font-size: 11px;
+            }}
+        """)
+        self.asset_thumbnail.setText("📁")
+        header_layout.addWidget(self.asset_thumbnail)
+
+        # Title and info (right side)
+        title_widget = QWidget()
+        title_layout = QVBoxLayout(title_widget)
+        title_layout.setContentsMargins(0, 0, 0, 0)
+        title_layout.setSpacing(4)
+
+        # Asset name (main title)
         self.asset_name_label = QLabel("No Selection")
         self.asset_name_label.setProperty("class", "title")
-        self.asset_type_label = QLabel("-")
-        self.asset_path_label = QLabel("-")
-        self.asset_status_label = QLabel("-")
-        self.asset_artist_label = QLabel("-")
-        self.asset_date_label = QLabel("-")
+        self.asset_name_label.setStyleSheet(f"""
+            QLabel {{
+                font-size: 16px;
+                font-weight: 600;
+                color: {COLORS['fg']};
+                margin: 0;
+            }}
+        """)
+        title_layout.addWidget(self.asset_name_label)
 
-        asset_info_layout.addRow("Name:", self.asset_name_label)
-        asset_info_layout.addRow("Type:", self.asset_type_label)
-        asset_info_layout.addRow("Path:", self.asset_path_label)
-        asset_info_layout.addRow("Status:", self.asset_status_label)
-        asset_info_layout.addRow("Artist:", self.asset_artist_label)
-        asset_info_layout.addRow("Modified:", self.asset_date_label)
+        # Asset type and status
+        type_status_layout = QHBoxLayout()
+        type_status_layout.setContentsMargins(0, 0, 0, 0)
+        type_status_layout.setSpacing(8)
 
-        info_layout.addWidget(asset_group)
+        self.asset_type_label = QLabel("Asset")
+        self.asset_type_label.setStyleSheet(f"""
+            QLabel {{
+                font-size: 12px;
+                color: {COLORS['fg_variant']};
+                background-color: {COLORS['accent']};
+                color: white;
+                padding: 2px 8px;
+                border-radius: 4px;
+                font-weight: 500;
+            }}
+        """)
+        type_status_layout.addWidget(self.asset_type_label)
 
-        # Asset Preview
-        preview_group = QGroupBox("Preview")
-        preview_layout = QVBoxLayout(preview_group)
+        self.asset_status_label = QLabel("Unknown")
+        self.asset_status_label.setStyleSheet(f"""
+            QLabel {{
+                font-size: 12px;
+                color: {COLORS['fg_variant']};
+                background-color: {COLORS['surface_high']};
+                padding: 2px 8px;
+                border-radius: 4px;
+                font-weight: 500;
+            }}
+        """)
+        type_status_layout.addWidget(self.asset_status_label)
+        type_status_layout.addStretch()
 
+        title_layout.addLayout(type_status_layout)
+        header_layout.addWidget(title_widget)
+
+    def setup_asset_preview(self):
+        """Setup asset preview section like Ayon"""
+        self.asset_preview_widget = QWidget()
+        preview_layout = QVBoxLayout(self.asset_preview_widget)
+        preview_layout.setContentsMargins(0, 0, 0, 0)
+        preview_layout.setSpacing(8)
+
+        # Preview label
+        preview_title = QLabel("Preview")
+        preview_title.setStyleSheet(f"""
+            QLabel {{
+                font-size: 18px;
+                font-weight: 700;
+                color: {COLORS['fg']};
+                margin: 0;
+                padding: 4px 0;
+            }}
+        """)
+        preview_layout.addWidget(preview_title)
+
+        # Preview area
         self.asset_preview_label = QLabel("No Preview Available")
         self.asset_preview_label.setAlignment(Qt.AlignmentFlag.AlignCenter)
         self.asset_preview_label.setMinimumHeight(120)
         self.asset_preview_label.setStyleSheet(f"""
             QLabel {{
-                background-color: {COLORS['panel']};
-                border: 2px dashed {COLORS['border']};
-                border-radius: 4px;
+                background-color: {COLORS['surface']};
+                border: 1px solid {COLORS['outline']};
+                border-radius: 8px;
                 color: {COLORS['muted']};
+                font-size: 12px;
             }}
         """)
-
         preview_layout.addWidget(self.asset_preview_label)
-        info_layout.addWidget(preview_group)
 
-        # Asset Metadata
-        metadata_group = QGroupBox("Metadata")
-        metadata_layout = QVBoxLayout(metadata_group)
+    def setup_asset_details(self):
+        """Setup asset details section like Ayon"""
+        self.asset_details_widget = QWidget()
+        details_layout = QVBoxLayout(self.asset_details_widget)
+        details_layout.setContentsMargins(0, 0, 0, 0)
+        details_layout.setSpacing(8)
 
-        self.asset_metadata_text = QTextEdit()
-        self.asset_metadata_text.setPlainText("No metadata available")
-        self.asset_metadata_text.setMaximumHeight(80)
-        self.asset_metadata_text.setReadOnly(True)
+        # Details title
+        details_title = QLabel("Details")
+        details_title.setStyleSheet(f"""
+            QLabel {{
+                font-size: 18px;
+                font-weight: 700;
+                color: {COLORS['fg']};
+                margin: 0;
+                padding: 4px 0;
+            }}
+        """)
+        details_layout.addWidget(details_title)
 
-        metadata_layout.addWidget(self.asset_metadata_text)
-        info_layout.addWidget(metadata_group)
+        # Details content
+        details_content = QWidget()
+        details_content_layout = QFormLayout(details_content)
+        details_content_layout.setContentsMargins(0, 0, 0, 0)
+        details_content_layout.setSpacing(6)
 
-        # Asset Actions
-        actions_group = QGroupBox("Asset Actions")
-        actions_layout = QVBoxLayout(actions_group)
+        self.asset_path_label = QLabel("-")
+        self.asset_artist_label = QLabel("-")
+        self.asset_date_label = QLabel("-")
 
-        self.open_asset_btn = QPushButton("Open Asset")
+        # Style the labels
+        for label in [self.asset_path_label, self.asset_artist_label, self.asset_date_label]:
+            label.setStyleSheet(f"""
+                QLabel {{
+                    font-size: 12px;
+                    color: {COLORS['fg_variant']};
+                    background-color: {COLORS['surface']};
+                    padding: 4px 8px;
+                    border-radius: 4px;
+                    border: 1px solid {COLORS['outline']};
+                }}
+            """)
+
+        details_content_layout.addRow("Path:", self.asset_path_label)
+        details_content_layout.addRow("Artist:", self.asset_artist_label)
+        details_content_layout.addRow("Modified:", self.asset_date_label)
+
+        details_layout.addWidget(details_content)
+
+    def setup_asset_actions(self):
+        """Setup asset actions toolbar like Ayon"""
+        self.asset_actions_widget = QWidget()
+        actions_layout = QVBoxLayout(self.asset_actions_widget)
+        actions_layout.setContentsMargins(0, 0, 0, 0)
+        actions_layout.setSpacing(8)
+
+        # Actions title
+        actions_title = QLabel("Actions")
+        actions_title.setStyleSheet(f"""
+            QLabel {{
+                font-size: 18px;
+                font-weight: 700;
+                color: {COLORS['fg']};
+                margin: 0;
+                padding: 4px 0;
+            }}
+        """)
+        actions_layout.addWidget(actions_title)
+
+        # Action buttons in a grid
+        buttons_widget = QWidget()
+        buttons_layout = QGridLayout(buttons_widget)
+        buttons_layout.setContentsMargins(0, 0, 0, 0)
+        buttons_layout.setSpacing(6)
+
+        self.open_asset_btn = QPushButton("Open")
         self.open_asset_btn.setProperty("class", "primary")
         self.copy_path_btn = QPushButton("Copy Path")
-        self.show_in_explorer_btn = QPushButton("Show in Explorer")
+        self.show_in_explorer_btn = QPushButton("Explorer")
         self.asset_properties_btn = QPushButton("Properties")
 
-        actions_layout.addWidget(self.open_asset_btn)
-        actions_layout.addWidget(self.copy_path_btn)
-        actions_layout.addWidget(self.show_in_explorer_btn)
-        actions_layout.addWidget(self.asset_properties_btn)
+        # Style buttons
+        for btn in [self.open_asset_btn, self.copy_path_btn, self.show_in_explorer_btn, self.asset_properties_btn]:
+            btn.setStyleSheet(f"""
+                QPushButton {{
+                    background-color: {COLORS['accent']};
+                    color: white;
+                    border: 1px solid {COLORS['accent']};
+                    border-radius: 6px;
+                    padding: 8px 12px;
+                    font-size: 12px;
+                    font-weight: 500;
+                    min-height: 16px;
+                }}
+                QPushButton:hover {{
+                    background-color: {COLORS['accent_hover']};
+                    border: 1px solid {COLORS['accent_hover']};
+                }}
+                QPushButton:pressed {{
+                    background-color: {COLORS['accent_active']};
+                    border: 1px solid {COLORS['accent_active']};
+                }}
+            """)
 
-        info_layout.addWidget(actions_group)
-        info_layout.addStretch()
+        # Grid layout for buttons
+        buttons_layout.addWidget(self.open_asset_btn, 0, 0)
+        buttons_layout.addWidget(self.copy_path_btn, 0, 1)
+        buttons_layout.addWidget(self.show_in_explorer_btn, 1, 0)
+        buttons_layout.addWidget(self.asset_properties_btn, 1, 1)
+
+        actions_layout.addWidget(buttons_widget)
 
 
 class VersionManager(PrismStyleWidget):
@@ -2172,29 +2515,111 @@ class VersionManager(PrismStyleWidget):
     
     def setup_ui(self):
         layout = QVBoxLayout(self)
-        layout.setContentsMargins(5, 5, 5, 5)
+        layout.setContentsMargins(8, 8, 8, 8)
+        layout.setSpacing(12)
         
-        # Header with entity info
-        header_frame = QFrame()
-        header_frame.setFrameStyle(QFrame.Shape.Box)
-        header_frame.setStyleSheet(f"QFrame {{ background-color: {COLORS['hover']}; border: 1px solid {COLORS['border']}; }}")
-        header_layout = QVBoxLayout(header_frame)
+        # Header with entity info (Ayon style)
+        self.setup_version_header()
+        layout.addWidget(self.header_widget)
         
+        # Version controls (Ayon style)
+        self.setup_version_controls()
+        layout.addWidget(self.controls_widget)
+        
+        # Version table (Ayon style)
+        self.setup_version_table()
+        layout.addWidget(self.version_table)
+        
+        # Version info panel (Ayon style)
+        self.setup_version_info()
+        layout.addWidget(self.info_widget)
+
+    def setup_version_header(self):
+        """Setup version header in Ayon style"""
+        self.header_widget = QWidget()
+        header_layout = QVBoxLayout(self.header_widget)
+        header_layout.setContentsMargins(0, 0, 0, 0)
+        header_layout.setSpacing(8)
+
+        # Header title
+        header_title = QLabel("Version Manager")
+        header_title.setStyleSheet(f"""
+            QLabel {{
+                font-size: 18px;
+                font-weight: 700;
+                color: {COLORS['fg']};
+                margin: 0;
+                padding: 4px 0;
+            }}
+        """)
+        header_layout.addWidget(header_title)
+
+        # Entity info
+        entity_info = QWidget()
+        entity_layout = QVBoxLayout(entity_info)
+        entity_layout.setContentsMargins(12, 12, 12, 12)
+        entity_layout.setSpacing(4)
+
         self.entity_name_label = QLabel("No Selection")
-        self.entity_name_label.setProperty("class", "title")
+        self.entity_name_label.setStyleSheet(f"""
+            QLabel {{
+                font-size: 16px;
+                font-weight: 600;
+                color: {COLORS['fg']};
+                background-color: {COLORS['surface']};
+                padding: 8px 12px;
+                border-radius: 6px;
+                border: 1px solid {COLORS['outline']};
+            }}
+        """)
         self.entity_name_label.setAlignment(Qt.AlignmentFlag.AlignCenter)
-        header_layout.addWidget(self.entity_name_label)
+        entity_layout.addWidget(self.entity_name_label)
         
         self.entity_type_label = QLabel("")
-        self.entity_type_label.setProperty("class", "muted")
+        self.entity_type_label.setStyleSheet(f"""
+            QLabel {{
+                font-size: 12px;
+                color: {COLORS['fg_variant']};
+                background-color: {COLORS['surface_high']};
+                padding: 4px 8px;
+                border-radius: 4px;
+                border: 1px solid {COLORS['outline']};
+            }}
+        """)
         self.entity_type_label.setAlignment(Qt.AlignmentFlag.AlignCenter)
-        header_layout.addWidget(self.entity_type_label)
-        
-        layout.addWidget(header_frame)
-        
-        # Version controls
-        controls_layout = QHBoxLayout()
-        
+        entity_layout.addWidget(self.entity_type_label)
+
+        entity_info.setStyleSheet(f"""
+            QWidget {{
+                background-color: {COLORS['surface']};
+                border: 1px solid {COLORS['outline']};
+                border-radius: 8px;
+            }}
+        """)
+        header_layout.addWidget(entity_info)
+
+    def setup_version_controls(self):
+        """Setup version controls in Ayon style"""
+        self.controls_widget = QWidget()
+        controls_layout = QHBoxLayout(self.controls_widget)
+        controls_layout.setContentsMargins(0, 0, 0, 0)
+        controls_layout.setSpacing(8)
+
+        # Controls title
+        controls_title = QLabel("Actions")
+        controls_title.setStyleSheet(f"""
+            QLabel {{
+                font-size: 18px;
+                font-weight: 700;
+                color: {COLORS['fg']};
+                margin: 0;
+                padding: 4px 0;
+            }}
+        """)
+        controls_layout.addWidget(controls_title)
+        controls_layout.addStretch()
+
+        # Action buttons
         self.publish_btn = QPushButton("Publish")
         self.publish_btn.setProperty("class", "primary")
         self.publish_btn.setEnabled(False)
@@ -2204,15 +2629,41 @@ class VersionManager(PrismStyleWidget):
         
         self.export_btn = QPushButton("Export")
         self.export_btn.setEnabled(False)
+
+        # Style buttons
+        for btn in [self.publish_btn, self.import_btn, self.export_btn]:
+            btn.setStyleSheet(f"""
+                QPushButton {{
+                    background-color: {COLORS['accent']};
+                    color: white;
+                    border: 1px solid {COLORS['accent']};
+                    border-radius: 6px;
+                    padding: 8px 16px;
+                    font-size: 12px;
+                    font-weight: 500;
+                    min-width: 80px;
+                }}
+                QPushButton:hover {{
+                    background-color: {COLORS['accent_hover']};
+                    border: 1px solid {COLORS['accent_hover']};
+                }}
+                QPushButton:pressed {{
+                    background-color: {COLORS['accent_active']};
+                    border: 1px solid {COLORS['accent_active']};
+                }}
+                QPushButton:disabled {{
+                    background-color: {COLORS['surface_high']};
+                    color: {COLORS['muted']};
+                    border: 1px solid {COLORS['outline']};
+                }}
+            """)
         
         controls_layout.addWidget(self.publish_btn)
         controls_layout.addWidget(self.import_btn)
         controls_layout.addWidget(self.export_btn)
-        controls_layout.addStretch()
-        
-        layout.addLayout(controls_layout)
-        
-        # Version table
+
+    def setup_version_table(self):
+        """Setup version table in Ayon style"""
         self.version_table = QTableWidget()
         self.version_table.setColumnCount(6)
         self.version_table.setHorizontalHeaderLabels([
@@ -2230,38 +2681,107 @@ class VersionManager(PrismStyleWidget):
         header.resizeSection(2, 120)  # Date
         header.resizeSection(3, 200)  # Comment
         header.resizeSection(4, 80)   # Status
-        
-        layout.addWidget(self.version_table)
-        
-        # Version info panel
-        info_group = QGroupBox("Version Info")
-        info_layout = QVBoxLayout(info_group)
-        
+
+        # Style the table
+        self.version_table.setStyleSheet(f"""
+            QTableWidget {{
+                background-color: {COLORS['surface']};
+                color: {COLORS['fg']};
+                border: 1px solid {COLORS['outline']};
+                border-radius: 8px;
+                gridline-color: {COLORS['outline']};
+                font-size: 12px;
+            }}
+            QTableWidget::item {{
+                padding: 8px 12px;
+                border: none;
+                color: {COLORS['fg']};
+            }}
+            QTableWidget::item:selected {{
+                background-color: {COLORS['accent']};
+                color: white;
+            }}
+            QTableWidget::item:hover {{
+                background-color: {COLORS['hover']};
+            }}
+            QHeaderView::section {{
+                background-color: {COLORS['surface_high']};
+                color: {COLORS['fg']};
+                border: 1px solid {COLORS['outline']};
+                padding: 8px 12px;
+                font-weight: 600;
+                font-size: 12px;
+            }}
+        """)
+
+    def setup_version_info(self):
+        """Setup version info panel in Ayon style"""
+        self.info_widget = QWidget()
+        info_layout = QVBoxLayout(self.info_widget)
+        info_layout.setContentsMargins(0, 0, 0, 0)
+        info_layout.setSpacing(8)
+
+        # Info title
+        info_title = QLabel("Version Details")
+        info_title.setStyleSheet(f"""
+            QLabel {{
+                font-size: 18px;
+                font-weight: 700;
+                color: {COLORS['fg']};
+                margin: 0;
+                padding: 4px 0;
+            }}
+        """)
+        info_layout.addWidget(info_title)
+
+        # Info content
+        info_content = QWidget()
+        info_content.setStyleSheet(f"""
+            QWidget {{
+                background-color: {COLORS['surface']};
+                border: 1px solid {COLORS['outline']};
+                border-radius: 8px;
+            }}
+        """)
+        content_layout = QVBoxLayout(info_content)
+        content_layout.setContentsMargins(12, 12, 12, 12)
+        content_layout.setSpacing(8)
+
         # Version details
-        details_layout = QGridLayout()
-        
-        details_layout.addWidget(QLabel("Version:"), 0, 0)
+        details_layout = QFormLayout()
+        details_layout.setSpacing(6)
+
         self.version_label = QLabel("-")
-        details_layout.addWidget(self.version_label, 0, 1)
-        
-        details_layout.addWidget(QLabel("User:"), 1, 0)
         self.user_label = QLabel("-")
-        details_layout.addWidget(self.user_label, 1, 1)
-        
-        details_layout.addWidget(QLabel("Date:"), 2, 0)
         self.date_label = QLabel("-")
-        details_layout.addWidget(self.date_label, 2, 1)
-        
-        details_layout.addWidget(QLabel("Comment:"), 3, 0)
         self.comment_label = QLabel("-")
+
+        # Style the labels
+        for label in [self.version_label, self.user_label, self.date_label, self.comment_label]:
+            label.setStyleSheet(f"""
+                QLabel {{
+                    font-size: 12px;
+                    color: {COLORS['fg_variant']};
+                    background-color: {COLORS['surface_high']};
+                    padding: 4px 8px;
+                    border-radius: 4px;
+                    border: 1px solid {COLORS['outline']};
+                }}
+            """)
+
         self.comment_label.setWordWrap(True)
-        details_layout.addWidget(self.comment_label, 3, 1)
-        
-        info_layout.addLayout(details_layout)
-        
+
+        details_layout.addRow("Version:", self.version_label)
+        details_layout.addRow("User:", self.user_label)
+        details_layout.addRow("Date:", self.date_label)
+        details_layout.addRow("Comment:", self.comment_label)
+
+        content_layout.addLayout(details_layout)
+
         # Action buttons
         action_layout = QHBoxLayout()
-        
+        action_layout.setSpacing(8)
+
         self.open_btn = QPushButton("Open")
         self.open_btn.setEnabled(False)
         
@@ -2271,15 +2791,42 @@ class VersionManager(PrismStyleWidget):
         self.delete_btn = QPushButton("Delete")
         self.delete_btn.setEnabled(False)
         self.delete_btn.setProperty("class", "danger")
+
+        # Style action buttons
+        for btn in [self.open_btn, self.copy_btn, self.delete_btn]:
+            btn.setStyleSheet(f"""
+                QPushButton {{
+                    background-color: {COLORS['accent']};
+                    color: white;
+                    border: 1px solid {COLORS['accent']};
+                    border-radius: 6px;
+                    padding: 6px 12px;
+                    font-size: 12px;
+                    font-weight: 500;
+                    min-width: 60px;
+                }}
+                QPushButton:hover {{
+                    background-color: {COLORS['accent_hover']};
+                    border: 1px solid {COLORS['accent_hover']};
+                }}
+                QPushButton:pressed {{
+                    background-color: {COLORS['accent_active']};
+                    border: 1px solid {COLORS['accent_active']};
+                }}
+                QPushButton:disabled {{
+                    background-color: {COLORS['surface_high']};
+                    color: {COLORS['muted']};
+                    border: 1px solid {COLORS['outline']};
+                }}
+            """)
         
         action_layout.addWidget(self.open_btn)
         action_layout.addWidget(self.copy_btn)
         action_layout.addWidget(self.delete_btn)
         action_layout.addStretch()
         
-        info_layout.addLayout(action_layout)
-        
-        layout.addWidget(info_group)
+        content_layout.addLayout(action_layout)
+        info_layout.addWidget(info_content)
 
 
 class PublishDialog(QWidget):
@@ -2597,43 +3144,48 @@ class PrismMainWindow(QMainWindow):
         return widget
     
     def style_tabs(self):
-        """Apply modern dark theme styling to tabs"""
-        tab_style = """
-        QTabWidget::pane {
-            border: 1px solid #2d2d2d;
-            background-color: #1e1e1e;
-        }
+        """Apply Ayon-style modern dark theme styling to tabs"""
+        tab_style = f"""
+        QTabWidget::pane {{
+            border: 1px solid {COLORS['outline']};
+            background-color: {COLORS['bg']};
+            border-radius: 8px;
+        }}
         
-        QTabWidget::tab-bar {
+        QTabWidget::tab-bar {{
             alignment: left;
-        }
+        }}
         
-        QTabBar::tab {
-            background-color: #2d2d2d;
-            color: #ffffff;
+        QTabBar::tab {{
+            background-color: {COLORS['surface']};
+            color: {COLORS['fg']};
             padding: 12px 20px;
             margin-right: 2px;
             border-top-left-radius: 8px;
             border-top-right-radius: 8px;
-            border: 1px solid #2d2d2d;
+            border: 1px solid {COLORS['outline']};
             border-bottom: none;
             min-width: 100px;
-        }
+            font-size: 13px;
+            font-weight: 500;
+        }}
         
-        QTabBar::tab:selected {
-            background-color: #0078d4;
-            color: #ffffff;
-            border-color: #0078d4;
-        }
+        QTabBar::tab:selected {{
+            background-color: {COLORS['accent']};
+            color: white;
+            border-color: {COLORS['accent']};
+            font-weight: 600;
+        }}
         
-        QTabBar::tab:hover:!selected {
-            background-color: #404040;
-            color: #ffffff;
-        }
+        QTabBar::tab:hover:!selected {{
+            background-color: {COLORS['hover']};
+            color: {COLORS['fg']};
+            border-color: {COLORS['accent']};
+        }}
         
-        QTabBar::tab:first {
+        QTabBar::tab:first {{
             margin-left: 0px;
-        }
+        }}
         """
         
         self.main_tab_widget.setStyleSheet(tab_style)
