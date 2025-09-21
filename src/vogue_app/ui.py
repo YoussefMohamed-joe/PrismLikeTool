@@ -405,22 +405,13 @@ class ProjectBrowser(PrismStyleWidget):
 
         dept_layout.addWidget(self.departments_list)
 
-        # Department Actions
-        dept_actions_layout = QHBoxLayout()
-        self.add_dept_btn = QPushButton("Add Dept")
-        self.add_dept_btn.setProperty("class", "primary")
-        self.edit_dept_btn = QPushButton("Edit")
-        self.remove_dept_btn = QPushButton("Remove")
+        # Create a vertical splitter for departments and tasks with 1:1 ratio
+        vertical_splitter = QSplitter(Qt.Orientation.Vertical)
+        
+        # Add departments to splitter
+        vertical_splitter.addWidget(dept_group)
 
-        dept_actions_layout.addWidget(self.add_dept_btn)
-        dept_actions_layout.addWidget(self.edit_dept_btn)
-        dept_actions_layout.addWidget(self.remove_dept_btn)
-        dept_actions_layout.addStretch()
-
-        dept_layout.addLayout(dept_actions_layout)
-        tasks_layout.addWidget(dept_group)
-
-        # Tasks Section (moved below departments)
+        # Tasks Section
         tasks_group = QGroupBox("Tasks")
         tasks_section_layout = QVBoxLayout(tasks_group)
 
@@ -457,24 +448,14 @@ class ProjectBrowser(PrismStyleWidget):
 
         tasks_section_layout.addWidget(self.tasks_list)
 
-        # Task Actions
-        task_actions_layout = QHBoxLayout()
-        self.new_task_btn = QPushButton("New Task")
-        self.new_task_btn.setProperty("class", "primary")
-        self.assign_task_btn = QPushButton("Assign")
-        self.complete_task_btn = QPushButton("Complete")
-        self.delete_task_btn = QPushButton("Delete")
-
-        task_actions_layout.addWidget(self.new_task_btn)
-        task_actions_layout.addWidget(self.assign_task_btn)
-        task_actions_layout.addWidget(self.complete_task_btn)
-        task_actions_layout.addWidget(self.delete_task_btn)
-        task_actions_layout.addStretch()
-
-        tasks_section_layout.addLayout(task_actions_layout)
-        tasks_layout.addWidget(tasks_group)
-
-        tasks_layout.addStretch()
+        # Add tasks to splitter
+        vertical_splitter.addWidget(tasks_group)
+        
+        # Set equal sizes for departments and tasks (1:1 ratio)
+        vertical_splitter.setSizes([1, 1])
+        
+        # Add the splitter to the main layout
+        tasks_layout.addWidget(vertical_splitter)
 
     def setup_project_info_section(self):
         """Setup the Project Info section above tasks"""

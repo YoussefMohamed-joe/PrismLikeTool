@@ -46,12 +46,20 @@ def validate_pipeline(data: Dict[str, Any]) -> None:
     if not all(isinstance(r, int) and r > 0 for r in data["resolution"]):
         raise ValidationError("Resolution values must be positive integers")
     
-    # Validate departments (allow empty list)
+    # Validate departments (allow empty list and mixed string/object format)
     if not isinstance(data["departments"], list):
         raise ValidationError("Departments must be a list")
     
-    if data["departments"] and not all(isinstance(d, str) and d.strip() for d in data["departments"]):
-        raise ValidationError("All departments must be non-empty strings")
+    if data["departments"]:
+        for i, dept in enumerate(data["departments"]):
+            if isinstance(dept, str):
+                if not dept.strip():
+                    raise ValidationError(f"Department {i} cannot be empty")
+            elif isinstance(dept, dict):
+                if "name" not in dept or not isinstance(dept["name"], str) or not dept["name"].strip():
+                    raise ValidationError(f"Department {i} must have a non-empty 'name' field")
+            else:
+                raise ValidationError(f"Department {i} must be a string or dictionary")
     
     # Validate tasks (allow empty list and mixed string/object format)
     if not isinstance(data["tasks"], list):
@@ -208,11 +216,12 @@ def pipeline_to_project(data: Dict[str, Any]) -> Project:
         from .models import Task
         if isinstance(task_data, str):
             # Legacy string format
-            task = Task(name=task_data, status="Pending")
+            task = Task(name=task_data, department="", status="Pending")
         elif isinstance(task_data, dict):
             # New object format
             task = Task(
                 name=task_data.get("name", "Unknown"),
+                department=task_data.get("department", ""),
                 status=task_data.get("status", "Pending"),
                 description=task_data.get("description", "")
             )
@@ -248,14 +257,32 @@ def pipeline_to_project(data: Dict[str, Any]) -> Project:
             )
             versions[entity_key].append(version)
 
+    # Create departments
+    departments = []
+    for dept_data in data.get("departments", []):
+        from .models import Department
+        if isinstance(dept_data, str):
+            # Legacy string format
+            dept = Department(name=dept_data, description="", color="#3498db")
+        elif isinstance(dept_data, dict):
+            # New object format
+            dept = Department(
+                name=dept_data.get("name", "Unknown"),
+                description=dept_data.get("description", ""),
+                color=dept_data.get("color", "#3498db")
+            )
+        else:
+            continue
+        departments.append(dept)
+
     # Create project
     project = Project(
         name=data["name"],
         path=data["path"],
         fps=data["fps"],
         resolution=data["resolution"],
-        departments=data["departments"],
-        tasks=data["tasks"],
+        departments=departments,
+        tasks=tasks,
         assets=assets,
         shots=shots,
         folders=folders,
@@ -326,13 +353,34 @@ def project_to_pipeline(project: Project) -> Dict[str, Any]:
                 version_data["thumbnail"] = version.thumbnail
             versions[entity_key].append(version_data)
 
+    # Convert departments to dictionaries
+    departments = []
+    for dept in project.departments:
+        dept_data = {
+            "name": dept.name,
+            "description": dept.description,
+            "color": dept.color
+        }
+        departments.append(dept_data)
+    
+    # Convert tasks to dictionaries
+    tasks = []
+    for task in project.tasks:
+        task_data = {
+            "name": task.name,
+            "department": task.department,
+            "status": task.status,
+            "description": task.description
+        }
+        tasks.append(task_data)
+
     return {
         "name": project.name,
         "path": project.path,
         "fps": project.fps,
         "resolution": project.resolution,
-        "departments": project.departments,
-        "tasks": project.tasks,
+        "departments": departments,
+        "tasks": tasks,
         "assets": assets,
         "shots": shots,
         "folders": folders,

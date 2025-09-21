@@ -43,6 +43,10 @@ class VogueController(PrismMainWindow):
         # Setup shot tree context menu
         self.setup_shot_tree_context_menu()
         
+        # Setup task and department context menus
+        self.setup_task_context_menu()
+        self.setup_department_context_menu()
+        
         # Setup keyboard shortcuts
         self.setup_keyboard_shortcuts()
 
@@ -245,6 +249,18 @@ class VogueController(PrismMainWindow):
         tree.setContextMenuPolicy(Qt.ContextMenuPolicy.CustomContextMenu)
         tree.customContextMenuRequested.connect(self.show_shot_context_menu)
     
+    def setup_task_context_menu(self):
+        """Setup context menu for task list"""
+        task_list = self.project_browser.tasks_list
+        task_list.setContextMenuPolicy(Qt.ContextMenuPolicy.CustomContextMenu)
+        task_list.customContextMenuRequested.connect(self.show_task_context_menu)
+    
+    def setup_department_context_menu(self):
+        """Setup context menu for department list"""
+        dept_list = self.project_browser.departments_list
+        dept_list.setContextMenuPolicy(Qt.ContextMenuPolicy.CustomContextMenu)
+        dept_list.customContextMenuRequested.connect(self.show_department_context_menu)
+    
     def show_asset_context_menu(self, position):
         """Show context menu for asset tree"""
         tree = self.project_browser.asset_tree
@@ -369,6 +385,53 @@ class VogueController(PrismMainWindow):
             menu.addAction(f"Cut Selected ({len(selected_items)})", lambda: self.cut_selected_shot_items())
         
         menu.exec(tree.mapToGlobal(position))
+    
+    def show_task_context_menu(self, position):
+        """Show context menu for task list"""
+        task_list = self.project_browser.tasks_list
+        item = task_list.itemAt(position)
+        
+        menu = QMenu(task_list)
+        
+        # Always show New Task option
+        menu.addAction("New Task", self.new_task)
+        menu.addSeparator()
+        
+        if item:
+            # Task is selected
+            menu.addAction("Assign Task", self.assign_task)
+            menu.addAction("Complete Task", self.complete_task)
+            menu.addSeparator()
+            menu.addAction("Delete Task", self.delete_task)
+        else:
+            # No task selected
+            menu.addAction("Assign Task", self.assign_task).setEnabled(False)
+            menu.addAction("Complete Task", self.complete_task).setEnabled(False)
+            menu.addAction("Delete Task", self.delete_task).setEnabled(False)
+        
+        menu.exec(task_list.mapToGlobal(position))
+    
+    def show_department_context_menu(self, position):
+        """Show context menu for department list"""
+        dept_list = self.project_browser.departments_list
+        item = dept_list.itemAt(position)
+        
+        menu = QMenu(dept_list)
+        
+        # Always show Add Department option
+        menu.addAction("Add Department", self.add_department)
+        menu.addSeparator()
+        
+        if item:
+            # Department is selected
+            menu.addAction("Edit Department", self.edit_department)
+            menu.addAction("Remove Department", self.remove_department)
+        else:
+            # No department selected
+            menu.addAction("Edit Department", self.edit_department).setEnabled(False)
+            menu.addAction("Remove Department", self.remove_department).setEnabled(False)
+        
+        menu.exec(dept_list.mapToGlobal(position))
     
     def show_shot_properties(self, item):
         """Show shot properties dialog"""
@@ -566,6 +629,25 @@ class VogueController(PrismMainWindow):
         self.project_browser.add_shot_btn.clicked.connect(self.add_shot)
         self.project_browser.new_shot_folder_btn.clicked.connect(self.add_shot_folder)
         self.project_browser.refresh_shots_btn.clicked.connect(self.update_shots_tree)
+        
+        # Connect department selection change
+        self.project_browser.departments_list.itemSelectionChanged.connect(self.on_department_selection_changed)
+        
+        # Connect focus events to maintain selection
+        self.project_browser.departments_list.focusOutEvent = self.department_list_focus_out
+        self.project_browser.departments_list.focusInEvent = self.department_list_focus_in
+        
+        # Override mouse press event to maintain selection
+        self.project_browser.departments_list.mousePressEvent = self.department_list_mouse_press
+        
+        # Setup timer to periodically check and maintain selection
+        self.selection_timer = QTimer()
+        self.selection_timer.timeout.connect(self.maintain_department_selection)
+        self.selection_timer.start(1000)  # Check every second
+        
+        # Ensure department selection persists (don't deselect when clicking elsewhere)
+        self.project_browser.departments_list.setSelectionMode(QAbstractItemView.SelectionMode.SingleSelection)
+        self.project_browser.departments_list.setFocusPolicy(Qt.FocusPolicy.StrongFocus)
         
         # Connect menu actions
         self.connect_menu_actions()
@@ -796,14 +878,7 @@ class VogueController(PrismMainWindow):
         self.export_project_action.triggered.connect(self.export_project)
         self.project_settings_action.triggered.connect(self.project_settings)
         
-        # Connect task and department actions
-        self.project_browser.new_task_btn.clicked.connect(self.new_task)
-        self.project_browser.assign_task_btn.clicked.connect(self.assign_task)
-        self.project_browser.complete_task_btn.clicked.connect(self.complete_task)
-        self.project_browser.delete_task_btn.clicked.connect(self.delete_task)
-        self.project_browser.add_dept_btn.clicked.connect(self.add_department)
-        self.project_browser.edit_dept_btn.clicked.connect(self.edit_department)
-        self.project_browser.remove_dept_btn.clicked.connect(self.remove_department)
+        # Task and department actions now handled via right-click context menus
         
         self.logger.info("Menu actions connected successfully")
     
@@ -1292,6 +1367,12 @@ class VogueController(PrismMainWindow):
     def new_task(self):
         """Create a new task"""
         from vogue_app.dialogs import CreateTaskDialog
+        
+        # Check if there are departments available
+        if not self.manager.current_project or not hasattr(self.manager.current_project, 'departments') or not self.manager.current_project.departments:
+            QMessageBox.warning(self, "No Departments", 
+                              "You must create at least one department before creating tasks.\nTasks are dependent on departments.")
+            return
 
         dialog = CreateTaskDialog(self)
         if dialog.exec() == QDialog.DialogCode.Accepted:
@@ -1313,13 +1394,18 @@ class VogueController(PrismMainWindow):
                     from vogue_core.models import Task
                     task = Task(
                         name=data['name'],
+                        department=data['department'],
                         status=data['status'],
                         description=data['description']
                     )
                     self.manager.current_project.tasks.append(task)
                     self.manager.save_project()
                 
-                self.logger.info(f"Created new task: {data['name']}")
+                # Ensure department selection is maintained after task creation
+                self.ensure_department_selection_visible()
+                self.filter_tasks_by_department()
+                
+                self.logger.info(f"Created new task: {data['name']} in department: {data['department']}")
 
     def assign_task(self):
         """Assign selected task"""
@@ -1328,6 +1414,8 @@ class VogueController(PrismMainWindow):
             task_name = current_item.text().split(" - ")[0]
             QMessageBox.information(self, "Task Assignment", f"Task '{task_name}' assigned successfully!")
             self.logger.info(f"Assigned task: {task_name}")
+            # Ensure department selection is maintained
+            self.ensure_department_selection_visible()
         else:
             QMessageBox.warning(self, "No Selection", "Please select a task to assign.")
 
@@ -1346,6 +1434,8 @@ class VogueController(PrismMainWindow):
                 
                 current_item.setText(new_text)
                 self.logger.info(f"Completed task: {task_name}")
+                # Ensure department selection is maintained
+                self.ensure_department_selection_visible()
             else:
                 QMessageBox.information(self, "Already Complete", "This task is already marked as complete.")
         else:
@@ -1383,17 +1473,21 @@ class VogueController(PrismMainWindow):
                     row = self.project_browser.tasks_list.row(item)
                     self.project_browser.tasks_list.takeItem(row)
             
-            # Remove from project data if available
-            if self.manager.current_project and hasattr(self.manager.current_project, 'tasks'):
-                for task_name in deleted_tasks:
-                    self.manager.current_project.tasks = [
-                        task for task in self.manager.current_project.tasks 
-                        if (hasattr(task, 'name') and task.name != task_name) or
-                           (isinstance(task, dict) and task.get('name', '') != task_name)
-                    ]
-                self.manager.save_project()
-            
-            self.logger.info(f"Deleted {len(deleted_tasks)} task(s): {', '.join(deleted_tasks)}")
+                # Remove from project data if available
+                if self.manager.current_project and hasattr(self.manager.current_project, 'tasks'):
+                    for task_name in deleted_tasks:
+                        self.manager.current_project.tasks = [
+                            task for task in self.manager.current_project.tasks 
+                            if (hasattr(task, 'name') and task.name != task_name) or
+                               (isinstance(task, dict) and task.get('name', '') != task_name)
+                        ]
+                    self.manager.save_project()
+                
+                # Ensure department selection is maintained after deletion
+                self.ensure_department_selection_visible()
+                self.filter_tasks_by_department()
+                
+                self.logger.info(f"Deleted {len(deleted_tasks)} task(s): {', '.join(deleted_tasks)}")
     
     # Department Management Methods
     def add_department(self):
@@ -1414,11 +1508,17 @@ class VogueController(PrismMainWindow):
                 # Store department data in project if available
                 if self.manager.current_project:
                     from vogue_core.models import Department
-                    dept = Department(name=name, color=color_hex)
+                    dept = Department(name=name, description="", color=color_hex)
                     if not hasattr(self.manager.current_project, 'departments'):
                         self.manager.current_project.departments = []
                     self.manager.current_project.departments.append(dept)
                     self.manager.save_project()
+                    
+                    # Auto-select the new department
+                    self.project_browser.departments_list.setCurrentRow(self.project_browser.departments_list.count() - 1)
+                    # Ensure the selection is visually highlighted
+                    self.ensure_department_selection_visible()
+                    self.filter_tasks_by_department()
                 
                 self.logger.info(f"Added department: {name}")
             else:
@@ -1452,11 +1552,15 @@ class VogueController(PrismMainWindow):
                                 break
                         self.manager.save_project()
                     
+                    # Ensure department selection is maintained after editing
+                    self.ensure_department_selection_visible()
+                    self.filter_tasks_by_department()
+                    
                     self.logger.info(f"Edited department: {current_name} -> {name}")
                 else:
                     QMessageBox.warning(self, "Invalid Color", "Please select a valid color for the department.")
-            else:
-                QMessageBox.warning(self, "No Selection", "Please select a department to edit.")
+        else:
+            QMessageBox.warning(self, "No Selection", "Please select a department to edit.")
 
     def remove_department(self):
         """Remove selected department(s)"""
@@ -1472,24 +1576,24 @@ class VogueController(PrismMainWindow):
             dept_names = [item.text().split(" - ")[0] for item in selected_items]
             message = f"Are you sure you want to remove {len(selected_items)} departments?\n\nDepartments: {', '.join(dept_names)}"
         
-            reply = QMessageBox.question(
+        reply = QMessageBox.question(
             self, 
             "Remove Department(s)", 
             message,
             QMessageBox.StandardButton.Yes | QMessageBox.StandardButton.No
-            )
+        )
 
-            if reply == QMessageBox.StandardButton.Yes:
-                # Store department names for logging
-                removed_departments = []
-                
-                # Remove from UI (in reverse order to maintain indices)
-                for item in reversed(selected_items):
-                    dept_name = item.text().split(" - ")[0]
-                    removed_departments.append(dept_name)
-                    row = self.project_browser.departments_list.row(item)
-                    self.project_browser.departments_list.takeItem(row)
+        if reply == QMessageBox.StandardButton.Yes:
+            # Store department names for logging
+            removed_departments = []
             
+            # Remove from UI (in reverse order to maintain indices)
+            for item in reversed(selected_items):
+                dept_name = item.text().split(" - ")[0]
+                removed_departments.append(dept_name)
+                row = self.project_browser.departments_list.row(item)
+                self.project_browser.departments_list.takeItem(row)
+        
             # Remove from project data if available
             if self.manager.current_project and hasattr(self.manager.current_project, 'departments'):
                 for dept_name in removed_departments:
@@ -1499,6 +1603,10 @@ class VogueController(PrismMainWindow):
                            (isinstance(dept, str) and dept.split(" - ")[0] != dept_name)
                     ]
                 self.manager.save_project()
+            
+            # Ensure department selection is maintained after removal
+            self.ensure_department_selection_visible()
+            self.filter_tasks_by_department()
             
             self.logger.info(f"Removed {len(removed_departments)} department(s): {', '.join(removed_departments)}")
     
@@ -1547,13 +1655,125 @@ class VogueController(PrismMainWindow):
                     # Department object
                     dept_text = f"{dept.name} - Active"
                 elif isinstance(dept, str):
-                    # Department string
+                    # Department string (legacy format)
                     dept_text = dept
                 else:
                     continue
                 
                 self.project_browser.departments_list.addItem(dept_text)
             
+            # Auto-select first department if any exist
+            if self.project_browser.departments_list.count() > 0:
+                self.project_browser.departments_list.setCurrentRow(0)
+                # Setup persistence and ensure the selection is visually highlighted
+                self.setup_department_list_persistence()
+                self.ensure_department_selection_visible()
+                self.filter_tasks_by_department()
+            
             self.logger.info(f"Loaded {len(self.manager.current_project.departments)} departments from project")
         else:
             self.logger.info("No departments found in project")
+    
+    def filter_tasks_by_department(self):
+        """Filter tasks by selected department"""
+        if not self.manager.current_project or not hasattr(self.manager.current_project, 'tasks'):
+            return
+        
+        # Get selected department
+        current_item = self.project_browser.departments_list.currentItem()
+        if not current_item:
+            return
+        
+        selected_dept = current_item.text().split(" - ")[0]
+        
+        # Clear and repopulate tasks list with filtered tasks
+        self.project_browser.tasks_list.clear()
+        
+        for task in self.manager.current_project.tasks:
+            if hasattr(task, 'department') and task.department == selected_dept:
+                # Task object
+                task_text = f"{task.name} - {task.status}"
+                if task.description:
+                    task_text += f" ({task.description})"
+                self.project_browser.tasks_list.addItem(task_text)
+            elif isinstance(task, dict) and task.get('department') == selected_dept:
+                # Legacy dict format
+                task_text = f"{task.get('name', 'Unknown')} - {task.get('status', 'Pending')}"
+                if task.get('description'):
+                    task_text += f" ({task['description']})"
+                self.project_browser.tasks_list.addItem(task_text)
+        
+        self.logger.info(f"Filtered tasks for department: {selected_dept}")
+    
+    def on_department_selection_changed(self):
+        """Handle department selection change"""
+        self.filter_tasks_by_department()
+    
+    def ensure_department_selection_visible(self):
+        """Ensure the department selection is visually highlighted"""
+        if self.project_browser.departments_list.count() > 0:
+            # Get current selection
+            current_row = self.project_browser.departments_list.currentRow()
+            if current_row < 0:
+                # If no selection, select the first item
+                current_row = 0
+                self.project_browser.departments_list.setCurrentRow(current_row)
+            
+            # Ensure the item is visible and selected
+            self.project_browser.departments_list.scrollToItem(
+                self.project_browser.departments_list.item(current_row)
+            )
+            self.project_browser.departments_list.setFocus()
+            self.project_browser.departments_list.repaint()
+    
+    def setup_department_list_persistence(self):
+        """Setup department list to maintain selection"""
+        # Set selection mode to single selection (prevents deselection)
+        self.project_browser.departments_list.setSelectionMode(QAbstractItemView.SelectionMode.SingleSelection)
+        
+        # Set focus policy to strong focus (maintains selection when clicking elsewhere)
+        self.project_browser.departments_list.setFocusPolicy(Qt.FocusPolicy.StrongFocus)
+        
+        # Ensure at least one item is always selected
+        if self.project_browser.departments_list.count() > 0:
+            if self.project_browser.departments_list.currentRow() < 0:
+                self.project_browser.departments_list.setCurrentRow(0)
+    
+    def department_list_focus_out(self, event):
+        """Handle focus out event for department list - maintain selection"""
+        # Don't clear selection when losing focus, especially for popup menus
+        event.ignore()
+        # Ensure selection is maintained even when focus is lost
+        QTimer.singleShot(10, self.ensure_department_selection_visible)
+    
+    def department_list_focus_in(self, event):
+        """Handle focus in event for department list - ensure selection is visible"""
+        # Ensure selection is visible when regaining focus
+        self.ensure_department_selection_visible()
+        event.accept()
+    
+    def maintain_selection_after_action(self):
+        """Ensure department selection is maintained after any action"""
+        # Ensure at least one department is selected
+        if self.project_browser.departments_list.count() > 0:
+            if self.project_browser.departments_list.currentRow() < 0:
+                self.project_browser.departments_list.setCurrentRow(0)
+            self.ensure_department_selection_visible()
+            self.filter_tasks_by_department()
+    
+    def department_list_mouse_press(self, event):
+        """Handle mouse press event for department list - maintain selection"""
+        # Call the original mouse press event
+        from PyQt6.QtWidgets import QListWidget
+        QListWidget.mousePressEvent(self.project_browser.departments_list, event)
+        
+        # Ensure selection is maintained
+        self.ensure_department_selection_visible()
+    
+    def maintain_department_selection(self):
+        """Periodically check and maintain department selection"""
+        if (self.project_browser.departments_list.count() > 0 and 
+            self.project_browser.departments_list.currentRow() < 0):
+            # If no selection but items exist, select the first one
+            self.project_browser.departments_list.setCurrentRow(0)
+            self.filter_tasks_by_department()

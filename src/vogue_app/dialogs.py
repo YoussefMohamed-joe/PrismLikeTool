@@ -1621,8 +1621,9 @@ class CreateTaskDialog(QDialog):
         super().__init__(parent)
         self.setWindowTitle("Create New Task")
         self.setModal(True)
-        self.resize(400, 300)
+        self.resize(400, 350)
         self.setup_ui()
+        self.populate_departments()
         
     def setup_ui(self):
         layout = QVBoxLayout(self)
@@ -1634,6 +1635,12 @@ class CreateTaskDialog(QDialog):
         self.name_edit = QLineEdit()
         self.name_edit.setPlaceholderText("Enter task name...")
         info_layout.addRow("Task Name:", self.name_edit)
+        
+        # Department selection (required)
+        self.department_combo = QComboBox()
+        self.department_combo.setPlaceholderText("Select department...")
+        self.department_combo.setEditable(False)
+        info_layout.addRow("Department:", self.department_combo)
         
         self.status_combo = QComboBox()
         self.status_combo.addItems(["WIP", "Review", "Final", "Blocked", "Complete"])
@@ -1654,17 +1661,46 @@ class CreateTaskDialog(QDialog):
         button_box.rejected.connect(self.reject)
         layout.addWidget(button_box)
         
+    def populate_departments(self):
+        """Populate department dropdown with available departments"""
+        # Get the current project from the parent controller
+        if hasattr(self.parent(), 'manager') and self.parent().manager.current_project:
+            project = self.parent().manager.current_project
+            
+            # Clear existing items
+            self.department_combo.clear()
+            
+            # Add departments from project
+            if hasattr(project, 'departments') and project.departments:
+                for dept in project.departments:
+                    if hasattr(dept, 'name'):
+                        self.department_combo.addItem(dept.name)
+                
+                # Select first department by default
+                if self.department_combo.count() > 0:
+                    self.department_combo.setCurrentIndex(0)
+            else:
+                # No departments available
+                self.department_combo.addItem("No departments available")
+                self.department_combo.setEnabled(False)
+        else:
+            # No project loaded
+            self.department_combo.addItem("No project loaded")
+            self.department_combo.setEnabled(False)
+        
     def get_task_data(self):
         """Get task data from dialog"""
         name = self.name_edit.text().strip()
+        department = self.department_combo.currentText().strip()
         status = self.status_combo.currentText()
         description = self.description_edit.toPlainText().strip()
         
-        if not name:
+        if not name or not department or department in ["No departments available", "No project loaded"]:
             return None
             
         return {
             "name": name,
+            "department": department,
             "status": status,
             "description": description
         }
