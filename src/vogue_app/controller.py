@@ -633,6 +633,9 @@ class VogueController(PrismMainWindow):
         # Connect department selection change
         self.project_browser.departments_list.itemSelectionChanged.connect(self.on_department_selection_changed)
         
+        # Connect task selection change
+        self.project_browser.tasks_list.itemSelectionChanged.connect(self.on_task_selection_changed)
+        
         # Connect focus events to maintain selection
         self.project_browser.departments_list.focusOutEvent = self.department_list_focus_out
         self.project_browser.departments_list.focusInEvent = self.department_list_focus_in
@@ -642,7 +645,7 @@ class VogueController(PrismMainWindow):
         
         # Setup timer to periodically check and maintain selection
         self.selection_timer = QTimer()
-        self.selection_timer.timeout.connect(self.maintain_department_selection)
+        self.selection_timer.timeout.connect(self.maintain_selection)
         self.selection_timer.start(1000)  # Check every second
         
         # Ensure department selection persists (don't deselect when clicking elsewhere)
@@ -1709,6 +1712,11 @@ class VogueController(PrismMainWindow):
         """Handle department selection change"""
         self.filter_tasks_by_department()
     
+    def on_task_selection_changed(self):
+        """Handle task selection change"""
+        # Task selection is handled in the UI, just ensure it's maintained
+        self.project_browser.ensure_task_selection_visible()
+    
     def ensure_department_selection_visible(self):
         """Ensure the department selection is visually highlighted"""
         if self.project_browser.departments_list.count() > 0:
@@ -1770,10 +1778,17 @@ class VogueController(PrismMainWindow):
         # Ensure selection is maintained
         self.ensure_department_selection_visible()
     
-    def maintain_department_selection(self):
-        """Periodically check and maintain department selection"""
+    def maintain_selection(self):
+        """Periodically check and maintain department and task selection"""
+        # Maintain department selection
         if (self.project_browser.departments_list.count() > 0 and 
             self.project_browser.departments_list.currentRow() < 0):
             # If no selection but items exist, select the first one
             self.project_browser.departments_list.setCurrentRow(0)
             self.filter_tasks_by_department()
+        
+        # Maintain task selection
+        if (self.project_browser.tasks_list.count() > 0 and
+            self.project_browser.tasks_list.currentRow() < 0):
+            self.project_browser.tasks_list.setCurrentRow(0)
+            self.project_browser.ensure_task_selection_visible()

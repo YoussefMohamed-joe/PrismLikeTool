@@ -5,6 +5,7 @@ Complete Prism interface clone with all standard Prism functionalities.
 """
 
 import os
+import shutil
 from pathlib import Path
 from typing import List, Dict, Any, Optional
 
@@ -275,6 +276,137 @@ class ProjectBrowser(PrismStyleWidget):
 
         # Setup context menus
         self.setup_context_menus()
+        
+        # Setup selection connections
+        self.setup_selection_connections()
+        
+        # Setup task selection behavior
+        self.setup_task_selection_behavior()
+    
+    def setup_selection_connections(self):
+        """Setup selection change connections"""
+        # Connect asset tree selection
+        self.asset_tree.itemSelectionChanged.connect(self.on_asset_selection_changed)
+        self.shot_tree.itemSelectionChanged.connect(self.on_shot_selection_changed)
+        
+        # Connect task selection
+        self.tasks_list.itemSelectionChanged.connect(self.on_task_selection_changed)
+    
+    def on_asset_selection_changed(self):
+        """Handle asset selection change"""
+        current_item = self.asset_tree.currentItem()
+        if not current_item:
+            return
+        
+        item_type = current_item.data(0, Qt.ItemDataRole.UserRole)
+        if item_type == "Asset":
+            asset_name = current_item.text(0)
+            self.notify_asset_selected(asset_name)
+    
+    def on_shot_selection_changed(self):
+        """Handle shot selection change"""
+        current_item = self.shot_tree.currentItem()
+        if not current_item:
+            return
+        
+        item_type = current_item.data(0, Qt.ItemDataRole.UserRole)
+        if item_type == "Shot":
+            shot_name = current_item.text(0)
+            # Get parent folder for sequence
+            parent_item = current_item.parent()
+            sequence = parent_item.text(0) if parent_item else "Main"
+            shot_key = f"{sequence}/{shot_name}"
+            self.notify_shot_selected(shot_key)
+    
+    def notify_asset_selected(self, asset_name: str):
+        """Notify that an asset was selected"""
+        # Store current entity
+        self.current_entity = asset_name
+        
+        # Find the version manager in the main window
+        main_window = self.window()
+        if hasattr(main_window, 'version_manager'):
+            main_window.version_manager.update_entity(asset_name, "Asset")
+        
+        # Ensure task selection is maintained
+        self.ensure_task_selection_visible()
+    
+    def notify_shot_selected(self, shot_key: str):
+        """Notify that a shot was selected"""
+        # Find the version manager in the main window
+        main_window = self.window()
+        if hasattr(main_window, 'version_manager'):
+            main_window.version_manager.update_entity(shot_key, "Shot")
+    
+    def on_task_selection_changed(self):
+        """Handle task selection change"""
+        current_item = self.tasks_list.currentItem()
+        if current_item:
+            task_name = current_item.text().split(" - ")[0]  # Extract task name before status
+            self.notify_task_selected(task_name)
+    
+    def notify_task_selected(self, task_name: str):
+        """Notify that a task was selected"""
+        # Find the version manager in the main window
+        main_window = self.window()
+        if hasattr(main_window, 'version_manager'):
+            # Update version manager with current entity and task
+            if hasattr(self, 'current_entity'):
+                main_window.version_manager.update_entity(self.current_entity, "Asset", task_name)
+    
+    def ensure_task_selection_visible(self):
+        """Ensure the task selection is visually highlighted"""
+        if self.tasks_list.count() > 0:
+            # Get current selection
+            current_row = self.tasks_list.currentRow()
+            if current_row < 0:
+                # If no selection, select the first item
+                current_row = 0
+                self.tasks_list.setCurrentRow(current_row)
+            
+            # Ensure the item is visible and selected
+            self.tasks_list.scrollToItem(
+                self.tasks_list.item(current_row),
+                QAbstractItemView.ScrollHint.EnsureVisible
+            )
+    
+    def setup_task_selection_behavior(self):
+        """Setup task list to maintain selection like departments"""
+        # Set focus policy to strong focus (maintains selection when clicking elsewhere)
+        self.tasks_list.setFocusPolicy(Qt.FocusPolicy.StrongFocus)
+        
+        # Ensure at least one item is always selected
+        if self.tasks_list.count() > 0:
+            if self.tasks_list.currentRow() < 0:
+                self.tasks_list.setCurrentRow(0)
+        
+        # Override focus events to maintain selection
+        self.tasks_list.focusOutEvent = self.task_list_focus_out
+        self.tasks_list.focusInEvent = self.task_list_focus_in
+        self.tasks_list.mousePressEvent = self.task_list_mouse_press
+    
+    def task_list_focus_out(self, event):
+        """Handle focus out event for task list - maintain selection"""
+        # Don't clear selection when losing focus, especially for popup menus
+        event.ignore()
+        # Ensure selection is maintained even when focus is lost
+        from PyQt6.QtCore import QTimer
+        QTimer.singleShot(10, self.ensure_task_selection_visible)
+    
+    def task_list_focus_in(self, event):
+        """Handle focus in event for task list - ensure selection is visible"""
+        # Ensure selection is visible when regaining focus
+        self.ensure_task_selection_visible()
+        event.accept()
+    
+    def task_list_mouse_press(self, event):
+        """Handle mouse press event for task list - maintain selection"""
+        # Call the original mouse press event
+        from PyQt6.QtWidgets import QListWidget
+        QListWidget.mousePressEvent(self.tasks_list, event)
+        
+        # Ensure selection is maintained
+        self.ensure_task_selection_visible()
 
     def setup_tabs_section(self):
         """Setup the tabs section (Assets/Shots)"""
@@ -540,7 +672,7 @@ class ProjectBrowser(PrismStyleWidget):
         # Tasks List
         self.tasks_list = QListWidget()
         self.tasks_list.setAlternatingRowColors(True)
-        self.tasks_list.setSelectionMode(QAbstractItemView.SelectionMode.ExtendedSelection)
+        self.tasks_list.setSelectionMode(QAbstractItemView.SelectionMode.SingleSelection)
         self.tasks_list.setStyleSheet(f"""
             QListWidget {{
                 background-color: {COLORS['surface']};
@@ -2511,7 +2643,10 @@ class VersionManager(PrismStyleWidget):
     
     def __init__(self, parent=None):
         super().__init__(parent)
+        self.current_entity = None
+        self.current_versions = []
         self.setup_ui()
+        self.setup_connections()
     
     def setup_ui(self):
         layout = QVBoxLayout(self)
@@ -2533,6 +2668,9 @@ class VersionManager(PrismStyleWidget):
         # Version info panel (Ayon style)
         self.setup_version_info()
         layout.addWidget(self.info_widget)
+        
+        # Add right-click hint after info_widget is created
+        self.add_right_click_hint()
 
     def setup_version_header(self):
         """Setup version header in Ayon style"""
@@ -2827,6 +2965,887 @@ class VersionManager(PrismStyleWidget):
         
         content_layout.addLayout(action_layout)
         info_layout.addWidget(info_content)
+    
+    def add_right_click_hint(self):
+        """Add a subtle hint about right-click functionality"""
+        hint_widget = QWidget()
+        hint_layout = QHBoxLayout(hint_widget)
+        hint_layout.setContentsMargins(8, 4, 8, 4)
+        
+        hint_label = QLabel("💡 Right-click in the version table to create versions with DCC apps")
+        hint_label.setStyleSheet(f"""
+            QLabel {{
+                font-size: 11px;
+                color: {COLORS['fg_variant']};
+                background-color: {COLORS['surface_high']};
+                padding: 6px 12px;
+                border-radius: 4px;
+                border: 1px solid {COLORS['outline']};
+            }}
+        """)
+        hint_label.setAlignment(Qt.AlignmentFlag.AlignCenter)
+        hint_layout.addWidget(hint_label)
+        
+        # Add the hint widget to the version manager layout
+        # We need to insert it before the info widget
+        parent_layout = self.layout()
+        if parent_layout and hasattr(self, 'info_widget'):
+            # Find the info widget and insert before it
+            for i in range(parent_layout.count()):
+                item = parent_layout.itemAt(i)
+                if item and item.widget() == self.info_widget:
+                    parent_layout.insertWidget(i, hint_widget)
+                    break
+        else:
+            # Fallback: just add to the end
+            parent_layout.addWidget(hint_widget)
+    
+    def setup_connections(self):
+        """Setup signal connections"""
+        # Version table selection
+        self.version_table.itemSelectionChanged.connect(self.on_version_selected)
+        
+        # Action buttons
+        self.publish_btn.clicked.connect(self.on_publish_clicked)
+        self.import_btn.clicked.connect(self.on_import_clicked)
+        self.export_btn.clicked.connect(self.on_export_clicked)
+        self.open_btn.clicked.connect(self.on_open_clicked)
+        self.copy_btn.clicked.connect(self.on_copy_clicked)
+        self.delete_btn.clicked.connect(self.on_delete_clicked)
+        
+        # Context menu for version table
+        self.version_table.setContextMenuPolicy(Qt.ContextMenuPolicy.CustomContextMenu)
+        self.version_table.customContextMenuRequested.connect(self.show_version_context_menu)
+    
+    def update_entity(self, entity_name: str, entity_type: str = "Asset", task_name: str = None):
+        """Update the current entity being managed"""
+        self.current_entity = entity_name
+        self.current_task = task_name
+        
+        # Update entity display
+        if task_name:
+            self.entity_name_label.setText(f"{entity_name} - {task_name}")
+        else:
+            self.entity_name_label.setText(entity_name)
+        self.entity_type_label.setText(entity_type)
+        
+        # Load versions for this entity
+        self.load_versions()
+    
+    def load_versions(self):
+        """Load versions for the current entity"""
+        if not self.current_entity:
+            return
+        
+        # Get controller and manager
+        from .main import get_current_controller
+        controller = get_current_controller()
+        if not controller or not controller.manager:
+            return
+        
+        # Get versions from manager
+        self.current_versions = controller.manager.list_versions(self.current_entity)
+        self.populate_version_table()
+    
+    def populate_version_table(self):
+        """Populate the version table with current versions"""
+        self.version_table.setRowCount(len(self.current_versions))
+        
+        for row, version in enumerate(self.current_versions):
+            # Version
+            version_item = QTableWidgetItem(version.version)
+            if version.dcc_app:
+                version_item.setText(f"{version.get_dcc_app_icon()} {version.version}")
+            self.version_table.setItem(row, 0, version_item)
+            
+            # User
+            self.version_table.setItem(row, 1, QTableWidgetItem(version.user))
+            
+            # Date
+            date_str = version.date.split('T')[0] if 'T' in version.date else version.date
+            self.version_table.setItem(row, 2, QTableWidgetItem(date_str))
+            
+            # Comment
+            comment_item = QTableWidgetItem(version.comment)
+            comment_item.setToolTip(version.comment)  # Show full comment on hover
+            self.version_table.setItem(row, 3, comment_item)
+            
+            # Status
+            status_item = QTableWidgetItem(version.status)
+            # Color code status
+            if version.status == "WIP":
+                status_item.setBackground(QColor(255, 193, 7, 50))  # Yellow
+            elif version.status == "Review":
+                status_item.setBackground(QColor(0, 123, 255, 50))  # Blue
+            elif version.status == "Approved":
+                status_item.setBackground(QColor(40, 167, 69, 50))  # Green
+            elif version.status == "Published":
+                status_item.setBackground(QColor(108, 117, 125, 50))  # Gray
+            self.version_table.setItem(row, 4, status_item)
+            
+            # Path
+            path_item = QTableWidgetItem(version.path)
+            path_item.setToolTip(version.path)  # Show full path on hover
+            self.version_table.setItem(row, 5, path_item)
+        
+        # Enable/disable buttons based on selection
+        self.update_button_states()
+    
+    def on_version_selected(self):
+        """Handle version selection"""
+        self.update_version_info()
+        self.update_button_states()
+    
+    def update_version_info(self):
+        """Update version info panel with selected version"""
+        current_row = self.version_table.currentRow()
+        if current_row < 0 or current_row >= len(self.current_versions):
+            # Clear info
+            self.version_label.setText("-")
+            self.user_label.setText("-")
+            self.date_label.setText("-")
+            self.comment_label.setText("-")
+            return
+        
+        version = self.current_versions[current_row]
+        self.version_label.setText(version.version)
+        self.user_label.setText(version.user)
+        self.date_label.setText(version.date)
+        self.comment_label.setText(version.comment)
+    
+    def update_button_states(self):
+        """Update button enabled states"""
+        has_selection = self.version_table.currentRow() >= 0
+        has_entity = self.current_entity is not None
+        
+        self.publish_btn.setEnabled(has_entity)
+        self.import_btn.setEnabled(has_entity)
+        self.export_btn.setEnabled(has_entity)
+        self.open_btn.setEnabled(has_selection)
+        self.copy_btn.setEnabled(has_selection)
+        self.delete_btn.setEnabled(has_selection)
+    
+    def show_version_context_menu(self, position):
+        """Show context menu for version table - Prism style"""
+        menu = QMenu(self)
+        menu.setStyleSheet(f"""
+            QMenu {{
+                background-color: {COLORS['surface']};
+                color: {COLORS['fg']};
+                border: 1px solid {COLORS['outline']};
+                border-radius: 6px;
+                padding: 4px;
+            }}
+            QMenu::item {{
+                background-color: transparent;
+                padding: 8px 16px;
+                border-radius: 4px;
+                margin: 1px;
+            }}
+            QMenu::item:selected {{
+                background-color: {COLORS['accent']};
+                color: white;
+            }}
+            QMenu::separator {{
+                height: 1px;
+                background-color: {COLORS['outline']};
+                margin: 4px 8px;
+            }}
+        """)
+        
+        # Get selected version if any
+        current_row = self.version_table.currentRow()
+        has_selection = current_row >= 0 and current_row < len(self.current_versions)
+        
+        if has_selection:
+            version = self.current_versions[current_row]
+            
+            # Open with DCC app (if version has DCC app)
+            if version.dcc_app:
+                open_action = menu.addAction(f"🎨 Open with {version.dcc_app.title()}")
+                open_action.triggered.connect(lambda: self.open_version_with_dcc(version))
+                menu.addSeparator()
+            
+            # Version management actions
+            copy_action = menu.addAction("📋 Copy Version")
+            copy_action.triggered.connect(lambda: self.copy_version(version))
+            
+            delete_action = menu.addAction("🗑️ Delete Version")
+            delete_action.triggered.connect(lambda: self.delete_version(version))
+            
+            menu.addSeparator()
+        
+        # Version creation section (always available)
+        create_section = menu.addMenu("➕ Create Version")
+        create_section.setStyleSheet(f"""
+            QMenu {{
+                background-color: {COLORS['surface_high']};
+                color: {COLORS['fg']};
+                border: 1px solid {COLORS['outline']};
+                border-radius: 6px;
+                padding: 4px;
+            }}
+            QMenu::item {{
+                background-color: transparent;
+                padding: 8px 16px;
+                border-radius: 4px;
+                margin: 1px;
+            }}
+            QMenu::item:selected {{
+                background-color: {COLORS['accent']};
+                color: white;
+            }}
+        """)
+        
+        # Add DCC app creation options
+        self.add_dcc_creation_menu(create_section)
+        
+        # Additional Prism-style actions
+        menu.addSeparator()
+        
+        # Refresh action
+        refresh_action = menu.addAction("🔄 Refresh")
+        refresh_action.triggered.connect(self.load_versions)
+        
+        # Import action
+        import_action = menu.addAction("📥 Import Version")
+        import_action.triggered.connect(self.import_version)
+        
+        # Export action
+        export_action = menu.addAction("📤 Export Version")
+        export_action.triggered.connect(self.export_version)
+        
+        menu.exec(self.version_table.mapToGlobal(position))
+    
+    def add_dcc_creation_menu(self, parent_menu):
+        """Add DCC app creation options to menu - Prism style"""
+        from .main import get_current_controller
+        controller = get_current_controller()
+        if not controller or not controller.manager:
+            return
+        
+        # Get available DCC apps
+        dcc_apps = controller.manager.get_dcc_apps()
+        if not dcc_apps:
+            # Add placeholder if no DCC apps available
+            no_apps_action = parent_menu.addAction("⚠️ No DCC Apps Available")
+            no_apps_action.setEnabled(False)
+            return
+        
+        # DCC app icons and descriptions (Prism style)
+        app_info = {
+            "maya": {"icon": "🎨", "desc": "Autodesk Maya - 3D Animation & Modeling"},
+            "blender": {"icon": "🎭", "desc": "Blender - 3D Creation Suite"},
+            "houdini": {"icon": "🌀", "desc": "SideFX Houdini - 3D Animation & VFX"},
+            "nuke": {"icon": "🎬", "desc": "Foundry Nuke - Compositing"},
+            "3dsmax": {"icon": "📐", "desc": "3ds Max - 3D Modeling & Animation"},
+            "cinema4d": {"icon": "🎪", "desc": "Cinema 4D - 3D Motion Graphics"}
+        }
+        
+        for app in dcc_apps:
+            app_name = app['name']
+            display_name = app['display_name']
+            icon = app_info.get(app_name, {}).get('icon', '📁')
+            desc = app_info.get(app_name, {}).get('desc', display_name)
+            
+            # Create action with icon and description
+            action = parent_menu.addAction(f"{icon} {display_name}")
+            action.setToolTip(desc)
+            action.triggered.connect(lambda checked, app_name=app_name: self.create_dcc_version(app_name))
+    
+    def create_dcc_version(self, dcc_app: str):
+        """Create a new version with DCC app"""
+        if not self.current_entity:
+            return
+        
+        # Show create version dialog
+        dialog = CreateVersionDialog(dcc_app, self.current_entity, self, self.current_task)
+        if dialog.exec() == QDialog.DialogCode.Accepted:
+            # Reload versions
+            self.load_versions()
+    
+    def open_version_with_dcc(self, version):
+        """Open version with its DCC app"""
+        from .main import get_current_controller
+        controller = get_current_controller()
+        if not controller or not controller.manager:
+            return
+        
+        controller.manager.launch_dcc_app(
+            version.dcc_app, 
+            self.current_entity, 
+            version.task_name, 
+            version.version
+        )
+    
+    def copy_version(self, version):
+        """Copy version to clipboard or file"""
+        from PyQt6.QtWidgets import QApplication, QFileDialog
+        
+        # Show copy options dialog
+        reply = QMessageBox.question(
+            self,
+            "Copy Version",
+            f"Copy version {version.version}?\n\nChoose copy method:",
+            QMessageBox.StandardButton.Cancel,
+            QMessageBox.StandardButton.NoButton
+        )
+        
+        # Add custom buttons
+        copy_path_btn = QMessageBox.StandardButton.Yes
+        copy_file_btn = QMessageBox.StandardButton.No
+        
+        msg_box = QMessageBox(self)
+        msg_box.setWindowTitle("Copy Version")
+        msg_box.setText(f"Copy version {version.version}?")
+        msg_box.setInformativeText("Choose copy method:")
+        
+        copy_path_action = msg_box.addButton("Copy Path", QMessageBox.ButtonRole.ActionRole)
+        copy_file_action = msg_box.addButton("Copy File", QMessageBox.ButtonRole.ActionRole)
+        cancel_action = msg_box.addButton("Cancel", QMessageBox.ButtonRole.RejectRole)
+        
+        msg_box.exec()
+        
+        if msg_box.clickedButton() == copy_path_action:
+            # Copy path to clipboard
+            clipboard = QApplication.clipboard()
+            clipboard.setText(version.path)
+            QMessageBox.information(self, "Copied", "Version path copied to clipboard")
+            
+        elif msg_box.clickedButton() == copy_file_action:
+            # Copy file to new location
+            file_path, _ = QFileDialog.getSaveFileName(
+                self,
+                "Save Version Copy",
+                f"{version.version}_copy{os.path.splitext(version.path)[1]}",
+                f"All Files (*.*)"
+            )
+            
+            if file_path:
+                try:
+                    import shutil
+                    shutil.copy2(version.path, file_path)
+                    QMessageBox.information(self, "Success", f"Version copied to:\n{file_path}")
+                except Exception as e:
+                    QMessageBox.critical(self, "Error", f"Failed to copy file: {str(e)}")
+    
+    def delete_version(self, version):
+        """Delete version"""
+        reply = QMessageBox.question(
+            self, 
+            "Delete Version", 
+            f"Are you sure you want to delete version {version.version}?\n\nThis will permanently delete the version and its files.",
+            QMessageBox.StandardButton.Yes | QMessageBox.StandardButton.No
+        )
+        
+        if reply == QMessageBox.StandardButton.Yes:
+            try:
+                # Get controller and manager
+                from .main import get_current_controller
+                controller = get_current_controller()
+                if not controller or not controller.manager:
+                    QMessageBox.critical(self, "Error", "No project manager available")
+                    return
+                
+                # Delete version files
+                if os.path.exists(version.path):
+                    os.remove(version.path)
+                
+                if version.workfile_path and os.path.exists(version.workfile_path):
+                    os.remove(version.workfile_path)
+                
+                if version.thumbnail and os.path.exists(version.thumbnail):
+                    os.remove(version.thumbnail)
+                
+                # Remove from project
+                versions = controller.manager.current_project.get_versions(self.current_entity)
+                versions.remove(version)
+                controller.manager.save_project()
+                
+                # Reload versions
+                self.load_versions()
+                
+                QMessageBox.information(self, "Success", f"Version {version.version} deleted successfully")
+                
+            except Exception as e:
+                QMessageBox.critical(self, "Error", f"Failed to delete version: {str(e)}")
+    
+    def on_publish_clicked(self):
+        """Handle publish button click"""
+        # TODO: Implement publishing
+        pass
+    
+    def on_import_clicked(self):
+        """Handle import button click"""
+        # TODO: Implement import
+        pass
+    
+    def on_export_clicked(self):
+        """Handle export button click"""
+        # TODO: Implement export
+        pass
+    
+    def on_open_clicked(self):
+        """Handle open button click"""
+        current_row = self.version_table.currentRow()
+        if current_row >= 0 and current_row < len(self.current_versions):
+            version = self.current_versions[current_row]
+            self.open_version_with_dcc(version)
+    
+    def on_copy_clicked(self):
+        """Handle copy button click"""
+        current_row = self.version_table.currentRow()
+        if current_row >= 0 and current_row < len(self.current_versions):
+            version = self.current_versions[current_row]
+            self.copy_version(version)
+    
+    def on_delete_clicked(self):
+        """Handle delete button click"""
+        current_row = self.version_table.currentRow()
+        if current_row >= 0 and current_row < len(self.current_versions):
+            version = self.current_versions[current_row]
+            self.delete_version(version)
+    
+    def import_version(self):
+        """Import version from file - Prism style"""
+        from PyQt6.QtWidgets import QFileDialog
+        
+        if not self.current_entity:
+            QMessageBox.warning(self, "No Selection", "Please select an asset first")
+            return
+        
+        # Get file filter for all supported DCC files
+        file_filter = "All DCC Files ("
+        dcc_extensions = [".ma", ".mb", ".blend", ".hip", ".hipnc", ".nk", ".max", ".c4d"]
+        file_filter += " ".join(f"*{ext}" for ext in dcc_extensions)
+        file_filter += ");;Maya Files (*.ma *.mb);;Blender Files (*.blend);;Houdini Files (*.hip *.hipnc);;Nuke Files (*.nk);;3ds Max Files (*.max);;Cinema 4D Files (*.c4d);;All Files (*.*)"
+        
+        file_path, _ = QFileDialog.getOpenFileName(
+            self,
+            "Import Version",
+            "",
+            file_filter
+        )
+        
+        if file_path:
+            try:
+                # Determine DCC app from file extension
+                ext = Path(file_path).suffix.lower()
+                dcc_map = {
+                    ".ma": "maya", ".mb": "maya",
+                    ".blend": "blender",
+                    ".hip": "houdini", ".hipnc": "houdini",
+                    ".nk": "nuke",
+                    ".max": "3dsmax",
+                    ".c4d": "cinema4d"
+                }
+                
+                dcc_app = dcc_map.get(ext, "unknown")
+                
+                # Show import dialog
+                dialog = ImportVersionDialog(dcc_app, self.current_entity, file_path, self)
+                if dialog.exec() == QDialog.DialogCode.Accepted:
+                    self.load_versions()
+                    
+            except Exception as e:
+                QMessageBox.critical(self, "Import Error", f"Failed to import version: {str(e)}")
+    
+    def export_version(self):
+        """Export selected version - Prism style"""
+        current_row = self.version_table.currentRow()
+        if current_row < 0 or current_row >= len(self.current_versions):
+            QMessageBox.warning(self, "No Selection", "Please select a version to export")
+            return
+        
+        version = self.current_versions[current_row]
+        
+        from PyQt6.QtWidgets import QFileDialog
+        
+        # Get suggested filename
+        suggested_name = f"{self.current_entity}_{version.version}_export{Path(version.path).suffix}"
+        
+        file_path, _ = QFileDialog.getSaveFileName(
+            self,
+            "Export Version",
+            suggested_name,
+            f"All Files (*.*);;{Path(version.path).suffix.upper()} Files (*{Path(version.path).suffix})"
+        )
+        
+        if file_path:
+            try:
+                import shutil
+                shutil.copy2(version.path, file_path)
+                QMessageBox.information(self, "Export Success", f"Version exported to:\n{file_path}")
+            except Exception as e:
+                QMessageBox.critical(self, "Export Error", f"Failed to export version: {str(e)}")
+
+
+class ImportVersionDialog(QDialog):
+    """Dialog for importing existing files as versions - Prism style"""
+    
+    def __init__(self, dcc_app: str, entity_name: str, file_path: str, parent=None):
+        super().__init__(parent)
+        self.dcc_app = dcc_app
+        self.entity_name = entity_name
+        self.file_path = file_path
+        self.setWindowTitle(f"Import Version - {dcc_app.title()}")
+        self.setModal(True)
+        self.setup_ui()
+    
+    def setup_ui(self):
+        layout = QVBoxLayout(self)
+        layout.setContentsMargins(20, 20, 20, 20)
+        layout.setSpacing(15)
+        
+        # Title
+        title_label = QLabel(f"Import Version")
+        title_label.setStyleSheet(f"""
+            QLabel {{
+                font-size: 18px;
+                font-weight: 700;
+                color: {COLORS['fg']};
+                margin-bottom: 10px;
+            }}
+        """)
+        layout.addWidget(title_label)
+        
+        # File info
+        file_info = QLabel(f"File: {os.path.basename(self.file_path)}")
+        file_info.setStyleSheet(f"""
+            QLabel {{
+                font-size: 14px;
+                color: {COLORS['fg_variant']};
+                background-color: {COLORS['surface']};
+                padding: 8px 12px;
+                border-radius: 6px;
+                border: 1px solid {COLORS['outline']};
+            }}
+        """)
+        layout.addWidget(file_info)
+        
+        # DCC app info
+        dcc_info = QLabel(f"DCC App: {self.dcc_app.title()}")
+        dcc_info.setStyleSheet(f"""
+            QLabel {{
+                font-size: 14px;
+                color: {COLORS['fg_variant']};
+                background-color: {COLORS['surface']};
+                padding: 8px 12px;
+                border-radius: 6px;
+                border: 1px solid {COLORS['outline']};
+            }}
+        """)
+        layout.addWidget(dcc_info)
+        
+        # Form layout
+        form_layout = QFormLayout()
+        form_layout.setSpacing(10)
+        
+        # Task name
+        self.task_name_edit = QLineEdit()
+        self.task_name_edit.setPlaceholderText("Enter task name (e.g., modeling, animation)")
+        self.task_name_edit.setText("modeling")  # Default task
+        form_layout.addRow("Task Name:", self.task_name_edit)
+        
+        # User name
+        self.user_edit = QLineEdit()
+        self.user_edit.setPlaceholderText("Enter your name")
+        self.user_edit.setText("User")  # Default user
+        form_layout.addRow("User:", self.user_edit)
+        
+        # Comment
+        self.comment_edit = QTextEdit()
+        self.comment_edit.setPlaceholderText("Enter version comment (optional)")
+        self.comment_edit.setMaximumHeight(80)
+        form_layout.addRow("Comment:", self.comment_edit)
+        
+        layout.addLayout(form_layout)
+        
+        # Buttons
+        button_layout = QHBoxLayout()
+        button_layout.addStretch()
+        
+        cancel_btn = QPushButton("Cancel")
+        cancel_btn.clicked.connect(self.reject)
+        
+        import_btn = QPushButton("Import Version")
+        import_btn.setProperty("class", "primary")
+        import_btn.clicked.connect(self.import_version)
+        
+        # Style buttons
+        for btn in [cancel_btn, import_btn]:
+            btn.setStyleSheet(f"""
+                QPushButton {{
+                    background-color: {COLORS['accent']};
+                    color: white;
+                    border: 1px solid {COLORS['accent']};
+                    border-radius: 6px;
+                    padding: 8px 16px;
+                    font-size: 12px;
+                    font-weight: 500;
+                    min-width: 100px;
+                }}
+                QPushButton:hover {{
+                    background-color: {COLORS['accent_hover']};
+                    border: 1px solid {COLORS['accent_hover']};
+                }}
+                QPushButton:pressed {{
+                    background-color: {COLORS['accent_active']};
+                    border: 1px solid {COLORS['accent_active']};
+                }}
+            """)
+        
+        button_layout.addWidget(cancel_btn)
+        button_layout.addWidget(import_btn)
+        layout.addLayout(button_layout)
+    
+    def import_version(self):
+        """Import the version"""
+        task_name = self.task_name_edit.text().strip()
+        user = self.user_edit.text().strip()
+        comment = self.comment_edit.toPlainText().strip()
+        
+        if not task_name:
+            QMessageBox.warning(self, "Invalid Input", "Task name is required")
+            return
+        
+        if not user:
+            QMessageBox.warning(self, "Invalid Input", "User name is required")
+            return
+        
+        try:
+            # Get controller and create version
+            from .main import get_current_controller
+            controller = get_current_controller()
+            if not controller or not controller.manager:
+                QMessageBox.critical(self, "Error", "No project manager available")
+                return
+            
+            version = controller.manager.create_dcc_version(
+                self.entity_name,
+                self.dcc_app,
+                task_name,
+                user,
+                comment,
+                self.file_path
+            )
+            
+            QMessageBox.information(
+                self, 
+                "Success", 
+                f"Imported version {version.version} successfully!"
+            )
+            
+            self.accept()
+            
+        except Exception as e:
+            QMessageBox.critical(self, "Error", f"Failed to import version: {str(e)}")
+
+
+class CreateVersionDialog(QDialog):
+    """Dialog for creating new versions with DCC apps"""
+    
+    def __init__(self, dcc_app: str, entity_name: str, parent=None, current_task: str = None):
+        super().__init__(parent)
+        self.dcc_app = dcc_app
+        self.entity_name = entity_name
+        self.current_task = current_task
+        self.setWindowTitle(f"Create Version with {dcc_app.title()}")
+        self.setModal(True)
+        self.setup_ui()
+    
+    def setup_ui(self):
+        layout = QVBoxLayout(self)
+        layout.setContentsMargins(20, 20, 20, 20)
+        layout.setSpacing(15)
+        
+        # Title
+        title_label = QLabel(f"Create New Version")
+        title_label.setStyleSheet(f"""
+            QLabel {{
+                font-size: 18px;
+                font-weight: 700;
+                color: {COLORS['fg']};
+                margin-bottom: 10px;
+            }}
+        """)
+        layout.addWidget(title_label)
+        
+        # Entity info
+        entity_info = QLabel(f"Entity: {self.entity_name}")
+        entity_info.setStyleSheet(f"""
+            QLabel {{
+                font-size: 14px;
+                color: {COLORS['fg_variant']};
+                background-color: {COLORS['surface']};
+                padding: 8px 12px;
+                border-radius: 6px;
+                border: 1px solid {COLORS['outline']};
+            }}
+        """)
+        layout.addWidget(entity_info)
+        
+        # DCC app info
+        dcc_info = QLabel(f"DCC App: {self.dcc_app.title()}")
+        dcc_info.setStyleSheet(f"""
+            QLabel {{
+                font-size: 14px;
+                color: {COLORS['fg_variant']};
+                background-color: {COLORS['surface']};
+                padding: 8px 12px;
+                border-radius: 6px;
+                border: 1px solid {COLORS['outline']};
+            }}
+        """)
+        layout.addWidget(dcc_info)
+        
+        # Form layout
+        form_layout = QFormLayout()
+        form_layout.setSpacing(10)
+        
+        # Task name
+        self.task_name_edit = QLineEdit()
+        self.task_name_edit.setPlaceholderText("Enter task name (e.g., modeling, animation)")
+        if self.current_task:
+            self.task_name_edit.setText(self.current_task)
+        else:
+            self.task_name_edit.setText("modeling")  # Default task
+        form_layout.addRow("Task Name:", self.task_name_edit)
+        
+        # User name
+        self.user_edit = QLineEdit()
+        self.user_edit.setPlaceholderText("Enter your name")
+        self.user_edit.setText("User")  # Default user
+        form_layout.addRow("User:", self.user_edit)
+        
+        # Comment
+        self.comment_edit = QTextEdit()
+        self.comment_edit.setPlaceholderText("Enter version comment (optional)")
+        self.comment_edit.setMaximumHeight(80)
+        form_layout.addRow("Comment:", self.comment_edit)
+        
+        # Workfile path (optional)
+        workfile_layout = QHBoxLayout()
+        self.workfile_edit = QLineEdit()
+        self.workfile_edit.setPlaceholderText("Optional: specify workfile path")
+        workfile_layout.addWidget(self.workfile_edit)
+        
+        browse_btn = QPushButton("Browse...")
+        browse_btn.clicked.connect(self.browse_workfile)
+        workfile_layout.addWidget(browse_btn)
+        
+        form_layout.addRow("Workfile:", workfile_layout)
+        
+        layout.addLayout(form_layout)
+        
+        # Buttons
+        button_layout = QHBoxLayout()
+        button_layout.addStretch()
+        
+        cancel_btn = QPushButton("Cancel")
+        cancel_btn.clicked.connect(self.reject)
+        
+        create_btn = QPushButton("Create Version")
+        create_btn.setProperty("class", "primary")
+        create_btn.clicked.connect(self.create_version)
+        
+        # Style buttons
+        for btn in [cancel_btn, create_btn]:
+            btn.setStyleSheet(f"""
+                QPushButton {{
+                    background-color: {COLORS['accent']};
+                    color: white;
+                    border: 1px solid {COLORS['accent']};
+                    border-radius: 6px;
+                    padding: 8px 16px;
+                    font-size: 12px;
+                    font-weight: 500;
+                    min-width: 100px;
+                }}
+                QPushButton:hover {{
+                    background-color: {COLORS['accent_hover']};
+                    border: 1px solid {COLORS['accent_hover']};
+                }}
+                QPushButton:pressed {{
+                    background-color: {COLORS['accent_active']};
+                    border: 1px solid {COLORS['accent_active']};
+                }}
+            """)
+        
+        button_layout.addWidget(cancel_btn)
+        button_layout.addWidget(create_btn)
+        layout.addLayout(button_layout)
+    
+    def browse_workfile(self):
+        """Browse for workfile"""
+        from PyQt6.QtWidgets import QFileDialog
+        
+        # Get file filter for DCC app
+        from .main import get_current_controller
+        controller = get_current_controller()
+        if controller and controller.manager:
+            dcc_apps = controller.manager.get_dcc_apps()
+            for app in dcc_apps:
+                if app['name'] == self.dcc_app:
+                    file_filter = f"{app['display_name']} Files ({' '.join(f'*{ext}' for ext in app['file_extensions'])})"
+                    break
+            else:
+                file_filter = "All Files (*.*)"
+        else:
+            file_filter = "All Files (*.*)"
+        
+        file_path, _ = QFileDialog.getOpenFileName(
+            self, 
+            f"Select {self.dcc_app.title()} Workfile",
+            "",
+            file_filter
+        )
+        
+        if file_path:
+            self.workfile_edit.setText(file_path)
+    
+    def create_version(self):
+        """Create the version"""
+        task_name = self.task_name_edit.text().strip()
+        user = self.user_edit.text().strip()
+        comment = self.comment_edit.toPlainText().strip()
+        workfile_path = self.workfile_edit.text().strip() or None
+        
+        if not task_name:
+            QMessageBox.warning(self, "Invalid Input", "Task name is required")
+            return
+        
+        if not user:
+            QMessageBox.warning(self, "Invalid Input", "User name is required")
+            return
+        
+        try:
+            # Get controller and create version
+            from .main import get_current_controller
+            controller = get_current_controller()
+            if not controller or not controller.manager:
+                QMessageBox.critical(self, "Error", "No project manager available")
+                return
+            
+            version = controller.manager.create_dcc_version(
+                self.entity_name,
+                self.dcc_app,
+                task_name,
+                user,
+                comment,
+                workfile_path
+            )
+            
+            QMessageBox.information(
+                self, 
+                "Success", 
+                f"Created version {version.version} successfully!"
+            )
+            
+            self.accept()
+            
+        except Exception as e:
+            QMessageBox.critical(self, "Error", f"Failed to create version: {str(e)}")
 
 
 class PublishDialog(QWidget):

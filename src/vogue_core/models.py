@@ -52,6 +52,11 @@ class Version:
     comment: str = ""
     path: str = ""
     thumbnail: Optional[str] = None
+    dcc_app: Optional[str] = None  # DCC application used (maya, blender, etc.)
+    task_name: str = ""  # Task this version belongs to
+    workfile_path: Optional[str] = None  # Original workfile path
+    status: str = "WIP"  # WIP, Review, Approved, Published
+    tags: List[str] = field(default_factory=list)  # Version tags
     
     def __post_init__(self):
         """Validate version format"""
@@ -65,6 +70,32 @@ class Version:
                 raise ValueError(f"Version number must be >= 1, got: {version_num}")
         except (ValueError, IndexError):
             raise ValueError(f"Invalid version format: {self.version}")
+    
+    def get_thumbnail_path(self, project_path: str) -> str:
+        """Get thumbnail path for this version"""
+        if self.thumbnail:
+            return self.thumbnail
+        
+        # Generate thumbnail path based on version path
+        if self.path:
+            thumb_dir = os.path.join(project_path, "thumbnails", "versions")
+            os.makedirs(thumb_dir, exist_ok=True)
+            version_name = os.path.splitext(os.path.basename(self.path))[0]
+            return os.path.join(thumb_dir, f"{version_name}_thumb.png")
+        
+        return ""
+    
+    def get_dcc_app_icon(self) -> str:
+        """Get icon for the DCC app used"""
+        icon_map = {
+            "maya": "🎨",
+            "blender": "🎭",
+            "houdini": "🌀", 
+            "nuke": "🎬",
+            "3dsmax": "📐",
+            "cinema4d": "🎪"
+        }
+        return icon_map.get(self.dcc_app or "", "📁")
 
 
 @dataclass

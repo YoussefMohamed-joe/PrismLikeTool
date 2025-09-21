@@ -18,6 +18,7 @@ from .fs import (
     scan_filesystem_for_versions
 )
 from .logging_utils import get_logger
+from .dcc_integration import dcc_manager
 
 
 class ProjectManager:
@@ -301,6 +302,131 @@ class ProjectManager:
         
         self.logger.info(f"Added version {version} for {entity_key} by {user}")
         return version_obj
+    
+    def create_dcc_version(self, entity_key: str, dcc_app: str, task_name: str, 
+                          user: str, comment: str = "", workfile_path: str = None) -> Version:
+        """
+        Create a new version using a DCC application
+        
+        Args:
+            entity_key: Asset name or "sequence/shot" for shots
+            dcc_app: DCC application name (maya, blender, etc.)
+            task_name: Task name for this version
+            user: User name
+            comment: Version comment
+            workfile_path: Optional workfile path to use
+            
+        Returns:
+            Created Version object
+        """
+        if self.current_project is None:
+            raise ValueError("No project loaded")
+        
+        # Get DCC app info
+        app = dcc_manager.get_app(dcc_app)
+        if not app:
+            raise ValueError(f"DCC app '{dcc_app}' not found")
+        
+        # Get existing versions to determine next version
+        existing_versions = [v.version for v in self.current_project.get_versions(entity_key)]
+        version_str = next_version(existing_versions)
+        version_num = int(version_str[1:])  # Extract number from v001
+        
+        # Create workfile path if not provided
+        if not workfile_path:
+            workfile_path = dcc_manager.create_workfile_path(
+                dcc_app, entity_key, task_name, version_num, self.current_project.path
+            )
+        
+        # Get canonical version path
+        canonical_path = get_canonical_version_path(self.current_project.path, entity_key, version_str)
+        
+        # Copy workfile to canonical location
+        copy_version_file(workfile_path, canonical_path)
+        
+        # Generate thumbnail
+        thumbnail_path = ""
+        if os.path.exists(workfile_path):
+            thumbnail_path = os.path.join(
+                self.current_project.path, 
+                "thumbnails", 
+                "versions", 
+                f"{os.path.splitext(os.path.basename(canonical_path))[0]}_thumb.png"
+            )
+            os.makedirs(os.path.dirname(thumbnail_path), exist_ok=True)
+            dcc_manager.generate_thumbnail(workfile_path, thumbnail_path)
+        
+        # Create version object
+        version_obj = Version(
+            version=version_str,
+            user=user,
+            date=datetime.now().isoformat(),
+            comment=comment,
+            path=canonical_path,
+            dcc_app=dcc_app,
+            task_name=task_name,
+            workfile_path=workfile_path,
+            thumbnail=thumbnail_path,
+            status="WIP"
+        )
+        
+        # Add to project
+        self.current_project.add_version(entity_key, version_obj)
+        
+        # Save project
+        self.save_project()
+        
+        self.logger.info(f"Created DCC version {version_str} for {entity_key} using {app.display_name}")
+        return version_obj
+    
+    def launch_dcc_app(self, dcc_app: str, entity_key: str = None, 
+                      task_name: str = None, version: str = None) -> bool:
+        """
+        Launch DCC application with optional workfile
+        
+        Args:
+            dcc_app: DCC application name
+            entity_key: Optional entity to open
+            task_name: Optional task name
+            version: Optional version to open
+            
+        Returns:
+            True if launched successfully
+        """
+        if self.current_project is None:
+            self.logger.error("No project loaded")
+            return False
+        
+        workfile_path = None
+        
+        # If entity and version specified, find the workfile
+        if entity_key and version:
+            versions = self.current_project.get_versions(entity_key)
+            for v in versions:
+                if v.version == version and v.dcc_app == dcc_app:
+                    workfile_path = v.workfile_path or v.path
+                    break
+        
+        # Launch the DCC app
+        return dcc_manager.launch_app(
+            dcc_app, 
+            workfile_path, 
+            self.current_project.path
+        )
+    
+    def get_dcc_apps(self) -> List[Dict[str, Any]]:
+        """Get list of available DCC applications"""
+        apps = dcc_manager.list_apps()
+        return [
+            {
+                "name": app.name,
+                "display_name": app.display_name,
+                "executable_path": app.executable_path,
+                "file_extensions": app.file_extensions,
+                "icon": app.get_dcc_app_icon()
+            }
+            for app in apps
+        ]
     
     def scan_filesystem(self, update_missing: bool = True) -> None:
         """

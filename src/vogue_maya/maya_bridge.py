@@ -1,340 +1,350 @@
 """
-Maya bridge utilities for Vogue Manager
+Maya Bridge for Vogue Manager
 
-Provides Maya-safe wrappers for Maya commands and UI operations.
+Provides integration with Autodesk Maya for workfile management,
+version creation, and scene operations.
 """
 
 import os
 import sys
+import json
+import subprocess
 from pathlib import Path
-from typing import Optional
-
-# Maya imports with error handling
-try:
-    import maya.cmds as cmds
-    import maya.OpenMayaUI as omui
-    from maya import mel
-    MAYA_AVAILABLE = True
-except ImportError:
-    MAYA_AVAILABLE = False
-    # Create dummy functions for when Maya is not available
-    def cmds():
-        pass
-    def omui():
-        pass
-    def mel():
-        pass
-
-try:
-    from PySide2.QtWidgets import QWidget
-    from PySide2.QtCore import Qt
-    from shiboken2 import wrapInstance
-    PYSIDE2_AVAILABLE = True
-except ImportError:
-    try:
-        from PyQt5.QtWidgets import QWidget
-        from PyQt5.QtCore import Qt
-        from sip import wrapinstance as wrapInstance
-        PYSIDE2_AVAILABLE = True
-    except ImportError:
-        PYSIDE2_AVAILABLE = False
-        def wrapInstance(*args, **kwargs):
-            return None
+from typing import Dict, List, Optional, Any
+from datetime import datetime
 
 from ..vogue_core.logging_utils import get_logger
 
 
-def open_scene(file_path: str, force: bool = True) -> bool:
-    """
-    Open a Maya scene file
+class MayaBridge:
+    """Bridge for Maya integration"""
     
-    Args:
-        file_path: Path to the Maya scene file
-        force: Whether to force open (close current scene without saving)
-        
-    Returns:
-        True if successful, False otherwise
-    """
-    if not MAYA_AVAILABLE:
-        get_logger("MayaBridge").error("Maya not available")
-        return False
+    def __init__(self):
+        self.logger = get_logger("MayaBridge")
+        self.maya_python_path = None
+        self._find_maya_python()
     
-    try:
-        # Check if file exists
-        if not os.path.exists(file_path):
-            get_logger("MayaBridge").error(f"File does not exist: {file_path}")
-            return False
+    def _find_maya_python(self):
+        """Find Maya's Python executable"""
+        maya_versions = ["2024", "2023", "2022", "2021", "2020"]
         
-        # Open the scene
-        if force:
-            cmds.file(file_path, open=True, force=True)
+        for version in maya_versions:
+            # Windows paths
+            if sys.platform == "win32":
+                python_paths = [
+                    f"C:\\Program Files\\Autodesk\\Maya{version}\\bin\\mayapy.exe",
+                    f"C:\\Program Files\\Autodesk\\Maya{version}\\bin\\mayapy.bat"
+                ]
+            # macOS paths
+            elif sys.platform == "darwin":
+                python_paths = [
+                    f"/Applications/Autodesk/maya{version}/Maya.app/Contents/Frameworks/Python.framework/Versions/Current/bin/python"
+                ]
+            # Linux paths
         else:
-            cmds.file(file_path, open=True)
+                python_paths = [
+                    f"/usr/autodesk/maya{version}/bin/mayapy"
+                ]
+            
+            for path in python_paths:
+                if os.path.exists(path):
+                    self.maya_python_path = path
+                    self.logger.info(f"Found Maya Python at: {path}")
+                    return
         
-        get_logger("MayaBridge").info(f"Opened scene: {file_path}")
-        return True
+        self.logger.warning("Maya Python not found")
+    
+    def is_available(self) -> bool:
+        """Check if Maya is available"""
+        return self.maya_python_path is not None
+    
+    def create_workfile(self, project_path: str, entity_name: str, 
+                       task_name: str, version: int) -> str:
+        """Create a new Maya workfile"""
+        if not self.is_available():
+            raise RuntimeError("Maya is not available")
+        
+        # Create workfile directory
+        workfile_dir = os.path.join(project_path, "workfiles", entity_name, task_name)
+        os.makedirs(workfile_dir, exist_ok=True)
+        
+        # Generate workfile name
+        workfile_name = f"{entity_name}_{task_name}_v{version:03d}.ma"
+        workfile_path = os.path.join(workfile_dir, workfile_name)
+        
+        # Create Maya script to generate workfile
+        maya_script = self._generate_workfile_script(workfile_path, project_path)
+        
+        try:
+            # Execute Maya script
+            result = subprocess.run(
+                [self.maya_python_path, "-c", maya_script],
+                capture_output=True,
+                text=True,
+                timeout=30
+            )
+            
+            if result.returncode != 0:
+                raise RuntimeError(f"Maya script failed: {result.stderr}")
+            
+            self.logger.info(f"Created Maya workfile: {workfile_path}")
+            return workfile_path
+            
+        except subprocess.TimeoutExpired:
+            raise RuntimeError("Maya script timed out")
+    except Exception as e:
+            raise RuntimeError(f"Failed to create Maya workfile: {e}")
+    
+    def _generate_workfile_script(self, workfile_path: str, project_path: str) -> str:
+        """Generate Maya script to create workfile"""
+        return f'''
+import maya.cmds as cmds
+import maya.mel as mel
+import os
+import json
+from datetime import datetime
+
+try:
+    # Set project
+    cmds.workspace(project_path, openWorkspace=True)
+    
+    # Create a new scene
+    cmds.file(new=True, force=True)
+    
+    # Set up basic scene
+    cmds.currentUnit(time='film')
+    cmds.currentUnit(linear='cm')
+    
+    # Create basic scene structure
+    cmds.group(empty=True, name='ROOT')
+    cmds.group(empty=True, name='GEO', parent='ROOT')
+    cmds.group(empty=True, name='LIGHTS', parent='ROOT')
+    cmds.group(empty=True, name='CAMERAS', parent='ROOT')
+    
+    # Add project metadata
+    metadata = {{
+        'project_path': '{project_path}',
+        'workfile_path': '{workfile_path}',
+        'created_date': datetime.now().isoformat(),
+        'maya_version': cmds.about(version=True),
+        'created_by': 'Vogue Manager'
+    }}
+    
+    # Store metadata as custom attribute on ROOT
+    if not cmds.attributeQuery('vogue_metadata', node='ROOT', exists=True):
+        cmds.addAttr('ROOT', longName='vogue_metadata', dataType='string')
+    
+    cmds.setAttr('ROOT.vogue_metadata', json.dumps(metadata), type='string')
+    
+    # Save the file
+    cmds.file(rename='{workfile_path}')
+    cmds.file(save=True, type='mayaAscii')
+    
+    print("SUCCESS: Workfile created successfully")
         
     except Exception as e:
-        get_logger("MayaBridge").error(f"Failed to open scene {file_path}: {e}")
+    print(f"ERROR: {{e}}")
+    sys.exit(1)
+'''
+    
+    def get_scene_info(self, workfile_path: str) -> Dict[str, Any]:
+        """Get information about a Maya scene"""
+        if not self.is_available():
+            return {}
+        
+        maya_script = f'''
+import maya.cmds as cmds
+import json
+import os
+
+try:
+    # Open the file
+    if os.path.exists('{workfile_path}'):
+        cmds.file('{workfile_path}', open=True, force=True)
+        
+        # Get scene info
+        info = {{
+            'file_path': '{workfile_path}',
+            'file_size': os.path.getsize('{workfile_path}'),
+            'maya_version': cmds.about(version=True),
+            'scene_units': {{
+                'time': cmds.currentUnit(time=True, query=True),
+                'linear': cmds.currentUnit(linear=True, query=True),
+                'angular': cmds.currentUnit(angular=True, query=True)
+            }},
+            'objects': {{
+                'total': len(cmds.ls()),
+                'transforms': len(cmds.ls(type='transform')),
+                'meshes': len(cmds.ls(type='mesh')),
+                'lights': len(cmds.ls(type='light')),
+                'cameras': len(cmds.ls(type='camera'))
+            }},
+            'materials': len(cmds.ls(mat=True)),
+            'textures': len(cmds.ls(type='file'))
+        }}
+        
+        # Get metadata if available
+        try:
+            if cmds.attributeQuery('vogue_metadata', node='ROOT', exists=True):
+                metadata_str = cmds.getAttr('ROOT.vogue_metadata')
+                info['metadata'] = json.loads(metadata_str)
+        except:
+            pass
+        
+        print(json.dumps(info))
+        
+    else:
+        print(json.dumps({{'error': 'File not found'}}))
+        
+except Exception as e:
+    print(json.dumps({{'error': str(e)}}))
+'''
+        
+        try:
+            result = subprocess.run(
+                [self.maya_python_path, "-c", maya_script],
+                capture_output=True,
+                text=True,
+                timeout=30
+            )
+            
+            if result.returncode == 0:
+                return json.loads(result.stdout)
+        else:
+                return {"error": result.stderr}
+        
+    except Exception as e:
+            return {"error": str(e)}
+    
+    def generate_thumbnail(self, workfile_path: str, output_path: str, 
+                          size: tuple = (256, 256)) -> bool:
+        """Generate thumbnail for Maya scene"""
+        if not self.is_available():
         return False
 
+        maya_script = f'''
+import maya.cmds as cmds
+import maya.mel as mel
+import os
 
-def maya_main_window() -> Optional[QWidget]:
-    """
-    Get the Maya main window as a QWidget
-    
-    Returns:
-        Maya main window widget or None if not available
-    """
-    if not MAYA_AVAILABLE or not PYSIDE2_AVAILABLE:
-        return None
-    
-    try:
-        # Get Maya main window
-        maya_window = omui.MQtUtil.mainWindow()
-        if maya_window is None:
-            return None
+try:
+    # Open the file
+    if os.path.exists('{workfile_path}'):
+        cmds.file('{workfile_path}', open=True, force=True)
         
-        # Convert to QWidget
-        maya_widget = wrapInstance(int(maya_window), QWidget)
-        return maya_widget
+        # Set up viewport
+        cmds.currentUnit(time='film')
         
-    except Exception as e:
-        get_logger("MayaBridge").error(f"Failed to get Maya main window: {e}")
-        return None
-
-
-def create_dock_widget(widget_class, title: str, area: int = 1) -> Optional[str]:
-    """
-    Create a dockable widget in Maya
-    
-    Args:
-        widget_class: Widget class to dock
-        title: Dock widget title
-        area: Dock area (1=right, 2=left, 3=top, 4=bottom)
+        # Frame all objects
+        cmds.viewFit()
         
-    Returns:
-        Dock control name or None if failed
-    """
-    if not MAYA_AVAILABLE:
-        return None
-    
-    try:
-        # Create dock control
-        dock_control = cmds.dockControl(
-            title=title,
-            area=area,
-            content=widget_class.__name__,
-            allowedArea=[1, 2, 3, 4],
-            width=400,
-            height=600
+        # Set up camera for thumbnail
+        if not cmds.ls('thumbnail_cam'):
+            cmds.camera(name='thumbnail_cam')
+        
+        cmds.lookThru('thumbnail_cam')
+        cmds.viewFit()
+        
+        # Set render settings
+        cmds.setAttr('defaultResolution.width', {size[0]})
+        cmds.setAttr('defaultResolution.height', {size[1]})
+        cmds.setAttr('defaultResolution.pixelAspect', 1.0)
+        
+        # Render thumbnail
+        output_dir = os.path.dirname('{output_path}')
+        os.makedirs(output_dir, exist_ok=True)
+        
+        # Use Maya's playblast for thumbnail
+        cmds.playblast(
+            format='image',
+            filename='{output_path}',
+            sequenceTime=False,
+            clearCache=True,
+            viewer=False,
+            showOrnaments=False,
+            frame=[1],
+            width={size[0]},
+            height={size[1]},
+            percent=100,
+            quality=70
         )
         
-        get_logger("MayaBridge").info(f"Created dock widget: {title}")
-        return dock_control
+        print("SUCCESS: Thumbnail generated")
+        
+    else:
+        print("ERROR: File not found")
         
     except Exception as e:
-        get_logger("MayaBridge").error(f"Failed to create dock widget: {e}")
-        return None
-
-
-def delete_dock_widget(dock_control: str) -> bool:
-    """
-    Delete a dock widget
-    
-    Args:
-        dock_control: Dock control name
+    print(f"ERROR: {{e}}")
+'''
         
-    Returns:
-        True if successful, False otherwise
-    """
-    if not MAYA_AVAILABLE:
-        return False
-    
-    try:
-        if cmds.dockControl(dock_control, exists=True):
-            cmds.deleteUI(dock_control)
-            get_logger("MayaBridge").info(f"Deleted dock widget: {dock_control}")
-            return True
-        return False
-        
-    except Exception as e:
-        get_logger("MayaBridge").error(f"Failed to delete dock widget: {e}")
-        return False
-
-
-def get_current_scene_path() -> Optional[str]:
-    """
-    Get the current Maya scene path
-    
-    Returns:
-        Current scene path or None if not saved
-    """
-    if not MAYA_AVAILABLE:
-        return None
-    
-    try:
-        scene_path = cmds.file(query=True, sceneName=True)
-        if scene_path:
-            return scene_path
-        return None
-        
-    except Exception as e:
-        get_logger("MayaBridge").error(f"Failed to get current scene path: {e}")
-        return None
-
-
-def is_scene_modified() -> bool:
-    """
-    Check if the current scene has been modified
-    
-    Returns:
-        True if modified, False otherwise
-    """
-    if not MAYA_AVAILABLE:
-        return False
-    
-    try:
-        return cmds.file(query=True, modified=True)
-    except Exception as e:
-        get_logger("MayaBridge").error(f"Failed to check scene modification: {e}")
-        return False
-
-
-def save_scene(file_path: str = None, force: bool = False) -> bool:
-    """
-    Save the current Maya scene
-    
-    Args:
-        file_path: Optional file path to save to
-        force: Whether to force save
-        
-    Returns:
-        True if successful, False otherwise
-    """
-    if not MAYA_AVAILABLE:
-        return False
-    
-    try:
-        if file_path:
-            cmds.file(rename=file_path)
-        
-        if force:
-            cmds.file(save=True, force=True)
-        else:
-            cmds.file(save=True)
-        
-        get_logger("MayaBridge").info(f"Saved scene: {file_path or 'current'}")
-        return True
-        
-    except Exception as e:
-        get_logger("MayaBridge").error(f"Failed to save scene: {e}")
-        return False
-
-
-def get_scene_info() -> dict:
-    """
-    Get information about the current scene
-    
-    Returns:
-        Dictionary with scene information
-    """
-    if not MAYA_AVAILABLE:
-        return {}
-    
-    try:
-        info = {
-            "path": get_current_scene_path(),
-            "modified": is_scene_modified(),
-            "units": cmds.currentUnit(query=True, linear=True),
-            "time_unit": cmds.currentUnit(query=True, time=True),
-            "fps": cmds.currentUnit(query=True, time=True),
-        }
-        
-        # Get frame range
         try:
-            info["start_frame"] = cmds.playbackOptions(query=True, min=True)
-            info["end_frame"] = cmds.playbackOptions(query=True, max=True)
-        except:
-            info["start_frame"] = 1
-            info["end_frame"] = 100
-        
-        return info
-        
-    except Exception as e:
-        get_logger("MayaBridge").error(f"Failed to get scene info: {e}")
-        return {}
-
-
-def create_playblast(output_path: str, width: int = 1920, height: int = 1080, 
-                    start_frame: int = None, end_frame: int = None) -> bool:
-    """
-    Create a playblast of the current scene
+            result = subprocess.run(
+                [self.maya_python_path, "-c", maya_script],
+                capture_output=True,
+                text=True,
+                timeout=60
+            )
+            
+            return result.returncode == 0 and "SUCCESS" in result.stdout
+            
+        except Exception as e:
+            self.logger.error(f"Failed to generate Maya thumbnail: {e}")
+            return False
     
-    Args:
-        output_path: Output file path
-        width: Playblast width
-        height: Playblast height
-        start_frame: Start frame (uses current if None)
-        end_frame: End frame (uses current if None)
-        
-    Returns:
-        True if successful, False otherwise
-    """
-    if not MAYA_AVAILABLE:
+    def launch_maya(self, workfile_path: str = None, project_path: str = None) -> bool:
+        """Launch Maya with optional workfile"""
+        if not self.is_available():
         return False
     
     try:
-        # Set playblast options
-        options = {
-            "filename": output_path,
-            "width": width,
-            "height": height,
-            "format": "image",
-            "compression": "jpg",
-            "quality": 100,
-            "showOrnaments": True,
-            "offScreen": False,
-            "framePadding": 4
-        }
-        
-        if start_frame is not None:
-            options["startTime"] = start_frame
-        if end_frame is not None:
-            options["endTime"] = end_frame
-        
-        # Create playblast
-        cmds.playblast(**options)
-        
-        get_logger("MayaBridge").info(f"Created playblast: {output_path}")
+            # Find Maya executable
+            maya_exe = self.maya_python_path.replace("mayapy", "maya")
+            if not os.path.exists(maya_exe):
+                maya_exe = self.maya_python_path.replace("mayapy.exe", "maya.exe")
+            
+            if not os.path.exists(maya_exe):
+                self.logger.error("Maya executable not found")
+                return False
+            
+            # Build command
+            cmd = [maya_exe]
+            
+            if project_path:
+                cmd.extend(["-proj", project_path])
+            
+            if workfile_path and os.path.exists(workfile_path):
+                cmd.append(workfile_path)
+            
+            # Launch Maya
+            subprocess.Popen(cmd)
+            self.logger.info(f"Launched Maya: {' '.join(cmd)}")
         return True
         
     except Exception as e:
-        get_logger("MayaBridge").error(f"Failed to create playblast: {e}")
+            self.logger.error(f"Failed to launch Maya: {e}")
         return False
 
+    def validate_workfile(self, workfile_path: str) -> Dict[str, Any]:
+        """Validate Maya workfile"""
+        if not os.path.exists(workfile_path):
+            return {"valid": False, "error": "File not found"}
+        
+        # Check file extension
+        if not workfile_path.lower().endswith(('.ma', '.mb')):
+            return {"valid": False, "error": "Invalid file extension"}
+        
+        # Try to get scene info
+        scene_info = self.get_scene_info(workfile_path)
+        if "error" in scene_info:
+            return {"valid": False, "error": scene_info["error"]}
+        
+        return {
+            "valid": True,
+            "scene_info": scene_info,
+            "file_size": os.path.getsize(workfile_path)
+        }
 
-def get_maya_version() -> str:
-    """
-    Get Maya version string
-    
-    Returns:
-        Maya version or "Unknown" if not available
-    """
-    if not MAYA_AVAILABLE:
-        return "Unknown"
-    
-    try:
-        return cmds.about(version=True)
-    except:
-        return "Unknown"
 
-
-def is_maya_running() -> bool:
-    """
-    Check if Maya is currently running
-    
-    Returns:
-        True if Maya is running, False otherwise
-    """
-    return MAYA_AVAILABLE and cmds.about(batch=True) == False
+# Global Maya bridge instance
+maya_bridge = MayaBridge()
