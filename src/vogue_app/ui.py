@@ -3518,27 +3518,49 @@ class PrismMainWindow(QMainWindow):
             }
         """)
         layout = QVBoxLayout(widget)
-        layout.setContentsMargins(15, 15, 15, 15)
-        layout.setSpacing(15)
+        layout.setContentsMargins(20, 20, 20, 20)
+        layout.setSpacing(20)
         
         # Header with real-time clock
         header_layout = QHBoxLayout()
+        header_layout.setSpacing(20)
         
         title = QLabel("Advanced Project Dashboard")
-        title.setStyleSheet("font-size: 24px; font-weight: bold; color: #3498db; margin-bottom: 10px;")
+        title.setStyleSheet("font-size: 28px; font-weight: bold; color: #3498db; margin-bottom: 15px;")
         header_layout.addWidget(title)
         
         header_layout.addStretch()
         
         # Real-time clock
         self.clock_label = QLabel()
-        self.clock_label.setStyleSheet("font-size: 16px; color: #bdc3c7; font-weight: bold;")
+        self.clock_label.setStyleSheet("font-size: 18px; color: #bdc3c7; font-weight: bold; padding: 8px 12px; background-color: #2c3e50; border-radius: 8px;")
         header_layout.addWidget(self.clock_label)
         
         # Auto-refresh toggle
         self.auto_refresh_check = QCheckBox("Auto Refresh (30s)")
         self.auto_refresh_check.setChecked(True)
-        self.auto_refresh_check.setStyleSheet("color: #ecf0f1; font-size: 12px;")
+        self.auto_refresh_check.setStyleSheet("""
+            QCheckBox {
+                color: #ecf0f1; 
+                font-size: 14px; 
+                font-weight: bold;
+                padding: 8px;
+            }
+            QCheckBox::indicator {
+                width: 18px;
+                height: 18px;
+            }
+            QCheckBox::indicator:checked {
+                background-color: #3498db;
+                border: 2px solid #3498db;
+                border-radius: 3px;
+            }
+            QCheckBox::indicator:unchecked {
+                background-color: #34495e;
+                border: 2px solid #34495e;
+                border-radius: 3px;
+            }
+        """)
         self.auto_refresh_check.toggled.connect(self.toggle_auto_refresh)
         header_layout.addWidget(self.auto_refresh_check)
         
@@ -3549,12 +3571,17 @@ class PrismMainWindow(QMainWindow):
                 background-color: #3498db;
                 color: white;
                 border: none;
-                padding: 8px 16px;
-                border-radius: 5px;
+                padding: 12px 20px;
+                border-radius: 8px;
                 font-weight: bold;
+                font-size: 14px;
+                min-height: 20px;
             }
             QPushButton:hover {
                 background-color: #2980b9;
+            }
+            QPushButton:pressed {
+                background-color: #21618c;
             }
         """)
         self.refresh_dashboard_btn.clicked.connect(self.refresh_dashboard)
@@ -3565,6 +3592,7 @@ class PrismMainWindow(QMainWindow):
         # Main content with scroll area
         scroll_area = QScrollArea()
         scroll_area.setWidgetResizable(True)
+        scroll_area.setMinimumWidth(1200)  # Ensure minimum width to prevent cutoff
         scroll_area.setStyleSheet("""
             QScrollArea {
                 background-color: #1a1a1a;
@@ -3583,17 +3611,32 @@ class PrismMainWindow(QMainWindow):
             QScrollBar::handle:vertical:hover {
                 background-color: #4a6741;
             }
+            QScrollBar:horizontal {
+                background-color: #2c3e50;
+                height: 12px;
+                border-radius: 6px;
+            }
+            QScrollBar::handle:horizontal {
+                background-color: #34495e;
+                border-radius: 6px;
+                min-width: 20px;
+            }
+            QScrollBar::handle:horizontal:hover {
+                background-color: #4a6741;
+            }
         """)
         
         scroll_content = QWidget()
         scroll_content.setStyleSheet("background-color: #1a1a1a;")
         scroll_layout = QVBoxLayout(scroll_content)
-        scroll_layout.setContentsMargins(0, 0, 0, 0)
-        scroll_layout.setSpacing(15)
+        scroll_layout.setContentsMargins(10, 10, 10, 10)
+        scroll_layout.setSpacing(25)
         
         # Top row - Key metrics cards
         metrics_layout = QHBoxLayout()
-        metrics_layout.setSpacing(15)
+        metrics_layout.setSpacing(0)
+        metrics_layout.setContentsMargins(0, 0, 0, 0)
+        metrics_layout.setAlignment(Qt.AlignmentFlag.AlignTop)
         
         # Project metrics
         self.project_metrics_card = self.create_advanced_stats_card(
@@ -3627,7 +3670,7 @@ class PrismMainWindow(QMainWindow):
         
         # Second row - System status and performance
         status_layout = QHBoxLayout()
-        status_layout.setSpacing(15)
+        status_layout.setSpacing(20)
         
         # System status panel
         self.system_status_panel = self.create_system_status_panel()
@@ -3641,7 +3684,7 @@ class PrismMainWindow(QMainWindow):
         
         # Third row - Project analytics and activity
         analytics_layout = QHBoxLayout()
-        analytics_layout.setSpacing(15)
+        analytics_layout.setSpacing(20)
         
         # Project breakdown table
         self.project_breakdown_panel = self.create_project_breakdown_panel()
@@ -3655,7 +3698,7 @@ class PrismMainWindow(QMainWindow):
         
         # Fourth row - Team activity and notifications
         team_layout = QHBoxLayout()
-        team_layout.setSpacing(15)
+        team_layout.setSpacing(20)
         
         # Team activity panel
         self.team_activity_panel = self.create_team_activity_panel()
@@ -3691,66 +3734,112 @@ class PrismMainWindow(QMainWindow):
     def create_advanced_stats_card(self, icon, title, main_value, subtitle, color, breakdown_data):
         """Create an advanced statistics card with breakdown data"""
         card = QWidget()
-        card.setFixedSize(280, 180)
+        card.setMinimumSize(200, 320)
+        card.setMaximumHeight(320)
         card.setStyleSheet(f"""
             QWidget {{
                 background-color: #2c3e50;
-                border: 2px solid {color};
-                border-radius: 10px;
-                margin: 5px;
+                border: 3px solid {color};
+                border-radius: 15px;
+                margin: 0px;
+            }}
+            QWidget:hover {{
+                background-color: #34495e;
+                border: 3px solid {color};
             }}
         """)
         
         layout = QVBoxLayout(card)
-        layout.setContentsMargins(15, 15, 15, 15)
-        layout.setSpacing(8)
+        layout.setContentsMargins(20, 20, 20, 20)
+        layout.setSpacing(12)
         
         # Header with icon and title
         header_layout = QHBoxLayout()
         
         icon_label = QLabel(icon)
-        icon_label.setStyleSheet(f"font-size: 28px; color: {color};")
+        icon_label.setStyleSheet(f"font-size: 36px; color: {color};")
         header_layout.addWidget(icon_label)
         
         header_layout.addStretch()
         
         title_label = QLabel(title)
-        title_label.setStyleSheet("font-size: 14px; color: #ecf0f1; font-weight: bold;")
+        title_label.setStyleSheet("font-size: 18px; color: #ecf0f1; font-weight: bold;")
         header_layout.addWidget(title_label)
         
         layout.addLayout(header_layout)
         
         # Main value
         value_label = QLabel(main_value)
-        value_label.setStyleSheet(f"font-size: 32px; font-weight: bold; color: {color};")
+        value_label.setStyleSheet(f"font-size: 42px; font-weight: bold; color: {color};")
         value_label.setAlignment(Qt.AlignmentFlag.AlignCenter)
+        value_label.setMinimumHeight(55)
+        value_label.setMaximumHeight(55)
         layout.addWidget(value_label)
         
         # Subtitle
         subtitle_label = QLabel(subtitle)
-        subtitle_label.setStyleSheet("font-size: 11px; color: #bdc3c7;")
+        subtitle_label.setStyleSheet("font-size: 12px; color: #bdc3c7;")
         subtitle_label.setAlignment(Qt.AlignmentFlag.AlignCenter)
+        subtitle_label.setMinimumHeight(20)
+        subtitle_label.setMaximumHeight(20)
         layout.addWidget(subtitle_label)
         
         # Breakdown data
         breakdown_layout = QHBoxLayout()
+        breakdown_layout.setSpacing(15)
         for label, value in breakdown_data:
             breakdown_item = QVBoxLayout()
+            breakdown_item.setSpacing(4)
+            
             breakdown_value = QLabel(value)
-            breakdown_value.setStyleSheet("font-size: 16px; font-weight: bold; color: #ecf0f1;")
+            breakdown_value.setStyleSheet("font-size: 18px; font-weight: bold; color: #ecf0f1;")
             breakdown_value.setAlignment(Qt.AlignmentFlag.AlignCenter)
+            breakdown_value.setMinimumHeight(25)
+            breakdown_value.setMaximumHeight(25)
             breakdown_item.addWidget(breakdown_value)
             
             breakdown_label = QLabel(label)
-            breakdown_label.setStyleSheet("font-size: 10px; color: #bdc3c7;")
+            breakdown_label.setStyleSheet("font-size: 11px; color: #bdc3c7; font-weight: bold;")
             breakdown_label.setAlignment(Qt.AlignmentFlag.AlignCenter)
+            breakdown_label.setMinimumHeight(16)
+            breakdown_label.setMaximumHeight(16)
+            breakdown_label.setWordWrap(True)
             breakdown_item.addWidget(breakdown_label)
             
             breakdown_layout.addLayout(breakdown_item)
         
         layout.addLayout(breakdown_layout)
         
+        # Make card clickable and interactive
+        card.setCursor(Qt.CursorShape.PointingHandCursor)
+        card.mousePressEvent = lambda event: self.on_card_clicked(title, main_value, color)
+        
         return card
+    
+    def on_card_clicked(self, title, value, color):
+        """Handle card click events"""
+        from PyQt6.QtWidgets import QMessageBox
+        
+        # Create a detailed info dialog
+        dialog = QMessageBox()
+        dialog.setWindowTitle(f"{title} Details")
+        dialog.setText(f"<h2 style='color: {color};'>{title}</h2>")
+        dialog.setInformativeText(f"""
+        <p><b>Current Value:</b> {value}</p>
+        <p><b>Category:</b> {title}</p>
+        <p><b>Status:</b> Active</p>
+        <p><b>Last Updated:</b> {self.clock_label.text()}</p>
+        """)
+        dialog.setStyleSheet("""
+            QMessageBox {
+                background-color: #2c3e50;
+                color: #ecf0f1;
+            }
+            QMessageBox QLabel {
+                color: #ecf0f1;
+            }
+        """)
+        dialog.exec()
     
     def create_system_status_panel(self):
         """Create system status monitoring panel"""
@@ -3758,40 +3847,40 @@ class PrismMainWindow(QMainWindow):
         panel.setStyleSheet("""
             QWidget {
                 background-color: #2c3e50;
-                border: 2px solid #34495e;
-                border-radius: 10px;
-                margin: 5px;
+                border: 3px solid #34495e;
+                border-radius: 15px;
+                margin: 8px;
             }
         """)
         
         layout = QVBoxLayout(panel)
-        layout.setContentsMargins(15, 15, 15, 15)
-        layout.setSpacing(10)
+        layout.setContentsMargins(20, 20, 20, 20)
+        layout.setSpacing(15)
         
         # Title
         title = QLabel("🖥️ System Status")
-        title.setStyleSheet("font-size: 16px; font-weight: bold; color: #3498db; margin-bottom: 10px;")
+        title.setStyleSheet("font-size: 20px; font-weight: bold; color: #3498db; margin-bottom: 15px;")
         layout.addWidget(title)
         
         # Status items
         self.disk_usage_label = QLabel("💾 Disk Usage: 0%")
-        self.disk_usage_label.setStyleSheet("color: #ecf0f1; font-size: 12px;")
+        self.disk_usage_label.setStyleSheet("color: #ecf0f1; font-size: 18px; padding: 12px; font-weight: bold;")
         layout.addWidget(self.disk_usage_label)
         
         self.memory_usage_label = QLabel("🧠 Memory: 0%")
-        self.memory_usage_label.setStyleSheet("color: #ecf0f1; font-size: 12px;")
+        self.memory_usage_label.setStyleSheet("color: #ecf0f1; font-size: 18px; padding: 12px; font-weight: bold;")
         layout.addWidget(self.memory_usage_label)
         
         self.cpu_usage_label = QLabel("⚡ CPU: 0%")
-        self.cpu_usage_label.setStyleSheet("color: #ecf0f1; font-size: 12px;")
+        self.cpu_usage_label.setStyleSheet("color: #ecf0f1; font-size: 18px; padding: 12px; font-weight: bold;")
         layout.addWidget(self.cpu_usage_label)
         
         self.network_status_label = QLabel("🌐 Network: Online")
-        self.network_status_label.setStyleSheet("color: #27ae60; font-size: 12px;")
+        self.network_status_label.setStyleSheet("color: #27ae60; font-size: 18px; padding: 12px; font-weight: bold;")
         layout.addWidget(self.network_status_label)
         
         self.database_status_label = QLabel("🗄️ Database: Connected")
-        self.database_status_label.setStyleSheet("color: #27ae60; font-size: 12px;")
+        self.database_status_label.setStyleSheet("color: #27ae60; font-size: 18px; padding: 12px; font-weight: bold;")
         layout.addWidget(self.database_status_label)
         
         layout.addStretch()
@@ -3803,40 +3892,40 @@ class PrismMainWindow(QMainWindow):
         panel.setStyleSheet("""
             QWidget {
                 background-color: #2c3e50;
-                border: 2px solid #34495e;
-                border-radius: 10px;
-                margin: 5px;
+                border: 3px solid #34495e;
+                border-radius: 15px;
+                margin: 8px;
             }
         """)
         
         layout = QVBoxLayout(panel)
-        layout.setContentsMargins(15, 15, 15, 15)
-        layout.setSpacing(10)
+        layout.setContentsMargins(20, 20, 20, 20)
+        layout.setSpacing(15)
         
         # Title
         title = QLabel("📊 Performance Metrics")
-        title.setStyleSheet("font-size: 16px; font-weight: bold; color: #e74c3c; margin-bottom: 10px;")
+        title.setStyleSheet("font-size: 20px; font-weight: bold; color: #e74c3c; margin-bottom: 15px;")
         layout.addWidget(title)
         
         # Performance metrics
         self.avg_render_time_label = QLabel("⏱️ Avg Render Time: 0s")
-        self.avg_render_time_label.setStyleSheet("color: #ecf0f1; font-size: 12px;")
+        self.avg_render_time_label.setStyleSheet("color: #ecf0f1; font-size: 18px; padding: 12px; font-weight: bold;")
         layout.addWidget(self.avg_render_time_label)
         
         self.files_processed_label = QLabel("📁 Files Processed: 0")
-        self.files_processed_label.setStyleSheet("color: #ecf0f1; font-size: 12px;")
+        self.files_processed_label.setStyleSheet("color: #ecf0f1; font-size: 18px; padding: 12px; font-weight: bold;")
         layout.addWidget(self.files_processed_label)
         
         self.uptime_label = QLabel("⏰ Uptime: 0h 0m")
-        self.uptime_label.setStyleSheet("color: #ecf0f1; font-size: 12px;")
+        self.uptime_label.setStyleSheet("color: #ecf0f1; font-size: 18px; padding: 12px; font-weight: bold;")
         layout.addWidget(self.uptime_label)
         
         self.error_rate_label = QLabel("❌ Error Rate: 0%")
-        self.error_rate_label.setStyleSheet("color: #27ae60; font-size: 12px;")
+        self.error_rate_label.setStyleSheet("color: #27ae60; font-size: 18px; padding: 12px; font-weight: bold;")
         layout.addWidget(self.error_rate_label)
         
         self.success_rate_label = QLabel("✅ Success Rate: 100%")
-        self.success_rate_label.setStyleSheet("color: #27ae60; font-size: 12px;")
+        self.success_rate_label.setStyleSheet("color: #27ae60; font-size: 18px; padding: 12px; font-weight: bold;")
         layout.addWidget(self.success_rate_label)
         
         layout.addStretch()
@@ -3848,19 +3937,19 @@ class PrismMainWindow(QMainWindow):
         panel.setStyleSheet("""
             QWidget {
                 background-color: #2c3e50;
-                border: 2px solid #34495e;
-                border-radius: 10px;
-                margin: 5px;
+                border: 3px solid #34495e;
+                border-radius: 15px;
+                margin: 8px;
             }
         """)
         
         layout = QVBoxLayout(panel)
-        layout.setContentsMargins(15, 15, 15, 15)
-        layout.setSpacing(10)
+        layout.setContentsMargins(20, 20, 20, 20)
+        layout.setSpacing(15)
         
         # Title
         title = QLabel("📈 Project Analytics")
-        title.setStyleSheet("font-size: 16px; font-weight: bold; color: #f39c12; margin-bottom: 10px;")
+        title.setStyleSheet("font-size: 20px; font-weight: bold; color: #f39c12; margin-bottom: 15px;")
         layout.addWidget(title)
         
         # Project breakdown table
@@ -3877,15 +3966,17 @@ class PrismMainWindow(QMainWindow):
             QTableWidget {
                 background-color: #34495e;
                 color: #ecf0f1;
-                border: 1px solid #2c3e50;
-                border-radius: 5px;
+                border: 2px solid #2c3e50;
+                border-radius: 10px;
                 gridline-color: #2c3e50;
-                font-size: 11px;
+                font-size: 16px;
             }
             QTableWidget::item {
-                padding: 6px 8px;
+                padding: 16px 20px;
                 border: none;
                 color: #ecf0f1;
+                min-height: 35px;
+                font-weight: bold;
             }
             QTableWidget::item:selected {
                 background-color: #3498db;
@@ -3897,9 +3988,10 @@ class PrismMainWindow(QMainWindow):
             QHeaderView::section {
                 background-color: #2c3e50;
                 color: #ecf0f1;
-                padding: 6px 8px;
+                padding: 16px 20px;
                 border: none;
                 font-weight: bold;
+                font-size: 16px;
             }
         """)
         
@@ -3921,19 +4013,19 @@ class PrismMainWindow(QMainWindow):
         panel.setStyleSheet("""
             QWidget {
                 background-color: #2c3e50;
-                border: 2px solid #34495e;
-                border-radius: 10px;
-                margin: 5px;
+                border: 3px solid #34495e;
+                border-radius: 15px;
+                margin: 8px;
             }
         """)
         
         layout = QVBoxLayout(panel)
-        layout.setContentsMargins(15, 15, 15, 15)
-        layout.setSpacing(10)
+        layout.setContentsMargins(20, 20, 20, 20)
+        layout.setSpacing(15)
         
         # Title
         title = QLabel("🕒 Recent Activity")
-        title.setStyleSheet("font-size: 16px; font-weight: bold; color: #9b59b6; margin-bottom: 10px;")
+        title.setStyleSheet("font-size: 20px; font-weight: bold; color: #9b59b6; margin-bottom: 15px;")
         layout.addWidget(title)
         
         # Activity list
@@ -3942,17 +4034,20 @@ class PrismMainWindow(QMainWindow):
         self.activity_list.setStyleSheet("""
             QListWidget {
                 background-color: #34495e;
-                border: 1px solid #2c3e50;
-                border-radius: 5px;
-                padding: 5px;
+                border: 2px solid #2c3e50;
+                border-radius: 10px;
+                padding: 12px;
                 color: #ecf0f1;
+                font-size: 16px;
             }
             QListWidget::item {
-                padding: 8px;
+                padding: 16px;
                 border-bottom: 1px solid #2c3e50;
                 background-color: #34495e;
-                margin: 2px;
-                border-radius: 3px;
+                margin: 5px;
+                border-radius: 8px;
+                min-height: 30px;
+                font-weight: bold;
             }
             QListWidget::item:selected {
                 background-color: #3498db;
@@ -3972,19 +4067,19 @@ class PrismMainWindow(QMainWindow):
         panel.setStyleSheet("""
             QWidget {
                 background-color: #2c3e50;
-                border: 2px solid #34495e;
-                border-radius: 10px;
-                margin: 5px;
+                border: 3px solid #34495e;
+                border-radius: 15px;
+                margin: 8px;
             }
         """)
         
         layout = QVBoxLayout(panel)
-        layout.setContentsMargins(15, 15, 15, 15)
-        layout.setSpacing(10)
+        layout.setContentsMargins(20, 20, 20, 20)
+        layout.setSpacing(15)
         
         # Title
         title = QLabel("👥 Team Activity")
-        title.setStyleSheet("font-size: 16px; font-weight: bold; color: #e67e22; margin-bottom: 10px;")
+        title.setStyleSheet("font-size: 20px; font-weight: bold; color: #e67e22; margin-bottom: 15px;")
         layout.addWidget(title)
         
         # Team activity list
@@ -3993,18 +4088,20 @@ class PrismMainWindow(QMainWindow):
         self.team_activity_list.setStyleSheet("""
             QListWidget {
                 background-color: #34495e;
-                border: 1px solid #2c3e50;
-                border-radius: 5px;
-                padding: 5px;
+                border: 2px solid #2c3e50;
+                border-radius: 10px;
+                padding: 12px;
                 color: #ecf0f1;
+                font-size: 16px;
             }
             QListWidget::item {
-                padding: 6px;
+                padding: 14px;
                 border-bottom: 1px solid #2c3e50;
                 background-color: #34495e;
-                margin: 1px;
-                border-radius: 3px;
-                font-size: 11px;
+                margin: 4px;
+                border-radius: 8px;
+                min-height: 25px;
+                font-weight: bold;
             }
             QListWidget::item:selected {
                 background-color: #3498db;
@@ -4024,19 +4121,19 @@ class PrismMainWindow(QMainWindow):
         panel.setStyleSheet("""
             QWidget {
                 background-color: #2c3e50;
-                border: 2px solid #34495e;
-                border-radius: 10px;
-                margin: 5px;
+                border: 3px solid #34495e;
+                border-radius: 15px;
+                margin: 8px;
             }
         """)
         
         layout = QVBoxLayout(panel)
-        layout.setContentsMargins(15, 15, 15, 15)
-        layout.setSpacing(10)
+        layout.setContentsMargins(20, 20, 20, 20)
+        layout.setSpacing(15)
         
         # Title
         title = QLabel("⚡ Quick Actions")
-        title.setStyleSheet("font-size: 16px; font-weight: bold; color: #1abc9c; margin-bottom: 10px;")
+        title.setStyleSheet("font-size: 20px; font-weight: bold; color: #1abc9c; margin-bottom: 15px;")
         layout.addWidget(title)
         
         # Action buttons
@@ -4046,10 +4143,11 @@ class PrismMainWindow(QMainWindow):
                 background-color: #3498db;
                 color: white;
                 border: none;
-                padding: 8px 12px;
-                border-radius: 5px;
+                padding: 12px 18px;
+                border-radius: 8px;
                 font-weight: bold;
-                font-size: 11px;
+                font-size: 14px;
+                min-height: 20px;
             }
             QPushButton:hover {
                 background-color: #2980b9;
@@ -4064,10 +4162,11 @@ class PrismMainWindow(QMainWindow):
                 background-color: #f39c12;
                 color: white;
                 border: none;
-                padding: 8px 12px;
-                border-radius: 5px;
+                padding: 12px 18px;
+                border-radius: 8px;
                 font-weight: bold;
-                font-size: 11px;
+                font-size: 14px;
+                min-height: 20px;
             }
             QPushButton:hover {
                 background-color: #e67e22;
@@ -4082,10 +4181,11 @@ class PrismMainWindow(QMainWindow):
                 background-color: #27ae60;
                 color: white;
                 border: none;
-                padding: 8px 12px;
-                border-radius: 5px;
+                padding: 12px 18px;
+                border-radius: 8px;
                 font-weight: bold;
-                font-size: 11px;
+                font-size: 14px;
+                min-height: 20px;
             }
             QPushButton:hover {
                 background-color: #229954;
@@ -4100,10 +4200,11 @@ class PrismMainWindow(QMainWindow):
                 background-color: #9b59b6;
                 color: white;
                 border: none;
-                padding: 8px 12px;
-                border-radius: 5px;
+                padding: 12px 18px;
+                border-radius: 8px;
                 font-weight: bold;
-                font-size: 11px;
+                font-size: 14px;
+                min-height: 20px;
             }
             QPushButton:hover {
                 background-color: #8e44ad;
