@@ -4,3 +4,6 @@ Ayon/ayon-dependencies-tool/
 Ayon/ayon-frontend/
 Ayon/ayon-launcher/
 Ayon/ayon-maya/
+Ayon/ayon-docker-main/addons/.gitkeep
+Ayon/ayon-docker-main/storage/.gitkeep
+Ayon/ayon-docker/
