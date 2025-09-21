@@ -570,8 +570,8 @@ class VogueController(PrismMainWindow):
                     # Remove from folders
                     if hasattr(self.manager.current_project, 'folders'):
                         for folder in self.manager.current_project.folders:
-                            if folder.type == "shot" and hasattr(folder, 'shots'):
-                                folder.shots = [s for s in folder.shots if s != item_name]
+                            if folder.type == "shot" and hasattr(folder, 'assets'):
+                                folder.assets = [s for s in folder.assets if s != item_name]
                 elif item_type == "Folder":
                     # Remove folder from project
                     if hasattr(self.manager.current_project, 'folders'):
@@ -1156,7 +1156,7 @@ class VogueController(PrismMainWindow):
             return
         
         from vogue_app.dialogs import ShotDialog
-        dialog = ShotDialog(self, preselected_folder=preselected_folder)
+        dialog = ShotDialog(self, preselected_folder=preselected_folder, manager=self.manager)
         if dialog.exec() == QDialog.DialogCode.Accepted:
             data = dialog.get_shot_data()
             if data:

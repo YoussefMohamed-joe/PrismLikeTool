@@ -937,10 +937,11 @@ class ShotPropertiesDialog(QDialog):
 class ShotDialog(QDialog):
     """Dialog for creating/editing shots with folder selection"""
     
-    def __init__(self, parent=None, shot=None, preselected_folder=None):
+    def __init__(self, parent=None, shot=None, preselected_folder=None, manager=None):
         super().__init__(parent)
         self.shot = shot
         self.preselected_folder = preselected_folder
+        self.manager = manager
         self.setWindowTitle("Edit Shot" if shot else "Create New Shot")
         self.setModal(True)
         self.resize(600, 500)
@@ -1065,14 +1066,15 @@ class ShotDialog(QDialog):
     
     def populate_folders(self):
         """Populate folder dropdown with available shot folders and sequences"""
-        from vogue_core.manager import ProjectManager
-        manager = ProjectManager()
-        
-        if not manager.current_project:
-            return
+        if not self.manager or not self.manager.current_project:
+            # Fallback to creating a new manager if none provided
+            from vogue_core.manager import ProjectManager
+            self.manager = ProjectManager()
+            if not self.manager.current_project:
+                return
         
         # Get shot folders
-        shot_folders = [f for f in manager.current_project.folders if f.type == "shot"]
+        shot_folders = [f for f in self.manager.current_project.folders if f.type == "shot"]
         
         # Clear and populate folders
         self.folder_combo.clear()
@@ -1096,16 +1098,17 @@ class ShotDialog(QDialog):
     
     def populate_sequences(self):
         """Populate sequence dropdown with existing sequences"""
-        from vogue_core.manager import ProjectManager
-        manager = ProjectManager()
-        
-        if not manager.current_project:
-            return
+        if not self.manager or not self.manager.current_project:
+            # Fallback to creating a new manager if none provided
+            from vogue_core.manager import ProjectManager
+            self.manager = ProjectManager()
+            if not self.manager.current_project:
+                return
         
         # Get unique sequences from existing shots
         sequences = set()
-        if hasattr(manager.current_project, 'shots') and manager.current_project.shots:
-            for shot in manager.current_project.shots:
+        if hasattr(self.manager.current_project, 'shots') and self.manager.current_project.shots:
+            for shot in self.manager.current_project.shots:
                 if hasattr(shot, 'sequence') and shot.sequence:
                     sequences.add(shot.sequence)
         
