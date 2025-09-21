@@ -195,6 +195,7 @@ def pipeline_to_project(data: Dict[str, Any]) -> Project:
             name=asset_data["name"],
             type=asset_data["type"],
             path=asset_data.get("path", ""),
+            departments=asset_data.get("departments", []),
             meta=asset_data.get("meta", {})
         )
         assets.append(asset)
@@ -206,6 +207,7 @@ def pipeline_to_project(data: Dict[str, Any]) -> Project:
             sequence=shot_data["sequence"],
             name=shot_data["name"],
             path=shot_data.get("path", ""),
+            departments=shot_data.get("departments", []),
             meta=shot_data.get("meta", {})
         )
         shots.append(shot)
@@ -263,13 +265,12 @@ def pipeline_to_project(data: Dict[str, Any]) -> Project:
         from .models import Department
         if isinstance(dept_data, str):
             # Legacy string format
-            dept = Department(name=dept_data, description="", color="#3498db")
+            dept = Department(name=dept_data, description="")
         elif isinstance(dept_data, dict):
             # New object format
             dept = Department(
                 name=dept_data.get("name", "Unknown"),
-                description=dept_data.get("description", ""),
-                color=dept_data.get("color", "#3498db")
+                description=dept_data.get("description", "")
             )
         else:
             continue
@@ -309,6 +310,7 @@ def project_to_pipeline(project: Project) -> Dict[str, Any]:
             "name": asset.name,
             "type": asset.type,
             "path": asset.path,
+            "departments": asset.departments,
             "meta": asset.meta
         }
         assets.append(asset_data)
@@ -320,6 +322,7 @@ def project_to_pipeline(project: Project) -> Dict[str, Any]:
             "sequence": shot.sequence,
             "name": shot.name,
             "path": shot.path,
+            "departments": shot.departments,
             "meta": shot.meta
         }
         shots.append(shot_data)
@@ -358,8 +361,7 @@ def project_to_pipeline(project: Project) -> Dict[str, Any]:
     for dept in project.departments:
         dept_data = {
             "name": dept.name,
-            "description": dept.description,
-            "color": dept.color
+            "description": dept.description
         }
         departments.append(dept_data)
     

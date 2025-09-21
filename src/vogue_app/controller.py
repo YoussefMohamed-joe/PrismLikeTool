@@ -289,6 +289,11 @@ class VogueController(PrismMainWindow):
             else:  # Asset
                 menu.addAction("Properties...", lambda: self.show_asset_properties(item))
                 menu.addSeparator()
+                # Department management
+                dept_menu = menu.addMenu("Manage Departments")
+                dept_menu.addAction("Add Department...", lambda: self.add_department_to_entity(item))
+                dept_menu.addAction("Remove Department...", lambda: self.remove_department_from_entity(item))
+                menu.addSeparator()
                 menu.addAction("Rename", lambda: self.rename_item(item))
                 menu.addAction("Delete", lambda: self.delete_item(item))
                 menu.addSeparator()
@@ -370,6 +375,11 @@ class VogueController(PrismMainWindow):
             else:  # Shot
                 menu.addAction("Properties...", lambda: self.show_shot_properties(item))
                 menu.addSeparator()
+                # Department management
+                dept_menu = menu.addMenu("Manage Departments")
+                dept_menu.addAction("Add Department...", lambda: self.add_department_to_entity(item))
+                dept_menu.addAction("Remove Department...", lambda: self.remove_department_from_entity(item))
+                menu.addSeparator()
                 menu.addAction("Rename", lambda: self.rename_item(item))
                 menu.addAction("Delete", lambda: self.delete_item(item))
                 menu.addSeparator()
@@ -418,18 +428,31 @@ class VogueController(PrismMainWindow):
         
         menu = QMenu(dept_list)
         
-        # Always show Add Department option
-        menu.addAction("Add Department", self.add_department)
-        menu.addSeparator()
-        
-        if item:
-            # Department is selected
-            menu.addAction("Edit Department", self.edit_department)
-            menu.addAction("Remove Department", self.remove_department)
+        # Check if we have a selected entity
+        if self.project_browser.current_entity and self.project_browser.current_entity_type:
+            # We have an entity selected, show department management options
+            menu.addAction("Add Department...", self.add_department_to_current_entity)
+            menu.addSeparator()
+            
+            if item:
+                # Department is selected
+                menu.addAction("Edit Department...", lambda: self.edit_department_from_current_entity(item))
+                menu.addAction("Remove Department", lambda: self.remove_department_from_current_entity(item))
+                
+                # Multi-select options
+                selected_items = dept_list.selectedItems()
+                if len(selected_items) > 1:
+                    menu.addSeparator()
+                    menu.addAction(f"Remove Selected ({len(selected_items)})", 
+                                 lambda: self.remove_selected_departments_from_current_entity())
+            else:
+                # No department selected
+                menu.addAction("Edit Department...", self.edit_department_from_current_entity).setEnabled(False)
+                menu.addAction("Remove Department", self.remove_department_from_current_entity).setEnabled(False)
         else:
-            # No department selected
-            menu.addAction("Edit Department", self.edit_department).setEnabled(False)
-            menu.addAction("Remove Department", self.remove_department).setEnabled(False)
+            # No entity selected
+            menu.addAction("No asset or shot selected")
+            menu.addAction("Select an asset or shot to manage departments").setEnabled(False)
         
         menu.exec(dept_list.mapToGlobal(position))
     
@@ -980,6 +1003,11 @@ class VogueController(PrismMainWindow):
             # Update project info display
             self.update_project_info()
             
+            # Clear current entity selection and departments
+            self.project_browser.current_entity = None
+            self.project_browser.current_entity_type = None
+            self.project_browser.departments_list.clear()
+            
             # Load tasks and departments from project data
             self.load_tasks_from_project()
             self.load_departments_from_project()
@@ -1492,126 +1520,9 @@ class VogueController(PrismMainWindow):
                 
                 self.logger.info(f"Deleted {len(deleted_tasks)} task(s): {', '.join(deleted_tasks)}")
     
-    # Department Management Methods
-    def add_department(self):
-        """Add a new department"""
-        from PyQt6.QtWidgets import QInputDialog, QColorDialog
-        
-        name, ok = QInputDialog.getText(self, "New Department", "Department name:")
-        if ok and name:
-            # Get color for the department
-            color = QColorDialog.getColor()
-            if color.isValid():
-                color_hex = color.name()
-                
-                # Add to departments list
-                dept_text = f"{name} - Active"
-                self.project_browser.departments_list.addItem(dept_text)
-                
-                # Store department data in project if available
-                if self.manager.current_project:
-                    from vogue_core.models import Department
-                    dept = Department(name=name, description="", color=color_hex)
-                    if not hasattr(self.manager.current_project, 'departments'):
-                        self.manager.current_project.departments = []
-                    self.manager.current_project.departments.append(dept)
-                    self.manager.save_project()
-                    
-                    # Auto-select the new department
-                    self.project_browser.departments_list.setCurrentRow(self.project_browser.departments_list.count() - 1)
-                    # Ensure the selection is visually highlighted
-                    self.ensure_department_selection_visible()
-                    self.filter_tasks_by_department()
-                
-                self.logger.info(f"Added department: {name}")
-            else:
-                QMessageBox.warning(self, "Invalid Color", "Please select a valid color for the department.")
+    # Department Management Methods - now handled per-entity only
 
-    def edit_department(self):
-        """Edit selected department"""
-        current_item = self.project_browser.departments_list.currentItem()
-        if current_item:
-            current_text = current_item.text()
-            current_name = current_text.split(" - ")[0]
-            
-            from PyQt6.QtWidgets import QInputDialog, QColorDialog
-            
-            name, ok = QInputDialog.getText(self, "Edit Department", "Department name:", text=current_name)
-            if ok and name:
-                # Get new color
-                color = QColorDialog.getColor()
-                if color.isValid():
-                    # Update the item
-                    status = current_text.split(" - ")[1] if " - " in current_text else "Active"
-                    new_text = f"{name} - {status}"
-                    current_item.setText(new_text)
-                    
-                    # Update in project data if available
-                    if self.manager.current_project and hasattr(self.manager.current_project, 'departments'):
-                        for dept in self.manager.current_project.departments:
-                            if dept.name == current_name:
-                                dept.name = name
-                                dept.color = color.name()
-                                break
-                        self.manager.save_project()
-                    
-                    # Ensure department selection is maintained after editing
-                    self.ensure_department_selection_visible()
-                    self.filter_tasks_by_department()
-                    
-                    self.logger.info(f"Edited department: {current_name} -> {name}")
-                else:
-                    QMessageBox.warning(self, "Invalid Color", "Please select a valid color for the department.")
-        else:
-            QMessageBox.warning(self, "No Selection", "Please select a department to edit.")
 
-    def remove_department(self):
-        """Remove selected department(s)"""
-        selected_items = self.project_browser.departments_list.selectedItems()
-        if not selected_items:
-            QMessageBox.warning(self, "No Selection", "Please select department(s) to remove.")
-            return
-
-        if len(selected_items) == 1:
-            dept_name = selected_items[0].text().split(" - ")[0]
-            message = f"Are you sure you want to remove the department '{dept_name}'?"
-        else:
-            dept_names = [item.text().split(" - ")[0] for item in selected_items]
-            message = f"Are you sure you want to remove {len(selected_items)} departments?\n\nDepartments: {', '.join(dept_names)}"
-        
-        reply = QMessageBox.question(
-            self, 
-            "Remove Department(s)", 
-            message,
-            QMessageBox.StandardButton.Yes | QMessageBox.StandardButton.No
-        )
-
-        if reply == QMessageBox.StandardButton.Yes:
-            # Store department names for logging
-            removed_departments = []
-            
-            # Remove from UI (in reverse order to maintain indices)
-            for item in reversed(selected_items):
-                dept_name = item.text().split(" - ")[0]
-                removed_departments.append(dept_name)
-                row = self.project_browser.departments_list.row(item)
-                self.project_browser.departments_list.takeItem(row)
-        
-            # Remove from project data if available
-            if self.manager.current_project and hasattr(self.manager.current_project, 'departments'):
-                for dept_name in removed_departments:
-                    self.manager.current_project.departments = [
-                        dept for dept in self.manager.current_project.departments 
-                        if (hasattr(dept, 'name') and dept.name != dept_name) or 
-                           (isinstance(dept, str) and dept.split(" - ")[0] != dept_name)
-                    ]
-                self.manager.save_project()
-            
-            # Ensure department selection is maintained after removal
-            self.ensure_department_selection_visible()
-            self.filter_tasks_by_department()
-            
-            self.logger.info(f"Removed {len(removed_departments)} department(s): {', '.join(removed_departments)}")
     
     def load_tasks_from_project(self):
         """Load tasks from project data into UI"""
@@ -1644,38 +1555,15 @@ class VogueController(PrismMainWindow):
             self.logger.info("No tasks found in project")
     
     def load_departments_from_project(self):
-        """Load departments from project data into UI"""
+        """Load departments from project data into UI - now only clears the list"""
         if not self.manager.current_project:
             return
         
-        # Clear existing departments
+        # Clear existing departments - no project-level departments are shown
         self.project_browser.departments_list.clear()
         
-        # Load departments from project data if they exist
-        if hasattr(self.manager.current_project, 'departments') and self.manager.current_project.departments:
-            for dept in self.manager.current_project.departments:
-                if hasattr(dept, 'name'):
-                    # Department object
-                    dept_text = f"{dept.name} - Active"
-                elif isinstance(dept, str):
-                    # Department string (legacy format)
-                    dept_text = dept
-                else:
-                    continue
-                
-                self.project_browser.departments_list.addItem(dept_text)
-            
-            # Auto-select first department if any exist
-            if self.project_browser.departments_list.count() > 0:
-                self.project_browser.departments_list.setCurrentRow(0)
-                # Setup persistence and ensure the selection is visually highlighted
-                self.setup_department_list_persistence()
-                self.ensure_department_selection_visible()
-                self.filter_tasks_by_department()
-            
-            self.logger.info(f"Loaded {len(self.manager.current_project.departments)} departments from project")
-        else:
-            self.logger.info("No departments found in project")
+        # No project-level departments are loaded - only entity-specific departments
+        self.logger.info("Departments list cleared - will show entity-specific departments when selected")
     
     def filter_tasks_by_department(self):
         """Filter tasks by selected department"""
@@ -1792,3 +1680,295 @@ class VogueController(PrismMainWindow):
             self.project_browser.tasks_list.currentRow() < 0):
             self.project_browser.tasks_list.setCurrentRow(0)
             self.project_browser.ensure_task_selection_visible()
+    
+    def add_department_to_entity(self, item):
+        """Add a department to the selected entity (asset or shot)"""
+        if not self.manager.current_project:
+            QMessageBox.warning(self, "No Project", "Load or create a project first.")
+            return
+        
+        # Get entity info from the item
+        item_type = item.data(0, Qt.ItemDataRole.UserRole)
+        entity_name = item.text(0)
+        
+        if item_type == "Asset":
+            # Find the asset
+            asset = self.manager.current_project.get_asset(entity_name)
+            if not asset:
+                QMessageBox.warning(self, "Asset Not Found", f"Could not find asset: {entity_name}")
+                return
+            
+            # Get department name from user
+            department, ok = QInputDialog.getText(self, "Add Department", "Enter department name:")
+            if not ok or not department.strip():
+                return
+            
+            department = department.strip()
+            
+            # Add department to asset
+            asset.add_department(department)
+            self.manager.save_project()
+            
+            # Update UI
+            self.project_browser.load_entity_departments(entity_name, "Asset")
+            self.logger.info(f"Added department '{department}' to asset '{entity_name}'")
+            
+        elif item_type == "Shot":
+            # Get parent folder for sequence
+            parent_item = item.parent()
+            sequence = parent_item.text(0) if parent_item else "Main"
+            shot_key = f"{sequence}/{entity_name}"
+            
+            # Find the shot
+            shot = self.manager.current_project.get_shot(sequence, entity_name)
+            if not shot:
+                QMessageBox.warning(self, "Shot Not Found", f"Could not find shot: {shot_key}")
+                return
+            
+            # Get department name from user
+            department, ok = QInputDialog.getText(self, "Add Department", "Enter department name:")
+            if not ok or not department.strip():
+                return
+            
+            department = department.strip()
+            
+            # Add department to shot
+            shot.add_department(department)
+            self.manager.save_project()
+            
+            # Update UI
+            self.project_browser.load_entity_departments(shot_key, "Shot")
+            self.logger.info(f"Added department '{department}' to shot '{shot_key}'")
+    
+    def remove_department_from_entity(self, item):
+        """Remove a department from the selected entity (asset or shot)"""
+        if not self.manager.current_project:
+            QMessageBox.warning(self, "No Project", "Load or create a project first.")
+            return
+        
+        # Get entity info from the item
+        item_type = item.data(0, Qt.ItemDataRole.UserRole)
+        entity_name = item.text(0)
+        
+        if item_type == "Asset":
+            # Find the asset
+            asset = self.manager.current_project.get_asset(entity_name)
+            if not asset:
+                QMessageBox.warning(self, "Asset Not Found", f"Could not find asset: {entity_name}")
+                return
+            
+            if not asset.departments:
+                QMessageBox.information(self, "No Departments", f"Asset '{entity_name}' has no departments to remove.")
+                return
+            
+            # Show department selection dialog
+            department, ok = QInputDialog.getItem(
+                self, "Remove Department", "Select department to remove:",
+                asset.departments, 0, False
+            )
+            if not ok or not department:
+                return
+            
+            # Remove department from asset
+            asset.remove_department(department)
+            self.manager.save_project()
+            
+            # Update UI
+            self.project_browser.load_entity_departments(entity_name, "Asset")
+            self.logger.info(f"Removed department '{department}' from asset '{entity_name}'")
+            
+        elif item_type == "Shot":
+            # Get parent folder for sequence
+            parent_item = item.parent()
+            sequence = parent_item.text(0) if parent_item else "Main"
+            shot_key = f"{sequence}/{entity_name}"
+            
+            # Find the shot
+            shot = self.manager.current_project.get_shot(sequence, entity_name)
+            if not shot:
+                QMessageBox.warning(self, "Shot Not Found", f"Could not find shot: {shot_key}")
+                return
+            
+            if not shot.departments:
+                QMessageBox.information(self, "No Departments", f"Shot '{shot_key}' has no departments to remove.")
+                return
+            
+            # Show department selection dialog
+            department, ok = QInputDialog.getItem(
+                self, "Remove Department", "Select department to remove:",
+                shot.departments, 0, False
+            )
+            if not ok or not department:
+                return
+            
+            # Remove department from shot
+            shot.remove_department(department)
+            self.manager.save_project()
+            
+            # Update UI
+            self.project_browser.load_entity_departments(shot_key, "Shot")
+            self.logger.info(f"Removed department '{department}' from shot '{shot_key}'")
+    
+    def add_department_to_current_entity(self):
+        """Add a department to the currently selected entity"""
+        if not self.project_browser.current_entity or not self.project_browser.current_entity_type:
+            QMessageBox.warning(self, "No Selection", "Please select an asset or shot first.")
+            return
+        
+        # Get department name from user
+        department, ok = QInputDialog.getText(self, "Add Department", "Enter department name:")
+        if not ok or not department.strip():
+            return
+        
+        department = department.strip()
+        
+        # Add department to entity
+        if self.project_browser.current_entity_type == "Asset":
+            asset = self.manager.current_project.get_asset(self.project_browser.current_entity)
+            if asset:
+                asset.add_department(department)
+                self.manager.save_project()
+                # Reload departments display
+                self.project_browser.load_entity_departments(self.project_browser.current_entity, "Asset")
+                self.logger.info(f"Added department '{department}' to asset '{self.project_browser.current_entity}'")
+        elif self.project_browser.current_entity_type == "Shot":
+            if "/" in self.project_browser.current_entity:
+                sequence, name = self.project_browser.current_entity.split("/", 1)
+                shot = self.manager.current_project.get_shot(sequence, name)
+                if shot:
+                    shot.add_department(department)
+                    self.manager.save_project()
+                    # Reload departments display
+                    self.project_browser.load_entity_departments(self.project_browser.current_entity, "Shot")
+                    self.logger.info(f"Added department '{department}' to shot '{self.project_browser.current_entity}'")
+    
+    def edit_department_from_current_entity(self, item=None):
+        """Edit a department from the currently selected entity"""
+        if not self.project_browser.current_entity or not self.project_browser.current_entity_type:
+            QMessageBox.warning(self, "No Selection", "Please select an asset or shot first.")
+            return
+        
+        # Get the department to edit
+        if not item:
+            item = self.project_browser.departments_list.currentItem()
+            if not item:
+                QMessageBox.warning(self, "No Selection", "Please select a department to edit.")
+                return
+        
+        current_text = item.text()
+        current_name = current_text.split(" - ")[0]
+        
+        # Get new department name from user
+        new_name, ok = QInputDialog.getText(self, "Edit Department", "Enter new department name:", text=current_name)
+        if not ok or not new_name.strip():
+            return
+        
+        new_name = new_name.strip()
+        
+        # Update department in entity
+        if self.project_browser.current_entity_type == "Asset":
+            asset = self.manager.current_project.get_asset(self.project_browser.current_entity)
+            if asset and current_name in asset.departments:
+                asset.remove_department(current_name)
+                asset.add_department(new_name)
+                self.manager.save_project()
+                # Reload departments display
+                self.project_browser.load_entity_departments(self.project_browser.current_entity, "Asset")
+                self.logger.info(f"Edited department '{current_name}' to '{new_name}' in asset '{self.project_browser.current_entity}'")
+        elif self.project_browser.current_entity_type == "Shot":
+            if "/" in self.project_browser.current_entity:
+                sequence, name = self.project_browser.current_entity.split("/", 1)
+                shot = self.manager.current_project.get_shot(sequence, name)
+                if shot and current_name in shot.departments:
+                    shot.remove_department(current_name)
+                    shot.add_department(new_name)
+                    self.manager.save_project()
+                    # Reload departments display
+                    self.project_browser.load_entity_departments(self.project_browser.current_entity, "Shot")
+                    self.logger.info(f"Edited department '{current_name}' to '{new_name}' in shot '{self.project_browser.current_entity}'")
+    
+    def remove_department_from_current_entity(self, item=None):
+        """Remove a department from the currently selected entity"""
+        if not self.project_browser.current_entity or not self.project_browser.current_entity_type:
+            QMessageBox.warning(self, "No Selection", "Please select an asset or shot first.")
+            return
+        
+        # Get the department to remove
+        if not item:
+            item = self.project_browser.departments_list.currentItem()
+            if not item:
+                QMessageBox.warning(self, "No Selection", "Please select a department to remove.")
+                return
+        
+        department_text = item.text()
+        department = department_text.split(" - ")[0]
+        
+        # Remove department from entity
+        if self.project_browser.current_entity_type == "Asset":
+            asset = self.manager.current_project.get_asset(self.project_browser.current_entity)
+            if asset:
+                asset.remove_department(department)
+                self.manager.save_project()
+                # Reload departments display
+                self.project_browser.load_entity_departments(self.project_browser.current_entity, "Asset")
+                self.logger.info(f"Removed department '{department}' from asset '{self.project_browser.current_entity}'")
+        elif self.project_browser.current_entity_type == "Shot":
+            if "/" in self.project_browser.current_entity:
+                sequence, name = self.project_browser.current_entity.split("/", 1)
+                shot = self.manager.current_project.get_shot(sequence, name)
+                if shot:
+                    shot.remove_department(department)
+                    self.manager.save_project()
+                    # Reload departments display
+                    self.project_browser.load_entity_departments(self.project_browser.current_entity, "Shot")
+                    self.logger.info(f"Removed department '{department}' from shot '{self.project_browser.current_entity}'")
+    
+    def remove_selected_departments_from_current_entity(self):
+        """Remove selected departments from the currently selected entity"""
+        if not self.project_browser.current_entity or not self.project_browser.current_entity_type:
+            QMessageBox.warning(self, "No Selection", "Please select an asset or shot first.")
+            return
+        
+        selected_items = self.project_browser.departments_list.selectedItems()
+        if not selected_items:
+            QMessageBox.warning(self, "No Selection", "Please select departments to remove.")
+            return
+        
+        # Get department names
+        departments_to_remove = [item.text().split(" - ")[0] for item in selected_items]
+        
+        # Confirm removal
+        if len(departments_to_remove) == 1:
+            message = f"Are you sure you want to remove the department '{departments_to_remove[0]}'?"
+        else:
+            message = f"Are you sure you want to remove {len(departments_to_remove)} departments?\n\nDepartments: {', '.join(departments_to_remove)}"
+        
+        reply = QMessageBox.question(
+            self, 
+            "Remove Departments", 
+            message,
+            QMessageBox.StandardButton.Yes | QMessageBox.StandardButton.No
+        )
+        
+        if reply == QMessageBox.StandardButton.Yes:
+            # Remove departments from entity
+            if self.project_browser.current_entity_type == "Asset":
+                asset = self.manager.current_project.get_asset(self.project_browser.current_entity)
+                if asset:
+                    for department in departments_to_remove:
+                        asset.remove_department(department)
+                    self.manager.save_project()
+                    # Reload departments display
+                    self.project_browser.load_entity_departments(self.project_browser.current_entity, "Asset")
+                    self.logger.info(f"Removed {len(departments_to_remove)} departments from asset '{self.project_browser.current_entity}': {', '.join(departments_to_remove)}")
+            elif self.project_browser.current_entity_type == "Shot":
+                if "/" in self.project_browser.current_entity:
+                    sequence, name = self.project_browser.current_entity.split("/", 1)
+                    shot = self.manager.current_project.get_shot(sequence, name)
+                    if shot:
+                        for department in departments_to_remove:
+                            shot.remove_department(department)
+                        self.manager.save_project()
+                        # Reload departments display
+                        self.project_browser.load_entity_departments(self.project_browser.current_entity, "Shot")
+                        self.logger.info(f"Removed {len(departments_to_remove)} departments from shot '{self.project_browser.current_entity}': {', '.join(departments_to_remove)}")

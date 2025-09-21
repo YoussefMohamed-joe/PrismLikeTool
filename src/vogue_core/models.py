@@ -15,7 +15,6 @@ class Department:
     """Represents a department in the pipeline"""
     name: str
     description: str = ""
-    color: str = "#3498db"
 
 @dataclass
 class Folder:
@@ -105,6 +104,7 @@ class Asset:
     type: str  # Characters, Props, Environments, etc.
     path: str = ""
     versions: List[Version] = field(default_factory=list)
+    departments: List[str] = field(default_factory=list)  # Departments assigned to this asset
     meta: Dict[str, Any] = field(default_factory=dict)
     
     def __post_init__(self):
@@ -113,6 +113,20 @@ class Asset:
             raise ValueError("Asset name cannot be empty")
         if not self.type or not self.type.strip():
             raise ValueError("Asset type cannot be empty")
+    
+    def add_department(self, department: str) -> None:
+        """Add a department to this asset"""
+        if department not in self.departments:
+            self.departments.append(department)
+    
+    def remove_department(self, department: str) -> None:
+        """Remove a department from this asset"""
+        if department in self.departments:
+            self.departments.remove(department)
+    
+    def has_department(self, department: str) -> bool:
+        """Check if this asset has a specific department"""
+        return department in self.departments
 
 
 @dataclass
@@ -121,6 +135,7 @@ class Shot:
     sequence: str
     name: str
     versions: List[Version] = field(default_factory=list)
+    departments: List[str] = field(default_factory=list)  # Departments assigned to this shot
     path: str = ""
     meta: Dict[str, Any] = field(default_factory=dict)
     
@@ -135,6 +150,20 @@ class Shot:
     def key(self) -> str:
         """Get the unique key for this shot (sequence/name)"""
         return f"{self.sequence}/{self.name}"
+    
+    def add_department(self, department: str) -> None:
+        """Add a department to this shot"""
+        if department not in self.departments:
+            self.departments.append(department)
+    
+    def remove_department(self, department: str) -> None:
+        """Remove a department from this shot"""
+        if department in self.departments:
+            self.departments.remove(department)
+    
+    def has_department(self, department: str) -> bool:
+        """Check if this shot has a specific department"""
+        return department in self.departments
 
 
 @dataclass

@@ -241,6 +241,9 @@ class ProjectBrowser(PrismStyleWidget):
         self.clipboard_item = None
         self.clipboard_operation = None  # 'cut' or 'copy'
         self.clipboard_type = None  # 'asset' or 'shot'
+        # Initialize current entity tracking
+        self.current_entity = None
+        self.current_entity_type = None
         self.setup_ui()
     
     def setup_ui(self):
@@ -296,17 +299,30 @@ class ProjectBrowser(PrismStyleWidget):
         """Handle asset selection change"""
         current_item = self.asset_tree.currentItem()
         if not current_item:
+            # No item selected, clear departments
+            self.current_entity = None
+            self.current_entity_type = None
+            self.load_entity_departments(None, None)
             return
         
         item_type = current_item.data(0, Qt.ItemDataRole.UserRole)
         if item_type == "Asset":
             asset_name = current_item.text(0)
             self.notify_asset_selected(asset_name)
+        else:
+            # Non-asset item selected, clear departments
+            self.current_entity = None
+            self.current_entity_type = None
+            self.load_entity_departments(None, None)
     
     def on_shot_selection_changed(self):
         """Handle shot selection change"""
         current_item = self.shot_tree.currentItem()
         if not current_item:
+            # No item selected, clear departments
+            self.current_entity = None
+            self.current_entity_type = None
+            self.load_entity_departments(None, None)
             return
         
         item_type = current_item.data(0, Qt.ItemDataRole.UserRole)
@@ -317,26 +333,85 @@ class ProjectBrowser(PrismStyleWidget):
             sequence = parent_item.text(0) if parent_item else "Main"
             shot_key = f"{sequence}/{shot_name}"
             self.notify_shot_selected(shot_key)
+        else:
+            # Non-shot item selected, clear departments
+            self.current_entity = None
+            self.current_entity_type = None
+            self.load_entity_departments(None, None)
     
     def notify_asset_selected(self, asset_name: str):
         """Notify that an asset was selected"""
         # Store current entity
         self.current_entity = asset_name
+        self.current_entity_type = "Asset"
         
         # Find the version manager in the main window
         main_window = self.window()
         if hasattr(main_window, 'version_manager'):
             main_window.version_manager.update_entity(asset_name, "Asset")
         
+        # Load departments for this asset
+        self.load_entity_departments(asset_name, "Asset")
+        
         # Ensure task selection is maintained
         self.ensure_task_selection_visible()
     
     def notify_shot_selected(self, shot_key: str):
         """Notify that a shot was selected"""
+        # Store current entity
+        self.current_entity = shot_key
+        self.current_entity_type = "Shot"
+        
         # Find the version manager in the main window
         main_window = self.window()
         if hasattr(main_window, 'version_manager'):
             main_window.version_manager.update_entity(shot_key, "Shot")
+        
+        # Load departments for this shot
+        self.load_entity_departments(shot_key, "Shot")
+    
+    def load_entity_departments(self, entity_name: str, entity_type: str):
+        """Load departments for the selected entity (asset or shot)"""
+        # Get the main window to access the project manager
+        main_window = self.window()
+        if not hasattr(main_window, 'manager'):
+            return
+        
+        manager = main_window.manager
+        if not manager.current_project:
+            return
+        
+        # Clear current departments list
+        self.departments_list.clear()
+        
+        # If no entity selected, show empty list
+        if not entity_name or not entity_type:
+            return
+        
+        # Get entity departments
+        entity_departments = []
+        if entity_type == "Asset":
+            asset = manager.current_project.get_asset(entity_name)
+            if asset:
+                entity_departments = asset.departments
+        elif entity_type == "Shot":
+            # Parse shot key to get sequence and name
+            if "/" in entity_name:
+                sequence, name = entity_name.split("/", 1)
+                shot = manager.current_project.get_shot(sequence, name)
+                if shot:
+                    entity_departments = shot.departments
+        
+        # Show entity-specific departments
+        for dept in entity_departments:
+            self.departments_list.addItem(f"{dept} - Active")
+        
+        # Auto-select first department if any exist
+        if self.departments_list.count() > 0:
+            self.departments_list.setCurrentRow(0)
+            # Trigger department selection change to update tasks
+            if hasattr(main_window, 'filter_tasks_by_department'):
+                main_window.filter_tasks_by_department()
     
     def on_task_selection_changed(self):
         """Handle task selection change"""
@@ -577,19 +652,7 @@ class ProjectBrowser(PrismStyleWidget):
             }}
         """)
 
-        # Add default departments
-        departments = [
-            "Modeling - Active",
-            "Texturing - Active", 
-            "Rigging - Active",
-            "Animation - Active",
-            "Lighting - Standby",
-            "Rendering - Standby"
-        ]
-
-        for dept in departments:
-            item = QListWidgetItem(dept)
-            self.departments_list.addItem(item)
+        # No default departments - will be populated when entity is selected
 
         dept_layout.addWidget(self.departments_list)
 

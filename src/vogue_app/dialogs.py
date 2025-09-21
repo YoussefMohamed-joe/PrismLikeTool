@@ -112,10 +112,7 @@ class NewProjectDialog(QDialog):
         self.dept_list = QListWidget()
         self.dept_list.setMaximumHeight(100)
         
-        # Add default departments
-        default_departments = ["Modeling", "Texturing", "Rigging", "Animation", "Lighting", "Rendering"]
-        for dept in default_departments:
-            self.dept_list.addItem(dept)
+        # No default departments - user will add their own
         
         dept_layout.addWidget(self.dept_list)
         
