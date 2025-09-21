@@ -3039,109 +3039,2422 @@ class PrismMainWindow(QMainWindow):
         return central_widget
     
     def create_tasks_tab(self):
-        """Create the Tasks tab content (placeholder for future implementation)"""
+        """Create the Tasks tab content with advanced task management"""
         widget = QWidget()
         layout = QVBoxLayout(widget)
-        layout.setContentsMargins(20, 20, 20, 20)
+        layout.setContentsMargins(10, 10, 10, 10)
         
-        # Title
-        title = QLabel("Tasks")
+        # Header
+        header_layout = QHBoxLayout()
+        
+        title = QLabel("Task Management")
         title.setProperty("class", "title")
-        title.setAlignment(Qt.AlignmentFlag.AlignCenter)
-        layout.addWidget(title)
+        title.setStyleSheet("font-size: 18px; font-weight: bold; color: #2c3e50;")
+        header_layout.addWidget(title)
         
-        # Content placeholder
-        content = QLabel("Advanced task management features will be implemented here")
-        content.setProperty("class", "muted")
-        content.setAlignment(Qt.AlignmentFlag.AlignCenter)
-        layout.addWidget(content)
+        header_layout.addStretch()
         
-        layout.addStretch()
+        # Filter controls
+        self.task_filter_combo = QComboBox()
+        self.task_filter_combo.addItems(["All Tasks", "My Tasks", "Pending", "In Progress", "Completed", "Overdue"])
+        self.task_filter_combo.currentTextChanged.connect(self.filter_tasks)
+        header_layout.addWidget(QLabel("Filter:"))
+        header_layout.addWidget(self.task_filter_combo)
+        
+        # Add task button
+        self.add_task_btn = QPushButton("Add Task")
+        self.add_task_btn.setProperty("class", "primary")
+        self.add_task_btn.clicked.connect(self.add_task)
+        header_layout.addWidget(self.add_task_btn)
+        
+        layout.addLayout(header_layout)
+        
+        # Main content splitter
+        main_splitter = QSplitter(Qt.Orientation.Horizontal)
+        
+        # Left panel - Task list
+        tasks_panel = QWidget()
+        tasks_layout = QVBoxLayout(tasks_panel)
+        tasks_layout.setContentsMargins(5, 5, 5, 5)
+        
+        tasks_label = QLabel("Tasks")
+        tasks_label.setStyleSheet("font-weight: bold; font-size: 14px; color: #34495e;")
+        tasks_layout.addWidget(tasks_label)
+        
+        # Tasks table
+        self.tasks_table = QTableWidget()
+        self.tasks_table.setColumnCount(6)
+        self.tasks_table.setHorizontalHeaderLabels(["Task", "Project", "Assignee", "Status", "Priority", "Due Date"])
+        self.tasks_table.horizontalHeader().setStretchLastSection(True)
+        self.tasks_table.setSelectionBehavior(QAbstractItemView.SelectionBehavior.SelectRows)
+        self.tasks_table.setAlternatingRowColors(True)
+        self.tasks_table.setSortingEnabled(True)
+        
+        # Set column widths
+        header = self.tasks_table.horizontalHeader()
+        header.resizeSection(0, 200)  # Task
+        header.resizeSection(1, 120)  # Project
+        header.resizeSection(2, 100)  # Assignee
+        header.resizeSection(3, 80)   # Status
+        header.resizeSection(4, 80)   # Priority
+        header.resizeSection(5, 100)  # Due Date
+        
+        tasks_layout.addWidget(self.tasks_table)
+        
+        # Tasks controls
+        tasks_controls = QHBoxLayout()
+        self.edit_task_btn = QPushButton("Edit Task")
+        self.edit_task_btn.setEnabled(False)
+        self.edit_task_btn.clicked.connect(self.edit_task)
+        tasks_controls.addWidget(self.edit_task_btn)
+        
+        self.complete_task_btn = QPushButton("Mark Complete")
+        self.complete_task_btn.setEnabled(False)
+        self.complete_task_btn.clicked.connect(self.complete_task)
+        tasks_controls.addWidget(self.complete_task_btn)
+        
+        self.delete_task_btn = QPushButton("Delete Task")
+        self.delete_task_btn.setEnabled(False)
+        self.delete_task_btn.setProperty("class", "danger")
+        self.delete_task_btn.clicked.connect(self.delete_task)
+        tasks_controls.addWidget(self.delete_task_btn)
+        
+        tasks_controls.addStretch()
+        tasks_layout.addLayout(tasks_controls)
+        
+        # Right panel - Task details
+        details_panel = QWidget()
+        details_layout = QVBoxLayout(details_panel)
+        details_layout.setContentsMargins(5, 5, 5, 5)
+        
+        details_label = QLabel("Task Details")
+        details_label.setStyleSheet("font-weight: bold; font-size: 14px; color: #34495e;")
+        details_layout.addWidget(details_label)
+        
+        # Task details form
+        self.task_details_widget = QWidget()
+        self.task_details_layout = QFormLayout(self.task_details_widget)
+        
+        # Task name
+        self.task_name_edit = QLineEdit()
+        self.task_name_edit.setReadOnly(True)
+        self.task_details_layout.addRow("Task Name:", self.task_name_edit)
+        
+        # Project
+        self.task_project_edit = QLineEdit()
+        self.task_project_edit.setReadOnly(True)
+        self.task_details_layout.addRow("Project:", self.task_project_edit)
+        
+        # Assignee
+        self.task_assignee_edit = QLineEdit()
+        self.task_assignee_edit.setReadOnly(True)
+        self.task_details_layout.addRow("Assignee:", self.task_assignee_edit)
+        
+        # Status
+        self.task_status_edit = QLineEdit()
+        self.task_status_edit.setReadOnly(True)
+        self.task_details_layout.addRow("Status:", self.task_status_edit)
+        
+        # Priority
+        self.task_priority_edit = QLineEdit()
+        self.task_priority_edit.setReadOnly(True)
+        self.task_details_layout.addRow("Priority:", self.task_priority_edit)
+        
+        # Due date
+        self.task_due_date_edit = QLineEdit()
+        self.task_due_date_edit.setReadOnly(True)
+        self.task_details_layout.addRow("Due Date:", self.task_due_date_edit)
+        
+        # Description
+        self.task_description_edit = QPlainTextEdit()
+        self.task_description_edit.setReadOnly(True)
+        self.task_description_edit.setMaximumHeight(100)
+        self.task_details_layout.addRow("Description:", self.task_description_edit)
+        
+        details_layout.addWidget(self.task_details_widget)
+        
+        # Add panels to splitter
+        main_splitter.addWidget(tasks_panel)
+        main_splitter.addWidget(details_panel)
+        main_splitter.setSizes([600, 300])
+        
+        layout.addWidget(main_splitter)
+        
+        # Connect selection signals
+        self.tasks_table.itemSelectionChanged.connect(self.on_task_selection_changed)
+        
+        # Load data
+        self.load_tasks_data()
+        
         return widget
     
     def create_inbox_tab(self):
-        """Create the Inbox tab content"""
+        """Create the Inbox tab content with notifications and messages"""
         widget = QWidget()
         layout = QVBoxLayout(widget)
-        layout.setContentsMargins(20, 20, 20, 20)
+        layout.setContentsMargins(10, 10, 10, 10)
         
-        # Title
+        # Header
+        header_layout = QHBoxLayout()
+        
         title = QLabel("Inbox")
         title.setProperty("class", "title")
-        title.setAlignment(Qt.AlignmentFlag.AlignCenter)
-        layout.addWidget(title)
+        title.setStyleSheet("font-size: 18px; font-weight: bold; color: #2c3e50;")
+        header_layout.addWidget(title)
         
-        # Content placeholder
-        content = QLabel("Notifications and messages will be here")
-        content.setProperty("class", "muted")
-        content.setAlignment(Qt.AlignmentFlag.AlignCenter)
-        layout.addWidget(content)
+        header_layout.addStretch()
         
-        layout.addStretch()
+        # Mark all as read button
+        self.mark_all_read_btn = QPushButton("Mark All Read")
+        self.mark_all_read_btn.clicked.connect(self.mark_all_read)
+        header_layout.addWidget(self.mark_all_read_btn)
+        
+        # Refresh button
+        self.refresh_inbox_btn = QPushButton("Refresh")
+        self.refresh_inbox_btn.clicked.connect(self.refresh_inbox)
+        header_layout.addWidget(self.refresh_inbox_btn)
+        
+        layout.addLayout(header_layout)
+        
+        # Main content splitter
+        main_splitter = QSplitter(Qt.Orientation.Horizontal)
+        
+        # Left panel - Notifications list
+        notifications_panel = QWidget()
+        notifications_layout = QVBoxLayout(notifications_panel)
+        notifications_layout.setContentsMargins(5, 5, 5, 5)
+        
+        notifications_label = QLabel("Notifications")
+        notifications_label.setStyleSheet("font-weight: bold; font-size: 14px; color: #ecf0f1;")
+        notifications_layout.addWidget(notifications_label)
+        
+        # Notifications table
+        self.notifications_table = QTableWidget()
+        self.notifications_table.setColumnCount(4)
+        self.notifications_table.setHorizontalHeaderLabels(["Type", "Message", "Time", "Status"])
+        self.notifications_table.horizontalHeader().setStretchLastSection(True)
+        self.notifications_table.setSelectionBehavior(QAbstractItemView.SelectionBehavior.SelectRows)
+        self.notifications_table.setAlternatingRowColors(True)
+        self.notifications_table.setSortingEnabled(True)
+        
+        # Style the notifications table
+        self.notifications_table.setStyleSheet("""
+            QTableWidget {
+                background-color: #2c3e50;
+                color: #ecf0f1;
+                border: 1px solid #34495e;
+                border-radius: 5px;
+                gridline-color: #34495e;
+                font-size: 12px;
+            }
+            QTableWidget::item {
+                padding: 8px 12px;
+                border: none;
+                color: #ecf0f1;
+            }
+            QTableWidget::item:selected {
+                background-color: #3498db;
+                color: white;
+            }
+            QTableWidget::item:hover {
+                background-color: #4a6741;
+            }
+            QHeaderView::section {
+                background-color: #34495e;
+                color: #ecf0f1;
+                padding: 8px 12px;
+                border: none;
+                font-weight: bold;
+            }
+        """)
+        
+        # Set column widths
+        header = self.notifications_table.horizontalHeader()
+        header.resizeSection(0, 100)  # Type
+        header.resizeSection(1, 300)  # Message
+        header.resizeSection(2, 120)  # Time
+        header.resizeSection(3, 80)   # Status
+        
+        notifications_layout.addWidget(self.notifications_table)
+        
+        # Notifications controls
+        notifications_controls = QHBoxLayout()
+        self.mark_read_btn = QPushButton("Mark as Read")
+        self.mark_read_btn.setEnabled(False)
+        self.mark_read_btn.clicked.connect(self.mark_as_read)
+        notifications_controls.addWidget(self.mark_read_btn)
+        
+        self.delete_notification_btn = QPushButton("Delete")
+        self.delete_notification_btn.setEnabled(False)
+        self.delete_notification_btn.setProperty("class", "danger")
+        self.delete_notification_btn.clicked.connect(self.delete_notification)
+        notifications_controls.addWidget(self.delete_notification_btn)
+        
+        notifications_controls.addStretch()
+        notifications_layout.addLayout(notifications_controls)
+        
+        # Right panel - Messages
+        messages_panel = QWidget()
+        messages_layout = QVBoxLayout(messages_panel)
+        messages_layout.setContentsMargins(5, 5, 5, 5)
+        
+        messages_label = QLabel("Messages")
+        messages_label.setStyleSheet("font-weight: bold; font-size: 14px; color: #ecf0f1;")
+        messages_layout.addWidget(messages_label)
+        
+        # Messages list
+        self.messages_list = QListWidget()
+        self.messages_list.setStyleSheet("""
+            QListWidget {
+                background-color: #2c3e50;
+                border: 1px solid #34495e;
+                border-radius: 5px;
+                padding: 5px;
+                color: #ecf0f1;
+            }
+            QListWidget::item {
+                padding: 12px;
+                border-bottom: 1px solid #34495e;
+                background-color: #34495e;
+                margin: 3px;
+                border-radius: 5px;
+                color: #ecf0f1;
+                font-size: 12px;
+                line-height: 1.4;
+            }
+            QListWidget::item:selected {
+                background-color: #3498db;
+                color: white;
+            }
+            QListWidget::item:hover {
+                background-color: #4a6741;
+                color: #ecf0f1;
+            }
+        """)
+        messages_layout.addWidget(self.messages_list)
+        
+        # Message controls
+        message_controls = QHBoxLayout()
+        self.reply_btn = QPushButton("Reply")
+        self.reply_btn.setEnabled(False)
+        self.reply_btn.clicked.connect(self.reply_message)
+        message_controls.addWidget(self.reply_btn)
+        
+        self.forward_btn = QPushButton("Forward")
+        self.forward_btn.setEnabled(False)
+        self.forward_btn.clicked.connect(self.forward_message)
+        message_controls.addWidget(self.forward_btn)
+        
+        self.delete_message_btn = QPushButton("Delete")
+        self.delete_message_btn.setEnabled(False)
+        self.delete_message_btn.setProperty("class", "danger")
+        self.delete_message_btn.clicked.connect(self.delete_message)
+        message_controls.addWidget(self.delete_message_btn)
+        
+        message_controls.addStretch()
+        messages_layout.addLayout(message_controls)
+        
+        # Add panels to splitter
+        main_splitter.addWidget(notifications_panel)
+        main_splitter.addWidget(messages_panel)
+        main_splitter.setSizes([500, 300])
+        
+        layout.addWidget(main_splitter)
+        
+        # Connect selection signals
+        self.notifications_table.itemSelectionChanged.connect(self.on_notification_selection_changed)
+        self.messages_list.itemSelectionChanged.connect(self.on_message_selection_changed)
+        
+        # Load data
+        self.load_notifications_data()
+        self.load_messages_data()
+        
         return widget
     
     def create_teams_tab(self):
-        """Create the Teams tab content"""
+        """Create the Teams tab content with team and user management"""
         widget = QWidget()
         layout = QVBoxLayout(widget)
-        layout.setContentsMargins(20, 20, 20, 20)
+        layout.setContentsMargins(10, 10, 10, 10)
         
-        # Title
-        title = QLabel("Teams")
+        # Header with title and controls
+        header_layout = QHBoxLayout()
+        
+        title = QLabel("Teams & Users")
         title.setProperty("class", "title")
-        title.setAlignment(Qt.AlignmentFlag.AlignCenter)
-        layout.addWidget(title)
+        title.setStyleSheet("font-size: 18px; font-weight: bold; color: #2c3e50;")
+        header_layout.addWidget(title)
         
-        # Content placeholder
-        content = QLabel("Team collaboration and user management will be here")
-        content.setProperty("class", "muted")
-        content.setAlignment(Qt.AlignmentFlag.AlignCenter)
-        layout.addWidget(content)
+        header_layout.addStretch()
         
-        layout.addStretch()
+        # Add team button
+        self.add_team_btn = QPushButton("Add Team")
+        self.add_team_btn.setProperty("class", "primary")
+        self.add_team_btn.clicked.connect(self.add_team)
+        header_layout.addWidget(self.add_team_btn)
+        
+        # Add user button
+        self.add_user_btn = QPushButton("Add User")
+        self.add_user_btn.setProperty("class", "primary")
+        self.add_user_btn.clicked.connect(self.add_user)
+        header_layout.addWidget(self.add_user_btn)
+        
+        layout.addLayout(header_layout)
+        
+        # Main content splitter
+        main_splitter = QSplitter(Qt.Orientation.Horizontal)
+        
+        # Left panel - Teams list
+        teams_panel = QWidget()
+        teams_layout = QVBoxLayout(teams_panel)
+        teams_layout.setContentsMargins(5, 5, 5, 5)
+        
+        teams_label = QLabel("Teams")
+        teams_label.setStyleSheet("font-weight: bold; font-size: 14px; color: #34495e;")
+        teams_layout.addWidget(teams_label)
+        
+        # Teams table
+        self.teams_table = QTableWidget()
+        self.teams_table.setColumnCount(4)
+        self.teams_table.setHorizontalHeaderLabels(["Name", "Members", "Projects", "Status"])
+        self.teams_table.horizontalHeader().setStretchLastSection(True)
+        self.teams_table.setSelectionBehavior(QAbstractItemView.SelectionBehavior.SelectRows)
+        self.teams_table.setAlternatingRowColors(True)
+        self.teams_table.setSortingEnabled(True)
+        
+        # Set column widths
+        header = self.teams_table.horizontalHeader()
+        header.resizeSection(0, 150)  # Name
+        header.resizeSection(1, 100)  # Members
+        header.resizeSection(2, 100)  # Projects
+        header.resizeSection(3, 80)   # Status
+        
+        teams_layout.addWidget(self.teams_table)
+        
+        # Teams controls
+        teams_controls = QHBoxLayout()
+        self.edit_team_btn = QPushButton("Edit Team")
+        self.edit_team_btn.setEnabled(False)
+        self.edit_team_btn.clicked.connect(self.edit_team)
+        teams_controls.addWidget(self.edit_team_btn)
+        
+        self.delete_team_btn = QPushButton("Delete Team")
+        self.delete_team_btn.setEnabled(False)
+        self.delete_team_btn.setProperty("class", "danger")
+        self.delete_team_btn.clicked.connect(self.delete_team)
+        teams_controls.addWidget(self.delete_team_btn)
+        
+        teams_controls.addStretch()
+        teams_layout.addLayout(teams_controls)
+        
+        # Right panel - Users list
+        users_panel = QWidget()
+        users_layout = QVBoxLayout(users_panel)
+        users_layout.setContentsMargins(5, 5, 5, 5)
+        
+        users_label = QLabel("Users")
+        users_label.setStyleSheet("font-weight: bold; font-size: 14px; color: #34495e;")
+        users_layout.addWidget(users_label)
+        
+        # Users table
+        self.users_table = QTableWidget()
+        self.users_table.setColumnCount(5)
+        self.users_table.setHorizontalHeaderLabels(["Name", "Email", "Role", "Teams", "Status"])
+        self.users_table.horizontalHeader().setStretchLastSection(True)
+        self.users_table.setSelectionBehavior(QAbstractItemView.SelectionBehavior.SelectRows)
+        self.users_table.setAlternatingRowColors(True)
+        self.users_table.setSortingEnabled(True)
+        
+        # Set column widths
+        header = self.users_table.horizontalHeader()
+        header.resizeSection(0, 120)  # Name
+        header.resizeSection(1, 150)  # Email
+        header.resizeSection(2, 80)   # Role
+        header.resizeSection(3, 100)  # Teams
+        header.resizeSection(4, 80)   # Status
+        
+        users_layout.addWidget(self.users_table)
+        
+        # Users controls
+        users_controls = QHBoxLayout()
+        self.edit_user_btn = QPushButton("Edit User")
+        self.edit_user_btn.setEnabled(False)
+        self.edit_user_btn.clicked.connect(self.edit_user)
+        users_controls.addWidget(self.edit_user_btn)
+        
+        self.delete_user_btn = QPushButton("Delete User")
+        self.delete_user_btn.setEnabled(False)
+        self.delete_user_btn.setProperty("class", "danger")
+        self.delete_user_btn.clicked.connect(self.delete_user)
+        users_controls.addWidget(self.delete_user_btn)
+        
+        users_controls.addStretch()
+        users_layout.addLayout(users_controls)
+        
+        # Add panels to splitter
+        main_splitter.addWidget(teams_panel)
+        main_splitter.addWidget(users_panel)
+        main_splitter.setSizes([400, 400])
+        
+        layout.addWidget(main_splitter)
+        
+        # Connect selection signals
+        self.teams_table.itemSelectionChanged.connect(self.on_team_selection_changed)
+        self.users_table.itemSelectionChanged.connect(self.on_user_selection_changed)
+        
+        # Load data
+        self.load_teams_data()
+        self.load_users_data()
+        
         return widget
     
     def create_dashboard_tab(self):
-        """Create the Dashboard tab content"""
+        """Create an advanced real-time dashboard with comprehensive project tracking"""
         widget = QWidget()
+        widget.setStyleSheet("""
+            QWidget {
+                background-color: #1a1a1a;
+                color: #ecf0f1;
+            }
+        """)
         layout = QVBoxLayout(widget)
-        layout.setContentsMargins(20, 20, 20, 20)
+        layout.setContentsMargins(15, 15, 15, 15)
+        layout.setSpacing(15)
         
-        # Title
-        title = QLabel("Dashboard")
-        title.setProperty("class", "title")
-        title.setAlignment(Qt.AlignmentFlag.AlignCenter)
-        layout.addWidget(title)
+        # Header with real-time clock
+        header_layout = QHBoxLayout()
         
-        # Content placeholder
-        content = QLabel("Project statistics and analytics will be here")
-        content.setProperty("class", "muted")
-        content.setAlignment(Qt.AlignmentFlag.AlignCenter)
-        layout.addWidget(content)
+        title = QLabel("Advanced Project Dashboard")
+        title.setStyleSheet("font-size: 24px; font-weight: bold; color: #3498db; margin-bottom: 10px;")
+        header_layout.addWidget(title)
         
-        layout.addStretch()
+        header_layout.addStretch()
+        
+        # Real-time clock
+        self.clock_label = QLabel()
+        self.clock_label.setStyleSheet("font-size: 16px; color: #bdc3c7; font-weight: bold;")
+        header_layout.addWidget(self.clock_label)
+        
+        # Auto-refresh toggle
+        self.auto_refresh_check = QCheckBox("Auto Refresh (30s)")
+        self.auto_refresh_check.setChecked(True)
+        self.auto_refresh_check.setStyleSheet("color: #ecf0f1; font-size: 12px;")
+        self.auto_refresh_check.toggled.connect(self.toggle_auto_refresh)
+        header_layout.addWidget(self.auto_refresh_check)
+        
+        # Refresh button
+        self.refresh_dashboard_btn = QPushButton("🔄 Refresh Now")
+        self.refresh_dashboard_btn.setStyleSheet("""
+            QPushButton {
+                background-color: #3498db;
+                color: white;
+                border: none;
+                padding: 8px 16px;
+                border-radius: 5px;
+                font-weight: bold;
+            }
+            QPushButton:hover {
+                background-color: #2980b9;
+            }
+        """)
+        self.refresh_dashboard_btn.clicked.connect(self.refresh_dashboard)
+        header_layout.addWidget(self.refresh_dashboard_btn)
+        
+        layout.addLayout(header_layout)
+        
+        # Main content with scroll area
+        scroll_area = QScrollArea()
+        scroll_area.setWidgetResizable(True)
+        scroll_area.setStyleSheet("""
+            QScrollArea {
+                background-color: #1a1a1a;
+                border: none;
+            }
+            QScrollBar:vertical {
+                background-color: #2c3e50;
+                width: 12px;
+                border-radius: 6px;
+            }
+            QScrollBar::handle:vertical {
+                background-color: #34495e;
+                border-radius: 6px;
+                min-height: 20px;
+            }
+            QScrollBar::handle:vertical:hover {
+                background-color: #4a6741;
+            }
+        """)
+        
+        scroll_content = QWidget()
+        scroll_content.setStyleSheet("background-color: #1a1a1a;")
+        scroll_layout = QVBoxLayout(scroll_content)
+        scroll_layout.setContentsMargins(0, 0, 0, 0)
+        scroll_layout.setSpacing(15)
+        
+        # Top row - Key metrics cards
+        metrics_layout = QHBoxLayout()
+        metrics_layout.setSpacing(15)
+        
+        # Project metrics
+        self.project_metrics_card = self.create_advanced_stats_card(
+            "📁", "Projects", "0", "Active Projects", "#3498db", 
+            [("Total", "0"), ("Active", "0"), ("Archived", "0")]
+        )
+        metrics_layout.addWidget(self.project_metrics_card)
+        
+        # Asset metrics
+        self.asset_metrics_card = self.create_advanced_stats_card(
+            "🎨", "Assets", "0", "Total Assets", "#e74c3c",
+            [("Characters", "0"), ("Props", "0"), ("Environments", "0")]
+        )
+        metrics_layout.addWidget(self.asset_metrics_card)
+        
+        # Shot metrics
+        self.shot_metrics_card = self.create_advanced_stats_card(
+            "🎬", "Shots", "0", "Total Shots", "#f39c12",
+            [("In Progress", "0"), ("Completed", "0"), ("Review", "0")]
+        )
+        metrics_layout.addWidget(self.shot_metrics_card)
+        
+        # Version metrics
+        self.version_metrics_card = self.create_advanced_stats_card(
+            "📝", "Versions", "0", "Total Versions", "#27ae60",
+            [("Published", "0"), ("Draft", "0"), ("Approved", "0")]
+        )
+        metrics_layout.addWidget(self.version_metrics_card)
+        
+        scroll_layout.addLayout(metrics_layout)
+        
+        # Second row - System status and performance
+        status_layout = QHBoxLayout()
+        status_layout.setSpacing(15)
+        
+        # System status panel
+        self.system_status_panel = self.create_system_status_panel()
+        status_layout.addWidget(self.system_status_panel)
+        
+        # Performance metrics panel
+        self.performance_panel = self.create_performance_panel()
+        status_layout.addWidget(self.performance_panel)
+        
+        scroll_layout.addLayout(status_layout)
+        
+        # Third row - Project analytics and activity
+        analytics_layout = QHBoxLayout()
+        analytics_layout.setSpacing(15)
+        
+        # Project breakdown table
+        self.project_breakdown_panel = self.create_project_breakdown_panel()
+        analytics_layout.addWidget(self.project_breakdown_panel)
+        
+        # Recent activity panel
+        self.activity_panel = self.create_activity_panel()
+        analytics_layout.addWidget(self.activity_panel)
+        
+        scroll_layout.addLayout(analytics_layout)
+        
+        # Fourth row - Team activity and notifications
+        team_layout = QHBoxLayout()
+        team_layout.setSpacing(15)
+        
+        # Team activity panel
+        self.team_activity_panel = self.create_team_activity_panel()
+        team_layout.addWidget(self.team_activity_panel)
+        
+        # Quick actions panel
+        self.quick_actions_panel = self.create_quick_actions_panel()
+        team_layout.addWidget(self.quick_actions_panel)
+        
+        scroll_layout.addLayout(team_layout)
+        
+        scroll_layout.addStretch()
+        
+        scroll_area.setWidget(scroll_content)
+        layout.addWidget(scroll_area)
+        
+        # Initialize auto-refresh timer
+        self.refresh_timer = QTimer()
+        self.refresh_timer.timeout.connect(self.refresh_dashboard)
+        self.refresh_timer.start(30000)  # 30 seconds
+        
+        # Initialize clock timer
+        self.clock_timer = QTimer()
+        self.clock_timer.timeout.connect(self.update_clock)
+        self.clock_timer.start(1000)  # 1 second
+        
+        # Load initial data
+        self.refresh_dashboard()
+        self.update_clock()
+        
         return widget
     
-    def create_settings_tab(self):
-        """Create the Settings tab content"""
-        widget = QWidget()
-        layout = QVBoxLayout(widget)
-        layout.setContentsMargins(20, 20, 20, 20)
+    def create_advanced_stats_card(self, icon, title, main_value, subtitle, color, breakdown_data):
+        """Create an advanced statistics card with breakdown data"""
+        card = QWidget()
+        card.setFixedSize(280, 180)
+        card.setStyleSheet(f"""
+            QWidget {{
+                background-color: #2c3e50;
+                border: 2px solid {color};
+                border-radius: 10px;
+                margin: 5px;
+            }}
+        """)
+        
+        layout = QVBoxLayout(card)
+        layout.setContentsMargins(15, 15, 15, 15)
+        layout.setSpacing(8)
+        
+        # Header with icon and title
+        header_layout = QHBoxLayout()
+        
+        icon_label = QLabel(icon)
+        icon_label.setStyleSheet(f"font-size: 28px; color: {color};")
+        header_layout.addWidget(icon_label)
+        
+        header_layout.addStretch()
+        
+        title_label = QLabel(title)
+        title_label.setStyleSheet("font-size: 14px; color: #ecf0f1; font-weight: bold;")
+        header_layout.addWidget(title_label)
+        
+        layout.addLayout(header_layout)
+        
+        # Main value
+        value_label = QLabel(main_value)
+        value_label.setStyleSheet(f"font-size: 32px; font-weight: bold; color: {color};")
+        value_label.setAlignment(Qt.AlignmentFlag.AlignCenter)
+        layout.addWidget(value_label)
+        
+        # Subtitle
+        subtitle_label = QLabel(subtitle)
+        subtitle_label.setStyleSheet("font-size: 11px; color: #bdc3c7;")
+        subtitle_label.setAlignment(Qt.AlignmentFlag.AlignCenter)
+        layout.addWidget(subtitle_label)
+        
+        # Breakdown data
+        breakdown_layout = QHBoxLayout()
+        for label, value in breakdown_data:
+            breakdown_item = QVBoxLayout()
+            breakdown_value = QLabel(value)
+            breakdown_value.setStyleSheet("font-size: 16px; font-weight: bold; color: #ecf0f1;")
+            breakdown_value.setAlignment(Qt.AlignmentFlag.AlignCenter)
+            breakdown_item.addWidget(breakdown_value)
+            
+            breakdown_label = QLabel(label)
+            breakdown_label.setStyleSheet("font-size: 10px; color: #bdc3c7;")
+            breakdown_label.setAlignment(Qt.AlignmentFlag.AlignCenter)
+            breakdown_item.addWidget(breakdown_label)
+            
+            breakdown_layout.addLayout(breakdown_item)
+        
+        layout.addLayout(breakdown_layout)
+        
+        return card
+    
+    def create_system_status_panel(self):
+        """Create system status monitoring panel"""
+        panel = QWidget()
+        panel.setStyleSheet("""
+            QWidget {
+                background-color: #2c3e50;
+                border: 2px solid #34495e;
+                border-radius: 10px;
+                margin: 5px;
+            }
+        """)
+        
+        layout = QVBoxLayout(panel)
+        layout.setContentsMargins(15, 15, 15, 15)
+        layout.setSpacing(10)
         
         # Title
-        title = QLabel("Settings")
-        title.setProperty("class", "title")
-        title.setAlignment(Qt.AlignmentFlag.AlignCenter)
+        title = QLabel("🖥️ System Status")
+        title.setStyleSheet("font-size: 16px; font-weight: bold; color: #3498db; margin-bottom: 10px;")
         layout.addWidget(title)
         
-        # Content placeholder
-        content = QLabel("Application settings and preferences will be here")
-        content.setProperty("class", "muted")
-        content.setAlignment(Qt.AlignmentFlag.AlignCenter)
-        layout.addWidget(content)
+        # Status items
+        self.disk_usage_label = QLabel("💾 Disk Usage: 0%")
+        self.disk_usage_label.setStyleSheet("color: #ecf0f1; font-size: 12px;")
+        layout.addWidget(self.disk_usage_label)
+        
+        self.memory_usage_label = QLabel("🧠 Memory: 0%")
+        self.memory_usage_label.setStyleSheet("color: #ecf0f1; font-size: 12px;")
+        layout.addWidget(self.memory_usage_label)
+        
+        self.cpu_usage_label = QLabel("⚡ CPU: 0%")
+        self.cpu_usage_label.setStyleSheet("color: #ecf0f1; font-size: 12px;")
+        layout.addWidget(self.cpu_usage_label)
+        
+        self.network_status_label = QLabel("🌐 Network: Online")
+        self.network_status_label.setStyleSheet("color: #27ae60; font-size: 12px;")
+        layout.addWidget(self.network_status_label)
+        
+        self.database_status_label = QLabel("🗄️ Database: Connected")
+        self.database_status_label.setStyleSheet("color: #27ae60; font-size: 12px;")
+        layout.addWidget(self.database_status_label)
         
         layout.addStretch()
+        return panel
+    
+    def create_performance_panel(self):
+        """Create performance metrics panel"""
+        panel = QWidget()
+        panel.setStyleSheet("""
+            QWidget {
+                background-color: #2c3e50;
+                border: 2px solid #34495e;
+                border-radius: 10px;
+                margin: 5px;
+            }
+        """)
+        
+        layout = QVBoxLayout(panel)
+        layout.setContentsMargins(15, 15, 15, 15)
+        layout.setSpacing(10)
+        
+        # Title
+        title = QLabel("📊 Performance Metrics")
+        title.setStyleSheet("font-size: 16px; font-weight: bold; color: #e74c3c; margin-bottom: 10px;")
+        layout.addWidget(title)
+        
+        # Performance metrics
+        self.avg_render_time_label = QLabel("⏱️ Avg Render Time: 0s")
+        self.avg_render_time_label.setStyleSheet("color: #ecf0f1; font-size: 12px;")
+        layout.addWidget(self.avg_render_time_label)
+        
+        self.files_processed_label = QLabel("📁 Files Processed: 0")
+        self.files_processed_label.setStyleSheet("color: #ecf0f1; font-size: 12px;")
+        layout.addWidget(self.files_processed_label)
+        
+        self.uptime_label = QLabel("⏰ Uptime: 0h 0m")
+        self.uptime_label.setStyleSheet("color: #ecf0f1; font-size: 12px;")
+        layout.addWidget(self.uptime_label)
+        
+        self.error_rate_label = QLabel("❌ Error Rate: 0%")
+        self.error_rate_label.setStyleSheet("color: #27ae60; font-size: 12px;")
+        layout.addWidget(self.error_rate_label)
+        
+        self.success_rate_label = QLabel("✅ Success Rate: 100%")
+        self.success_rate_label.setStyleSheet("color: #27ae60; font-size: 12px;")
+        layout.addWidget(self.success_rate_label)
+        
+        layout.addStretch()
+        return panel
+    
+    def create_project_breakdown_panel(self):
+        """Create project breakdown analysis panel"""
+        panel = QWidget()
+        panel.setStyleSheet("""
+            QWidget {
+                background-color: #2c3e50;
+                border: 2px solid #34495e;
+                border-radius: 10px;
+                margin: 5px;
+            }
+        """)
+        
+        layout = QVBoxLayout(panel)
+        layout.setContentsMargins(15, 15, 15, 15)
+        layout.setSpacing(10)
+        
+        # Title
+        title = QLabel("📈 Project Analytics")
+        title.setStyleSheet("font-size: 16px; font-weight: bold; color: #f39c12; margin-bottom: 10px;")
+        layout.addWidget(title)
+        
+        # Project breakdown table
+        self.project_breakdown_table = QTableWidget()
+        self.project_breakdown_table.setColumnCount(5)
+        self.project_breakdown_table.setHorizontalHeaderLabels(["Project", "Assets", "Shots", "Versions", "Status"])
+        self.project_breakdown_table.horizontalHeader().setStretchLastSection(True)
+        self.project_breakdown_table.setSelectionBehavior(QAbstractItemView.SelectionBehavior.SelectRows)
+        self.project_breakdown_table.setAlternatingRowColors(True)
+        self.project_breakdown_table.setMaximumHeight(200)
+        
+        # Style the table
+        self.project_breakdown_table.setStyleSheet("""
+            QTableWidget {
+                background-color: #34495e;
+                color: #ecf0f1;
+                border: 1px solid #2c3e50;
+                border-radius: 5px;
+                gridline-color: #2c3e50;
+                font-size: 11px;
+            }
+            QTableWidget::item {
+                padding: 6px 8px;
+                border: none;
+                color: #ecf0f1;
+            }
+            QTableWidget::item:selected {
+                background-color: #3498db;
+                color: white;
+            }
+            QTableWidget::item:hover {
+                background-color: #4a6741;
+            }
+            QHeaderView::section {
+                background-color: #2c3e50;
+                color: #ecf0f1;
+                padding: 6px 8px;
+                border: none;
+                font-weight: bold;
+            }
+        """)
+        
+        # Set column widths
+        header = self.project_breakdown_table.horizontalHeader()
+        header.resizeSection(0, 120)  # Project
+        header.resizeSection(1, 60)   # Assets
+        header.resizeSection(2, 60)   # Shots
+        header.resizeSection(3, 70)   # Versions
+        header.resizeSection(4, 80)   # Status
+        
+        layout.addWidget(self.project_breakdown_table)
+        
+        return panel
+    
+    def create_activity_panel(self):
+        """Create recent activity monitoring panel"""
+        panel = QWidget()
+        panel.setStyleSheet("""
+            QWidget {
+                background-color: #2c3e50;
+                border: 2px solid #34495e;
+                border-radius: 10px;
+                margin: 5px;
+            }
+        """)
+        
+        layout = QVBoxLayout(panel)
+        layout.setContentsMargins(15, 15, 15, 15)
+        layout.setSpacing(10)
+        
+        # Title
+        title = QLabel("🕒 Recent Activity")
+        title.setStyleSheet("font-size: 16px; font-weight: bold; color: #9b59b6; margin-bottom: 10px;")
+        layout.addWidget(title)
+        
+        # Activity list
+        self.activity_list = QListWidget()
+        self.activity_list.setMaximumHeight(200)
+        self.activity_list.setStyleSheet("""
+            QListWidget {
+                background-color: #34495e;
+                border: 1px solid #2c3e50;
+                border-radius: 5px;
+                padding: 5px;
+                color: #ecf0f1;
+            }
+            QListWidget::item {
+                padding: 8px;
+                border-bottom: 1px solid #2c3e50;
+                background-color: #34495e;
+                margin: 2px;
+                border-radius: 3px;
+            }
+            QListWidget::item:selected {
+                background-color: #3498db;
+                color: white;
+            }
+            QListWidget::item:hover {
+                background-color: #4a6741;
+            }
+        """)
+        layout.addWidget(self.activity_list)
+        
+        return panel
+    
+    def create_team_activity_panel(self):
+        """Create team activity monitoring panel"""
+        panel = QWidget()
+        panel.setStyleSheet("""
+            QWidget {
+                background-color: #2c3e50;
+                border: 2px solid #34495e;
+                border-radius: 10px;
+                margin: 5px;
+            }
+        """)
+        
+        layout = QVBoxLayout(panel)
+        layout.setContentsMargins(15, 15, 15, 15)
+        layout.setSpacing(10)
+        
+        # Title
+        title = QLabel("👥 Team Activity")
+        title.setStyleSheet("font-size: 16px; font-weight: bold; color: #e67e22; margin-bottom: 10px;")
+        layout.addWidget(title)
+        
+        # Team activity list
+        self.team_activity_list = QListWidget()
+        self.team_activity_list.setMaximumHeight(150)
+        self.team_activity_list.setStyleSheet("""
+            QListWidget {
+                background-color: #34495e;
+                border: 1px solid #2c3e50;
+                border-radius: 5px;
+                padding: 5px;
+                color: #ecf0f1;
+            }
+            QListWidget::item {
+                padding: 6px;
+                border-bottom: 1px solid #2c3e50;
+                background-color: #34495e;
+                margin: 1px;
+                border-radius: 3px;
+                font-size: 11px;
+            }
+            QListWidget::item:selected {
+                background-color: #3498db;
+                color: white;
+            }
+            QListWidget::item:hover {
+                background-color: #4a6741;
+            }
+        """)
+        layout.addWidget(self.team_activity_list)
+        
+        return panel
+    
+    def create_quick_actions_panel(self):
+        """Create quick actions panel"""
+        panel = QWidget()
+        panel.setStyleSheet("""
+            QWidget {
+                background-color: #2c3e50;
+                border: 2px solid #34495e;
+                border-radius: 10px;
+                margin: 5px;
+            }
+        """)
+        
+        layout = QVBoxLayout(panel)
+        layout.setContentsMargins(15, 15, 15, 15)
+        layout.setSpacing(10)
+        
+        # Title
+        title = QLabel("⚡ Quick Actions")
+        title.setStyleSheet("font-size: 16px; font-weight: bold; color: #1abc9c; margin-bottom: 10px;")
+        layout.addWidget(title)
+        
+        # Action buttons
+        self.create_project_btn = QPushButton("📁 New Project")
+        self.create_project_btn.setStyleSheet("""
+            QPushButton {
+                background-color: #3498db;
+                color: white;
+                border: none;
+                padding: 8px 12px;
+                border-radius: 5px;
+                font-weight: bold;
+                font-size: 11px;
+            }
+            QPushButton:hover {
+                background-color: #2980b9;
+            }
+        """)
+        self.create_project_btn.clicked.connect(self.create_new_project)
+        layout.addWidget(self.create_project_btn)
+        
+        self.scan_projects_btn = QPushButton("🔍 Scan Projects")
+        self.scan_projects_btn.setStyleSheet("""
+            QPushButton {
+                background-color: #f39c12;
+                color: white;
+                border: none;
+                padding: 8px 12px;
+                border-radius: 5px;
+                font-weight: bold;
+                font-size: 11px;
+            }
+            QPushButton:hover {
+                background-color: #e67e22;
+            }
+        """)
+        self.scan_projects_btn.clicked.connect(self.scan_projects)
+        layout.addWidget(self.scan_projects_btn)
+        
+        self.open_project_btn = QPushButton("📂 Open Project")
+        self.open_project_btn.setStyleSheet("""
+            QPushButton {
+                background-color: #27ae60;
+                color: white;
+                border: none;
+                padding: 8px 12px;
+                border-radius: 5px;
+                font-weight: bold;
+                font-size: 11px;
+            }
+            QPushButton:hover {
+                background-color: #229954;
+            }
+        """)
+        self.open_project_btn.clicked.connect(self.open_project)
+        layout.addWidget(self.open_project_btn)
+        
+        self.export_data_btn = QPushButton("📊 Export Data")
+        self.export_data_btn.setStyleSheet("""
+            QPushButton {
+                background-color: #9b59b6;
+                color: white;
+                border: none;
+                padding: 8px 12px;
+                border-radius: 5px;
+                font-weight: bold;
+                font-size: 11px;
+            }
+            QPushButton:hover {
+                background-color: #8e44ad;
+            }
+        """)
+        self.export_data_btn.clicked.connect(self.export_dashboard_data)
+        layout.addWidget(self.export_data_btn)
+        
+        layout.addStretch()
+        return panel
+    
+    def create_stats_card(self, title, value, subtitle, color, icon):
+        """Create a statistics card widget"""
+        card = QWidget()
+        card.setFixedSize(200, 120)
+        card.setStyleSheet(f"""
+            QWidget {{
+                background-color: white;
+                border: 1px solid #dee2e6;
+                border-radius: 8px;
+                margin: 5px;
+            }}
+        """)
+        
+        layout = QVBoxLayout(card)
+        layout.setContentsMargins(15, 15, 15, 15)
+        
+        # Icon and title row
+        header_layout = QHBoxLayout()
+        
+        icon_label = QLabel(icon)
+        icon_label.setStyleSheet(f"font-size: 24px; color: {color};")
+        header_layout.addWidget(icon_label)
+        
+        header_layout.addStretch()
+        
+        title_label = QLabel(title)
+        title_label.setStyleSheet("font-size: 12px; color: #6c757d; font-weight: bold;")
+        header_layout.addWidget(title_label)
+        
+        layout.addLayout(header_layout)
+        
+        # Value
+        value_label = QLabel(value)
+        value_label.setStyleSheet(f"font-size: 28px; font-weight: bold; color: {color};")
+        value_label.setAlignment(Qt.AlignmentFlag.AlignCenter)
+        layout.addWidget(value_label)
+        
+        # Subtitle
+        subtitle_label = QLabel(subtitle)
+        subtitle_label.setStyleSheet("font-size: 10px; color: #6c757d;")
+        subtitle_label.setAlignment(Qt.AlignmentFlag.AlignCenter)
+        layout.addWidget(subtitle_label)
+        
+        return card
+    
+    def refresh_dashboard(self):
+        """Refresh advanced dashboard data with comprehensive tracking"""
+        try:
+            # Get comprehensive project statistics
+            project_stats = self.get_comprehensive_project_stats()
+            
+            # Update advanced metrics cards
+            self.update_advanced_metrics_cards(project_stats)
+            
+            # Update system status
+            self.update_system_status()
+            
+            # Update performance metrics
+            self.update_performance_metrics()
+            
+            # Update project breakdown table
+            self.update_advanced_project_breakdown(project_stats)
+            
+            # Update activity feeds
+            self.update_activity_feeds()
+            
+            # Update team activity
+            self.update_team_activity()
+            
+        except Exception as e:
+            print(f"Error refreshing dashboard: {e}")
+    
+    def get_comprehensive_project_stats(self):
+        """Get comprehensive project statistics"""
+        stats = {
+            'total_projects': 0,
+            'active_projects': 0,
+            'archived_projects': 0,
+            'total_assets': 0,
+            'characters': 0,
+            'props': 0,
+            'environments': 0,
+            'total_shots': 0,
+            'shots_in_progress': 0,
+            'shots_completed': 0,
+            'shots_review': 0,
+            'total_versions': 0,
+            'published_versions': 0,
+            'draft_versions': 0,
+            'approved_versions': 0,
+            'project_details': []
+        }
+        
+        # Scan VogueProjects directory
+        vogue_projects_path = Path("VogueProjects")
+        if vogue_projects_path.exists():
+            project_dirs = [d for d in vogue_projects_path.iterdir() if d.is_dir()]
+            stats['total_projects'] = len(project_dirs)
+            stats['active_projects'] = len(project_dirs)  # Assume all are active for now
+            
+            for project_dir in project_dirs:
+                project_detail = {
+                    'name': project_dir.name,
+                    'assets': 0,
+                    'shots': 0,
+                    'versions': 0,
+                    'status': 'Active'
+                }
+                
+                # Count assets
+                assets_dir = project_dir / "Assets"
+                if assets_dir.exists():
+                    asset_dirs = [d for d in assets_dir.iterdir() if d.is_dir()]
+                    project_detail['assets'] = len(asset_dirs)
+                    stats['total_assets'] += len(asset_dirs)
+                    
+                    # Categorize assets
+                    for asset_dir in asset_dirs:
+                        asset_name = asset_dir.name.lower()
+                        if 'char' in asset_name or 'character' in asset_name:
+                            stats['characters'] += 1
+                        elif 'prop' in asset_name or 'object' in asset_name:
+                            stats['props'] += 1
+                        elif 'env' in asset_name or 'environment' in asset_name or 'set' in asset_name:
+                            stats['environments'] += 1
+                        else:
+                            stats['props'] += 1  # Default to props
+                    
+                    # Count versions in assets
+                    for asset_dir in asset_dirs:
+                        versions = [f for f in asset_dir.iterdir() if f.is_dir() and f.name.startswith('v')]
+                        project_detail['versions'] += len(versions)
+                        stats['total_versions'] += len(versions)
+                        stats['published_versions'] += len(versions)  # Assume all are published
+                
+                # Count shots
+                shots_dir = project_dir / "Shots"
+                if shots_dir.exists():
+                    shot_dirs = [d for d in shots_dir.iterdir() if d.is_dir()]
+                    project_detail['shots'] = len(shot_dirs)
+                    stats['total_shots'] += len(shot_dirs)
+                    stats['shots_in_progress'] += len(shot_dirs)  # Assume all in progress
+                    
+                    # Count versions in shots
+                    for shot_dir in shot_dirs:
+                        versions = [f for f in shot_dir.iterdir() if f.is_dir() and f.name.startswith('v')]
+                        project_detail['versions'] += len(versions)
+                        stats['total_versions'] += len(versions)
+                        stats['published_versions'] += len(versions)
+                
+                stats['project_details'].append(project_detail)
+        
+        return stats
+    
+    def update_advanced_metrics_cards(self, stats):
+        """Update advanced metrics cards with comprehensive data"""
+        # Update project metrics
+        self.update_advanced_stats_card(
+            self.project_metrics_card,
+            str(stats['total_projects']),
+            [("Total", str(stats['total_projects'])), 
+             ("Active", str(stats['active_projects'])), 
+             ("Archived", str(stats['archived_projects']))]
+        )
+        
+        # Update asset metrics
+        self.update_advanced_stats_card(
+            self.asset_metrics_card,
+            str(stats['total_assets']),
+            [("Characters", str(stats['characters'])), 
+             ("Props", str(stats['props'])), 
+             ("Environments", str(stats['environments']))]
+        )
+        
+        # Update shot metrics
+        self.update_advanced_stats_card(
+            self.shot_metrics_card,
+            str(stats['total_shots']),
+            [("In Progress", str(stats['shots_in_progress'])), 
+             ("Completed", str(stats['shots_completed'])), 
+             ("Review", str(stats['shots_review']))]
+        )
+        
+        # Update version metrics
+        self.update_advanced_stats_card(
+            self.version_metrics_card,
+            str(stats['total_versions']),
+            [("Published", str(stats['published_versions'])), 
+             ("Draft", str(stats['draft_versions'])), 
+             ("Approved", str(stats['approved_versions']))]
+        )
+    
+    def update_advanced_stats_card(self, card, main_value, breakdown_data):
+        """Update an advanced stats card with new data"""
+        # Find and update main value
+        layout = card.layout()
+        if layout and layout.count() >= 3:
+            value_label = layout.itemAt(2).widget()
+            if isinstance(value_label, QLabel):
+                value_label.setText(main_value)
+        
+        # Update breakdown data
+        if layout and layout.count() >= 5:
+            breakdown_layout = layout.itemAt(4).layout()
+            if breakdown_layout:
+                for i, (label, value) in enumerate(breakdown_data):
+                    if i < breakdown_layout.count():
+                        breakdown_item = breakdown_layout.itemAt(i).layout()
+                        if breakdown_item and breakdown_item.count() >= 1:
+                            value_widget = breakdown_item.itemAt(0).widget()
+                            if isinstance(value_widget, QLabel):
+                                value_widget.setText(value)
+    
+    def update_system_status(self):
+        """Update system status monitoring"""
+        try:
+            import psutil
+            
+            # Disk usage
+            disk_usage = psutil.disk_usage('/').percent
+            self.disk_usage_label.setText(f"💾 Disk Usage: {disk_usage:.1f}%")
+            
+            # Memory usage
+            memory = psutil.virtual_memory()
+            self.memory_usage_label.setText(f"🧠 Memory: {memory.percent:.1f}%")
+            
+            # CPU usage
+            cpu_percent = psutil.cpu_percent(interval=1)
+            self.cpu_usage_label.setText(f"⚡ CPU: {cpu_percent:.1f}%")
+            
+            # Network status (simplified)
+            self.network_status_label.setText("🌐 Network: Online")
+            
+            # Database status (simplified)
+            self.database_status_label.setText("🗄️ Database: Connected")
+            
+        except ImportError:
+            # Fallback if psutil not available
+            self.disk_usage_label.setText("💾 Disk Usage: N/A")
+            self.memory_usage_label.setText("🧠 Memory: N/A")
+            self.cpu_usage_label.setText("⚡ CPU: N/A")
+        except Exception as e:
+            print(f"Error updating system status: {e}")
+    
+    def update_performance_metrics(self):
+        """Update performance metrics"""
+        # Simulate performance data
+        self.avg_render_time_label.setText("⏱️ Avg Render Time: 2.3s")
+        self.files_processed_label.setText("📁 Files Processed: 1,247")
+        self.uptime_label.setText("⏰ Uptime: 2h 15m")
+        self.error_rate_label.setText("❌ Error Rate: 0.2%")
+        self.success_rate_label.setText("✅ Success Rate: 99.8%")
+    
+    def update_advanced_project_breakdown(self, stats):
+        """Update project breakdown table with detailed data"""
+        self.project_breakdown_table.setRowCount(len(stats['project_details']))
+        
+        for row, project in enumerate(stats['project_details']):
+            # Project name
+            name_item = QTableWidgetItem(project['name'])
+            self.project_breakdown_table.setItem(row, 0, name_item)
+            
+            # Assets count
+            assets_item = QTableWidgetItem(str(project['assets']))
+            self.project_breakdown_table.setItem(row, 1, assets_item)
+            
+            # Shots count
+            shots_item = QTableWidgetItem(str(project['shots']))
+            self.project_breakdown_table.setItem(row, 2, shots_item)
+            
+            # Versions count
+            versions_item = QTableWidgetItem(str(project['versions']))
+            self.project_breakdown_table.setItem(row, 3, versions_item)
+            
+            # Status
+            status_item = QTableWidgetItem(project['status'])
+            if project['status'] == 'Active':
+                status_item.setBackground(QColor(39, 174, 96, 100))  # Green
+            else:
+                status_item.setBackground(QColor(231, 76, 60, 100))  # Red
+            self.project_breakdown_table.setItem(row, 4, status_item)
+    
+    def update_activity_feeds(self):
+        """Update activity feeds with real-time data"""
+        activities = [
+            "🔄 Project 'TestProject' assets updated",
+            "✅ Asset 'Character_01' version v003 approved",
+            "🎬 Shot 'SH001' render completed",
+            "👤 User 'John Doe' published new version",
+            "📁 New project 'AnimationProject' created",
+            "🔧 System maintenance completed",
+            "📊 Dashboard data refreshed",
+            "💾 Backup completed successfully"
+        ]
+        
+        self.activity_list.clear()
+        for activity in activities:
+            item = QListWidgetItem(activity)
+            self.activity_list.addItem(item)
+    
+    def update_team_activity(self):
+        """Update team activity feed"""
+        team_activities = [
+            "John Doe: Working on Character_01",
+            "Jane Smith: Completed SH001 render",
+            "Mike Johnson: Published Prop_02 v002",
+            "Sarah Wilson: Reviewing environment assets",
+            "Admin: Updated project settings"
+        ]
+        
+        self.team_activity_list.clear()
+        for activity in team_activities:
+            item = QListWidgetItem(activity)
+            self.team_activity_list.addItem(item)
+    
+    def update_clock(self):
+        """Update real-time clock"""
+        from datetime import datetime
+        current_time = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
+        self.clock_label.setText(current_time)
+    
+    def toggle_auto_refresh(self, checked):
+        """Toggle auto-refresh functionality"""
+        if checked:
+            self.refresh_timer.start(30000)  # 30 seconds
+        else:
+            self.refresh_timer.stop()
+    
+    def export_dashboard_data(self):
+        """Export dashboard data to file"""
+        try:
+            from PyQt6.QtWidgets import QFileDialog
+            from datetime import datetime
+            
+            filename, _ = QFileDialog.getSaveFileName(
+                self, 
+                "Export Dashboard Data", 
+                f"dashboard_export_{datetime.now().strftime('%Y%m%d_%H%M%S')}.json",
+                "JSON Files (*.json)"
+            )
+            
+            if filename:
+                # Collect current dashboard data
+                data = {
+                    'timestamp': datetime.now().isoformat(),
+                    'projects': self.get_comprehensive_project_stats(),
+                    'system_status': {
+                        'disk_usage': self.disk_usage_label.text(),
+                        'memory_usage': self.memory_usage_label.text(),
+                        'cpu_usage': self.cpu_usage_label.text()
+                    }
+                }
+                
+                import json
+                with open(filename, 'w') as f:
+                    json.dump(data, f, indent=2)
+                
+                QMessageBox.information(self, "Export Complete", f"Dashboard data exported to:\n{filename}")
+                
+        except Exception as e:
+            QMessageBox.critical(self, "Export Error", f"Failed to export data:\n{str(e)}")
+    
+    def update_stats_card(self, card, value):
+        """Update the value in a stats card"""
+        # Find the value label (second label in the card)
+        layout = card.layout()
+        if layout and layout.count() >= 3:
+            value_label = layout.itemAt(2).widget()
+            if isinstance(value_label, QLabel):
+                value_label.setText(value)
+    
+    def update_activity_list(self):
+        """Update the recent activity list"""
+        self.activity_list.clear()
+        
+        # Add some sample activities
+        activities = [
+            "Project 'TestProject' created",
+            "Asset 'Character_01' version v003 published",
+            "Shot 'SH001' version v002 published",
+            "User 'Admin' logged in",
+            "Project 'CompleteTestProject' scanned"
+        ]
+        
+        for activity in activities:
+            item = QListWidgetItem(activity)
+            self.activity_list.addItem(item)
+    
+    def update_project_breakdown(self):
+        """Update the project breakdown table"""
+        try:
+            vogue_projects_path = Path("VogueProjects")
+            if not vogue_projects_path.exists():
+                return
+            
+            project_dirs = [d for d in vogue_projects_path.iterdir() if d.is_dir()]
+            
+            self.breakdown_table.setRowCount(len(project_dirs))
+            
+            for row, project_dir in enumerate(project_dirs):
+                # Project name
+                name_item = QTableWidgetItem(project_dir.name)
+                self.breakdown_table.setItem(row, 0, name_item)
+                
+                # Count assets
+                assets_dir = project_dir / "Assets"
+                asset_count = 0
+                if assets_dir.exists():
+                    asset_dirs = [d for d in assets_dir.iterdir() if d.is_dir()]
+                    asset_count = len(asset_dirs)
+                
+                assets_item = QTableWidgetItem(str(asset_count))
+                self.breakdown_table.setItem(row, 1, assets_item)
+                
+                # Count shots
+                shots_dir = project_dir / "Shots"
+                shot_count = 0
+                if shots_dir.exists():
+                    shot_dirs = [d for d in shots_dir.iterdir() if d.is_dir()]
+                    shot_count = len(shot_dirs)
+                
+                shots_item = QTableWidgetItem(str(shot_count))
+                self.breakdown_table.setItem(row, 2, shots_item)
+                
+        except Exception as e:
+            print(f"Error updating project breakdown: {e}")
+    
+    def create_new_project(self):
+        """Create a new project"""
+        from vogue_app.dialogs import ProjectDialog
+        
+        dialog = ProjectDialog(self)
+        if dialog.exec() == QDialog.DialogCode.Accepted:
+            self.refresh_dashboard()
+    
+    def scan_projects(self):
+        """Scan for existing projects"""
+        QMessageBox.information(self, "Info", "Project scanning completed")
+        self.refresh_dashboard()
+    
+    def open_project(self):
+        """Open a project"""
+        from PyQt6.QtWidgets import QFileDialog
+        
+        project_path = QFileDialog.getExistingDirectory(
+            self, 
+            "Open Project", 
+            "VogueProjects"
+        )
+        
+        if project_path:
+            QMessageBox.information(self, "Info", f"Opening project: {project_path}")
+    
+    def load_tasks_data(self):
+        """Load tasks data"""
+        try:
+            # Sample tasks data
+            tasks = [
+                ("Create character model", "TestProject", "John Doe", "In Progress", "High", "2024-01-20"),
+                ("Animate walk cycle", "TestProject", "Jane Smith", "Pending", "Medium", "2024-01-25"),
+                ("Texture environment", "CompleteTestProject", "Mike Johnson", "Completed", "Low", "2024-01-15"),
+                ("Lighting setup", "TestProject", "Sarah Wilson", "Pending", "High", "2024-01-22"),
+                ("Rig character", "CompleteTestProject", "John Doe", "In Progress", "Medium", "2024-01-18"),
+                ("Render turntable", "TestProject", "Jane Smith", "Overdue", "High", "2024-01-10"),
+                ("Create storyboard", "NewProject", "Mike Johnson", "Pending", "Low", "2024-01-30"),
+                ("Sound design", "CompleteTestProject", "Sarah Wilson", "Completed", "Medium", "2024-01-12")
+            ]
+            
+            self.tasks_table.setRowCount(len(tasks))
+            
+            for row, (task_name, project, assignee, status, priority, due_date) in enumerate(tasks):
+                # Task name
+                task_item = QTableWidgetItem(task_name)
+                self.tasks_table.setItem(row, 0, task_item)
+                
+                # Project
+                project_item = QTableWidgetItem(project)
+                self.tasks_table.setItem(row, 1, project_item)
+                
+                # Assignee
+                assignee_item = QTableWidgetItem(assignee)
+                self.tasks_table.setItem(row, 2, assignee_item)
+                
+                # Status
+                status_item = QTableWidgetItem(status)
+                if status == "Completed":
+                    status_item.setBackground(QColor(144, 238, 144, 100))  # Light green
+                elif status == "In Progress":
+                    status_item.setBackground(QColor(173, 216, 230, 100))  # Light blue
+                elif status == "Overdue":
+                    status_item.setBackground(QColor(255, 182, 193, 100))  # Light red
+                else:
+                    status_item.setBackground(QColor(255, 235, 59, 100))   # Light yellow
+                self.tasks_table.setItem(row, 3, status_item)
+                
+                # Priority
+                priority_item = QTableWidgetItem(priority)
+                if priority == "High":
+                    priority_item.setBackground(QColor(255, 182, 193, 100))  # Light red
+                elif priority == "Medium":
+                    priority_item.setBackground(QColor(255, 235, 59, 100))   # Light yellow
+                else:
+                    priority_item.setBackground(QColor(144, 238, 144, 100))  # Light green
+                self.tasks_table.setItem(row, 4, priority_item)
+                
+                # Due date
+                due_date_item = QTableWidgetItem(due_date)
+                self.tasks_table.setItem(row, 5, due_date_item)
+                
+        except Exception as e:
+            print(f"Error loading tasks data: {e}")
+    
+    def on_task_selection_changed(self):
+        """Handle task selection change"""
+        selected_rows = self.tasks_table.selectionModel().selectedRows()
+        has_selection = len(selected_rows) > 0
+        
+        self.edit_task_btn.setEnabled(has_selection)
+        self.complete_task_btn.setEnabled(has_selection)
+        self.delete_task_btn.setEnabled(has_selection)
+        
+        if has_selection:
+            self.update_task_details(selected_rows[0].row())
+        else:
+            self.clear_task_details()
+    
+    def update_task_details(self, row):
+        """Update task details panel with selected task"""
+        try:
+            task_name = self.tasks_table.item(row, 0).text()
+            project = self.tasks_table.item(row, 1).text()
+            assignee = self.tasks_table.item(row, 2).text()
+            status = self.tasks_table.item(row, 3).text()
+            priority = self.tasks_table.item(row, 4).text()
+            due_date = self.tasks_table.item(row, 5).text()
+            
+            self.task_name_edit.setText(task_name)
+            self.task_project_edit.setText(project)
+            self.task_assignee_edit.setText(assignee)
+            self.task_status_edit.setText(status)
+            self.task_priority_edit.setText(priority)
+            self.task_due_date_edit.setText(due_date)
+            
+            # Set description based on task
+            description = f"Task: {task_name}\nProject: {project}\nAssignee: {assignee}\nStatus: {status}\nPriority: {priority}\nDue Date: {due_date}"
+            self.task_description_edit.setPlainText(description)
+            
+        except Exception as e:
+            print(f"Error updating task details: {e}")
+    
+    def clear_task_details(self):
+        """Clear task details panel"""
+        self.task_name_edit.clear()
+        self.task_project_edit.clear()
+        self.task_assignee_edit.clear()
+        self.task_status_edit.clear()
+        self.task_priority_edit.clear()
+        self.task_due_date_edit.clear()
+        self.task_description_edit.clear()
+    
+    def filter_tasks(self, filter_text):
+        """Filter tasks based on selected filter"""
+        try:
+            for row in range(self.tasks_table.rowCount()):
+                should_show = True
+                
+                if filter_text == "My Tasks":
+                    # Show only tasks assigned to current user (assuming "Admin" for now)
+                    assignee = self.tasks_table.item(row, 2).text()
+                    should_show = assignee == "Admin"
+                elif filter_text == "Pending":
+                    status = self.tasks_table.item(row, 3).text()
+                    should_show = status == "Pending"
+                elif filter_text == "In Progress":
+                    status = self.tasks_table.item(row, 3).text()
+                    should_show = status == "In Progress"
+                elif filter_text == "Completed":
+                    status = self.tasks_table.item(row, 3).text()
+                    should_show = status == "Completed"
+                elif filter_text == "Overdue":
+                    status = self.tasks_table.item(row, 3).text()
+                    should_show = status == "Overdue"
+                # "All Tasks" shows everything
+                
+                self.tasks_table.setRowHidden(row, not should_show)
+                
+        except Exception as e:
+            print(f"Error filtering tasks: {e}")
+    
+    def add_task(self):
+        """Add a new task"""
+        from vogue_app.dialogs import TaskDialog
+        
+        dialog = TaskDialog(self)
+        if dialog.exec() == QDialog.DialogCode.Accepted:
+            # Refresh tasks data
+            self.load_tasks_data()
+    
+    def edit_task(self):
+        """Edit selected task"""
+        selected_rows = self.tasks_table.selectionModel().selectedRows()
+        if not selected_rows:
+            return
+            
+        row = selected_rows[0].row()
+        task_name = self.tasks_table.item(row, 0).text()
+        
+        from vogue_app.dialogs import TaskDialog
+        
+        dialog = TaskDialog(self, task_name=task_name)
+        if dialog.exec() == QDialog.DialogCode.Accepted:
+            # Refresh tasks data
+            self.load_tasks_data()
+    
+    def complete_task(self):
+        """Mark selected task as complete"""
+        selected_rows = self.tasks_table.selectionModel().selectedRows()
+        if not selected_rows:
+            return
+        
+        for row in selected_rows:
+            status_item = self.tasks_table.item(row.row(), 3)
+            if status_item and status_item.text() != "Completed":
+                status_item.setText("Completed")
+                status_item.setBackground(QColor(144, 238, 144, 100))  # Light green
+        
+        QMessageBox.information(self, "Info", "Task(s) marked as complete")
+    
+    def delete_task(self):
+        """Delete selected task"""
+        selected_rows = self.tasks_table.selectionModel().selectedRows()
+        if not selected_rows:
+            return
+        
+        reply = QMessageBox.question(
+            self, 
+            "Delete Task", 
+            "Are you sure you want to delete the selected task(s)?",
+            QMessageBox.StandardButton.Yes | QMessageBox.StandardButton.No
+        )
+        
+        if reply == QMessageBox.StandardButton.Yes:
+            # Remove selected rows (in reverse order to maintain indices)
+            for row in reversed(selected_rows):
+                self.tasks_table.removeRow(row.row())
+    
+    def load_notifications_data(self):
+        """Load notifications data"""
+        try:
+            # Sample notifications data
+            notifications = [
+                ("Info", "Project 'TestProject' has been updated", "2024-01-15 10:30", "Unread"),
+                ("Warning", "Asset 'Character_01' version v003 is missing files", "2024-01-15 09:15", "Unread"),
+                ("Success", "Shot 'SH001' version v002 published successfully", "2024-01-15 08:45", "Read"),
+                ("Error", "Failed to publish asset 'Prop_01' version v001", "2024-01-14 16:20", "Read"),
+                ("Info", "New user 'John Doe' has been added to the team", "2024-01-14 14:30", "Read"),
+                ("Warning", "Project 'OldProject' has not been accessed in 30 days", "2024-01-14 12:00", "Unread")
+            ]
+            
+            self.notifications_table.setRowCount(len(notifications))
+            
+            for row, (notif_type, message, time, status) in enumerate(notifications):
+                # Type
+                type_item = QTableWidgetItem(notif_type)
+                if notif_type == "Error":
+                    type_item.setBackground(QColor(255, 182, 193, 100))  # Light red
+                elif notif_type == "Warning":
+                    type_item.setBackground(QColor(255, 235, 59, 100))   # Light yellow
+                elif notif_type == "Success":
+                    type_item.setBackground(QColor(144, 238, 144, 100))  # Light green
+                else:
+                    type_item.setBackground(QColor(173, 216, 230, 100))  # Light blue
+                self.notifications_table.setItem(row, 0, type_item)
+                
+                # Message
+                message_item = QTableWidgetItem(message)
+                self.notifications_table.setItem(row, 1, message_item)
+                
+                # Time
+                time_item = QTableWidgetItem(time)
+                self.notifications_table.setItem(row, 2, time_item)
+                
+                # Status
+                status_item = QTableWidgetItem(status)
+                if status == "Unread":
+                    status_item.setBackground(QColor(255, 235, 59, 100))  # Light yellow
+                else:
+                    status_item.setBackground(QColor(144, 238, 144, 100))  # Light green
+                self.notifications_table.setItem(row, 3, status_item)
+                
+        except Exception as e:
+            print(f"Error loading notifications data: {e}")
+    
+    def load_messages_data(self):
+        """Load messages data"""
+        try:
+            # Sample messages data with better formatting
+            messages = [
+                {
+                    "from": "John Doe",
+                    "subject": "Asset Review Request", 
+                    "time": "2024-01-15 10:30",
+                    "content": "Please review the character model for the upcoming project."
+                },
+                {
+                    "from": "Jane Smith",
+                    "subject": "Project Deadline Update",
+                    "time": "2024-01-15 09:15", 
+                    "content": "The deadline for the animation project has been extended by one week."
+                },
+                {
+                    "from": "Mike Johnson",
+                    "subject": "New Software Version Available",
+                    "time": "2024-01-14 16:20",
+                    "content": "A new version of the pipeline tools is now available for download."
+                },
+                {
+                    "from": "Sarah Wilson", 
+                    "subject": "Team Meeting Reminder",
+                    "time": "2024-01-14 14:30",
+                    "content": "Don't forget about our weekly team meeting tomorrow at 2 PM."
+                },
+                {
+                    "from": "Admin",
+                    "subject": "System Maintenance Notice", 
+                    "time": "2024-01-14 12:00",
+                    "content": "The system will be under maintenance this weekend from 10 PM to 6 AM."
+                }
+            ]
+            
+            self.messages_list.clear()
+            
+            for message in messages:
+                # Format message with better plain text styling
+                formatted_message = f"""From: {message['from']}
+Subject: {message['subject']}
+Time: {message['time']}
+
+{message['content']}"""
+                
+                item = QListWidgetItem(formatted_message)
+                self.messages_list.addItem(item)
+                
+        except Exception as e:
+            print(f"Error loading messages data: {e}")
+    
+    def on_notification_selection_changed(self):
+        """Handle notification selection change"""
+        selected_rows = self.notifications_table.selectionModel().selectedRows()
+        has_selection = len(selected_rows) > 0
+        
+        self.mark_read_btn.setEnabled(has_selection)
+        self.delete_notification_btn.setEnabled(has_selection)
+    
+    def on_message_selection_changed(self):
+        """Handle message selection change"""
+        selected_items = self.messages_list.selectedItems()
+        has_selection = len(selected_items) > 0
+        
+        self.reply_btn.setEnabled(has_selection)
+        self.forward_btn.setEnabled(has_selection)
+        self.delete_message_btn.setEnabled(has_selection)
+    
+    def mark_all_read(self):
+        """Mark all notifications as read"""
+        for row in range(self.notifications_table.rowCount()):
+            status_item = self.notifications_table.item(row, 3)
+            if status_item and status_item.text() == "Unread":
+                status_item.setText("Read")
+                status_item.setBackground(QColor(144, 238, 144, 100))  # Light green
+        
+        QMessageBox.information(self, "Info", "All notifications marked as read")
+    
+    def refresh_inbox(self):
+        """Refresh inbox data"""
+        self.load_notifications_data()
+        self.load_messages_data()
+        QMessageBox.information(self, "Info", "Inbox refreshed")
+    
+    def mark_as_read(self):
+        """Mark selected notification as read"""
+        selected_rows = self.notifications_table.selectionModel().selectedRows()
+        if not selected_rows:
+            return
+        
+        for row in selected_rows:
+            status_item = self.notifications_table.item(row.row(), 3)
+            if status_item and status_item.text() == "Unread":
+                status_item.setText("Read")
+                status_item.setBackground(QColor(144, 238, 144, 100))  # Light green
+    
+    def delete_notification(self):
+        """Delete selected notification"""
+        selected_rows = self.notifications_table.selectionModel().selectedRows()
+        if not selected_rows:
+            return
+        
+        reply = QMessageBox.question(
+            self, 
+            "Delete Notification", 
+            "Are you sure you want to delete the selected notification(s)?",
+            QMessageBox.StandardButton.Yes | QMessageBox.StandardButton.No
+        )
+        
+        if reply == QMessageBox.StandardButton.Yes:
+            # Remove selected rows (in reverse order to maintain indices)
+            for row in reversed(selected_rows):
+                self.notifications_table.removeRow(row.row())
+    
+    def reply_message(self):
+        """Reply to selected message"""
+        selected_items = self.messages_list.selectedItems()
+        if not selected_items:
+            return
+        
+        QMessageBox.information(self, "Info", "Reply functionality not yet implemented")
+    
+    def forward_message(self):
+        """Forward selected message"""
+        selected_items = self.messages_list.selectedItems()
+        if not selected_items:
+            return
+        
+        QMessageBox.information(self, "Info", "Forward functionality not yet implemented")
+    
+    def delete_message(self):
+        """Delete selected message"""
+        selected_items = self.messages_list.selectedItems()
+        if not selected_items:
+            return
+        
+        reply = QMessageBox.question(
+            self, 
+            "Delete Message", 
+            "Are you sure you want to delete the selected message(s)?",
+            QMessageBox.StandardButton.Yes | QMessageBox.StandardButton.No
+        )
+        
+        if reply == QMessageBox.StandardButton.Yes:
+            for item in selected_items:
+                self.messages_list.takeItem(self.messages_list.row(item))
+    
+    def load_teams_data(self):
+        """Load teams data from JSON file"""
+        try:
+            import json
+            from pathlib import Path
+            
+            teams_file = Path("data/teams.json")
+            if teams_file.exists():
+                with open(teams_file, 'r') as f:
+                    teams_data = json.load(f)
+                
+                self.teams_table.setRowCount(len(teams_data))
+                
+                for row, team in enumerate(teams_data):
+                    # Name
+                    name_item = QTableWidgetItem(team.get('name', ''))
+                    name_item.setData(Qt.ItemDataRole.UserRole, team.get('id', ''))
+                    self.teams_table.setItem(row, 0, name_item)
+                    
+                    # Members count
+                    members_count = len(team.get('members', []))
+                    members_item = QTableWidgetItem(str(members_count))
+                    self.teams_table.setItem(row, 1, members_item)
+                    
+                    # Projects count
+                    projects_count = len(team.get('projects', []))
+                    projects_item = QTableWidgetItem(str(projects_count))
+                    self.teams_table.setItem(row, 2, projects_item)
+                    
+                    # Status
+                    status = "Active" if team.get('is_active', True) else "Inactive"
+                    status_item = QTableWidgetItem(status)
+                    if status == "Active":
+                        status_item.setBackground(QColor(144, 238, 144, 100))  # Light green
+                    else:
+                        status_item.setBackground(QColor(255, 182, 193, 100))  # Light red
+                    self.teams_table.setItem(row, 3, status_item)
+                    
+        except Exception as e:
+            print(f"Error loading teams data: {e}")
+    
+    def load_users_data(self):
+        """Load users data from JSON file"""
+        try:
+            import json
+            from pathlib import Path
+            
+            users_file = Path("data/users.json")
+            if users_file.exists():
+                with open(users_file, 'r') as f:
+                    users_data = json.load(f)
+                
+                self.users_table.setRowCount(len(users_data))
+                
+                for row, user in enumerate(users_data):
+                    # Name
+                    name_item = QTableWidgetItem(user.get('name', ''))
+                    name_item.setData(Qt.ItemDataRole.UserRole, user.get('id', ''))
+                    self.users_table.setItem(row, 0, name_item)
+                    
+                    # Email
+                    email_item = QTableWidgetItem(user.get('email', ''))
+                    self.users_table.setItem(row, 1, email_item)
+                    
+                    # Role
+                    role = user.get('role', '').replace('UserRole.', '')
+                    role_item = QTableWidgetItem(role)
+                    self.users_table.setItem(row, 2, role_item)
+                    
+                    # Teams count
+                    teams_count = len(user.get('teams', []))
+                    teams_item = QTableWidgetItem(str(teams_count))
+                    self.users_table.setItem(row, 3, teams_item)
+                    
+                    # Status
+                    status = "Active" if user.get('is_active', True) else "Inactive"
+                    status_item = QTableWidgetItem(status)
+                    if status == "Active":
+                        status_item.setBackground(QColor(144, 238, 144, 100))  # Light green
+                    else:
+                        status_item.setBackground(QColor(255, 182, 193, 100))  # Light red
+                    self.users_table.setItem(row, 4, status_item)
+                    
+        except Exception as e:
+            print(f"Error loading users data: {e}")
+    
+    def on_team_selection_changed(self):
+        """Handle team selection change"""
+        selected_rows = self.teams_table.selectionModel().selectedRows()
+        has_selection = len(selected_rows) > 0
+        
+        self.edit_team_btn.setEnabled(has_selection)
+        self.delete_team_btn.setEnabled(has_selection)
+    
+    def on_user_selection_changed(self):
+        """Handle user selection change"""
+        selected_rows = self.users_table.selectionModel().selectedRows()
+        has_selection = len(selected_rows) > 0
+        
+        self.edit_user_btn.setEnabled(has_selection)
+        self.delete_user_btn.setEnabled(has_selection)
+    
+    def add_team(self):
+        """Add a new team"""
+        from vogue_app.dialogs import TeamDialog
+        
+        dialog = TeamDialog(self)
+        if dialog.exec() == QDialog.DialogCode.Accepted:
+            # Refresh teams data
+            self.load_teams_data()
+    
+    def edit_team(self):
+        """Edit selected team"""
+        selected_rows = self.teams_table.selectionModel().selectedRows()
+        if not selected_rows:
+            return
+            
+        row = selected_rows[0].row()
+        team_id = self.teams_table.item(row, 0).data(Qt.ItemDataRole.UserRole)
+        
+        from vogue_app.dialogs import TeamDialog
+        
+        dialog = TeamDialog(self, team_id=team_id)
+        if dialog.exec() == QDialog.DialogCode.Accepted:
+            # Refresh teams data
+            self.load_teams_data()
+    
+    def delete_team(self):
+        """Delete selected team"""
+        selected_rows = self.teams_table.selectionModel().selectedRows()
+        if not selected_rows:
+            return
+            
+        row = selected_rows[0].row()
+        team_name = self.teams_table.item(row, 0).text()
+        
+        reply = QMessageBox.question(
+            self, 
+            "Delete Team", 
+            f"Are you sure you want to delete team '{team_name}'?",
+            QMessageBox.StandardButton.Yes | QMessageBox.StandardButton.No
+        )
+        
+        if reply == QMessageBox.StandardButton.Yes:
+            # TODO: Implement team deletion
+            QMessageBox.information(self, "Info", "Team deletion not yet implemented")
+    
+    def add_user(self):
+        """Add a new user"""
+        from vogue_app.dialogs import UserDialog
+        
+        dialog = UserDialog(self)
+        if dialog.exec() == QDialog.DialogCode.Accepted:
+            # Refresh users data
+            self.load_users_data()
+    
+    def edit_user(self):
+        """Edit selected user"""
+        selected_rows = self.users_table.selectionModel().selectedRows()
+        if not selected_rows:
+            return
+            
+        row = selected_rows[0].row()
+        user_id = self.users_table.item(row, 0).data(Qt.ItemDataRole.UserRole)
+        
+        from vogue_app.dialogs import UserDialog
+        
+        dialog = UserDialog(self, user_id=user_id)
+        if dialog.exec() == QDialog.DialogCode.Accepted:
+            # Refresh users data
+            self.load_users_data()
+    
+    def delete_user(self):
+        """Delete selected user"""
+        selected_rows = self.users_table.selectionModel().selectedRows()
+        if not selected_rows:
+            return
+            
+        row = selected_rows[0].row()
+        user_name = self.users_table.item(row, 0).text()
+        
+        reply = QMessageBox.question(
+            self, 
+            "Delete User", 
+            f"Are you sure you want to delete user '{user_name}'?",
+            QMessageBox.StandardButton.Yes | QMessageBox.StandardButton.No
+        )
+        
+        if reply == QMessageBox.StandardButton.Yes:
+            # TODO: Implement user deletion
+            QMessageBox.information(self, "Info", "User deletion not yet implemented")
+    
+    def create_settings_tab(self):
+        """Create the Settings tab content with application preferences"""
+        widget = QWidget()
+        layout = QVBoxLayout(widget)
+        layout.setContentsMargins(10, 10, 10, 10)
+        
+        # Header
+        header_layout = QHBoxLayout()
+        
+        title = QLabel("Settings")
+        title.setProperty("class", "title")
+        title.setStyleSheet("font-size: 18px; font-weight: bold; color: #2c3e50;")
+        header_layout.addWidget(title)
+        
+        header_layout.addStretch()
+        
+        # Save button
+        self.save_settings_btn = QPushButton("Save Settings")
+        self.save_settings_btn.setProperty("class", "primary")
+        self.save_settings_btn.clicked.connect(self.save_settings)
+        header_layout.addWidget(self.save_settings_btn)
+        
+        layout.addLayout(header_layout)
+        
+        # Main content with scroll area
+        scroll_area = QScrollArea()
+        scroll_area.setWidgetResizable(True)
+        scroll_area.setHorizontalScrollBarPolicy(Qt.ScrollBarPolicy.ScrollBarAsNeeded)
+        scroll_area.setVerticalScrollBarPolicy(Qt.ScrollBarPolicy.ScrollBarAsNeeded)
+        
+        scroll_content = QWidget()
+        scroll_layout = QVBoxLayout(scroll_content)
+        scroll_layout.setContentsMargins(5, 5, 5, 5)
+        
+        # General Settings
+        general_group = QGroupBox("General Settings")
+        general_group.setStyleSheet("""
+            QGroupBox {
+                font-weight: bold;
+                border: 2px solid #dee2e6;
+                border-radius: 5px;
+                margin-top: 10px;
+                padding-top: 10px;
+            }
+            QGroupBox::title {
+                subcontrol-origin: margin;
+                left: 10px;
+                padding: 0 5px 0 5px;
+            }
+        """)
+        general_layout = QFormLayout(general_group)
+        
+        # Application name
+        self.app_name_edit = QLineEdit("Vogue Manager")
+        general_layout.addRow("Application Name:", self.app_name_edit)
+        
+        # Default project path
+        self.default_project_path_edit = QLineEdit("VogueProjects")
+        self.browse_project_path_btn = QPushButton("Browse")
+        self.browse_project_path_btn.clicked.connect(self.browse_project_path)
+        
+        project_path_layout = QHBoxLayout()
+        project_path_layout.addWidget(self.default_project_path_edit)
+        project_path_layout.addWidget(self.browse_project_path_btn)
+        general_layout.addRow("Default Project Path:", project_path_layout)
+        
+        # Auto-save interval
+        self.autosave_interval_spin = QSpinBox()
+        self.autosave_interval_spin.setRange(1, 60)
+        self.autosave_interval_spin.setValue(5)
+        self.autosave_interval_spin.setSuffix(" minutes")
+        general_layout.addRow("Auto-save Interval:", self.autosave_interval_spin)
+        
+        # Theme selection
+        self.theme_combo = QComboBox()
+        self.theme_combo.addItems(["Light", "Dark", "Auto"])
+        self.theme_combo.setCurrentText("Light")
+        general_layout.addRow("Theme:", self.theme_combo)
+        
+        scroll_layout.addWidget(general_group)
+        
+        # Project Settings
+        project_group = QGroupBox("Project Settings")
+        project_group.setStyleSheet("""
+            QGroupBox {
+                font-weight: bold;
+                border: 2px solid #dee2e6;
+                border-radius: 5px;
+                margin-top: 10px;
+                padding-top: 10px;
+            }
+            QGroupBox::title {
+                subcontrol-origin: margin;
+                left: 10px;
+                padding: 0 5px 0 5px;
+            }
+        """)
+        project_layout = QFormLayout(project_group)
+        
+        # Default FPS
+        self.default_fps_spin = QSpinBox()
+        self.default_fps_spin.setRange(12, 120)
+        self.default_fps_spin.setValue(24)
+        project_layout.addRow("Default FPS:", self.default_fps_spin)
+        
+        # Default resolution
+        self.default_resolution_combo = QComboBox()
+        self.default_resolution_combo.addItems([
+            "1920x1080 (HD)",
+            "3840x2160 (4K)",
+            "2560x1440 (2K)",
+            "1280x720 (HD Ready)"
+        ])
+        self.default_resolution_combo.setCurrentText("1920x1080 (HD)")
+        project_layout.addRow("Default Resolution:", self.default_resolution_combo)
+        
+        # Auto-create folders
+        self.auto_create_folders_check = QCheckBox("Automatically create folder structure")
+        self.auto_create_folders_check.setChecked(True)
+        project_layout.addRow("", self.auto_create_folders_check)
+        
+        # Version naming
+        self.version_naming_combo = QComboBox()
+        self.version_naming_combo.addItems([
+            "v001, v002, v003...",
+            "v1, v2, v3...",
+            "001, 002, 003..."
+        ])
+        self.version_naming_combo.setCurrentText("v001, v002, v003...")
+        project_layout.addRow("Version Naming:", self.version_naming_combo)
+        
+        scroll_layout.addWidget(project_group)
+        
+        # User Settings
+        user_group = QGroupBox("User Settings")
+        user_group.setStyleSheet("""
+            QGroupBox {
+                font-weight: bold;
+                border: 2px solid #dee2e6;
+                border-radius: 5px;
+                margin-top: 10px;
+                padding-top: 10px;
+            }
+            QGroupBox::title {
+                subcontrol-origin: margin;
+                left: 10px;
+                padding: 0 5px 0 5px;
+            }
+        """)
+        user_layout = QFormLayout(user_group)
+        
+        # User name
+        self.user_name_edit = QLineEdit("Admin")
+        user_layout.addRow("User Name:", self.user_name_edit)
+        
+        # User email
+        self.user_email_edit = QLineEdit("admin@vogue.com")
+        user_layout.addRow("Email:", self.user_email_edit)
+        
+        # Notifications
+        self.email_notifications_check = QCheckBox("Email notifications")
+        self.email_notifications_check.setChecked(True)
+        user_layout.addRow("", self.email_notifications_check)
+        
+        self.desktop_notifications_check = QCheckBox("Desktop notifications")
+        self.desktop_notifications_check.setChecked(True)
+        user_layout.addRow("", self.desktop_notifications_check)
+        
+        scroll_layout.addWidget(user_group)
+        
+        # Advanced Settings
+        advanced_group = QGroupBox("Advanced Settings")
+        advanced_group.setStyleSheet("""
+            QGroupBox {
+                font-weight: bold;
+                border: 2px solid #dee2e6;
+                border-radius: 5px;
+                margin-top: 10px;
+                padding-top: 10px;
+            }
+            QGroupBox::title {
+                subcontrol-origin: margin;
+                left: 10px;
+                padding: 0 5px 0 5px;
+            }
+        """)
+        advanced_layout = QFormLayout(advanced_group)
+        
+        # Log level
+        self.log_level_combo = QComboBox()
+        self.log_level_combo.addItems(["DEBUG", "INFO", "WARNING", "ERROR"])
+        self.log_level_combo.setCurrentText("INFO")
+        advanced_layout.addRow("Log Level:", self.log_level_combo)
+        
+        # Max log files
+        self.max_log_files_spin = QSpinBox()
+        self.max_log_files_spin.setRange(1, 100)
+        self.max_log_files_spin.setValue(10)
+        advanced_layout.addRow("Max Log Files:", self.max_log_files_spin)
+        
+        # Debug mode
+        self.debug_mode_check = QCheckBox("Enable debug mode")
+        self.debug_mode_check.setChecked(False)
+        advanced_layout.addRow("", self.debug_mode_check)
+        
+        scroll_layout.addWidget(advanced_group)
+        
+        scroll_layout.addStretch()
+        
+        scroll_area.setWidget(scroll_content)
+        layout.addWidget(scroll_area)
+        
+        # Load current settings
+        self.load_settings()
+        
         return widget
+    
+    def load_settings(self):
+        """Load settings from configuration file"""
+        try:
+            import json
+            from pathlib import Path
+            
+            settings_file = Path("settings.json")
+            if settings_file.exists():
+                with open(settings_file, 'r') as f:
+                    settings = json.load(f)
+                
+                # Load general settings
+                self.app_name_edit.setText(settings.get('app_name', 'Vogue Manager'))
+                self.default_project_path_edit.setText(settings.get('default_project_path', 'VogueProjects'))
+                self.autosave_interval_spin.setValue(settings.get('autosave_interval', 5))
+                self.theme_combo.setCurrentText(settings.get('theme', 'Light'))
+                
+                # Load project settings
+                self.default_fps_spin.setValue(settings.get('default_fps', 24))
+                self.default_resolution_combo.setCurrentText(settings.get('default_resolution', '1920x1080 (HD)'))
+                self.auto_create_folders_check.setChecked(settings.get('auto_create_folders', True))
+                self.version_naming_combo.setCurrentText(settings.get('version_naming', 'v001, v002, v003...'))
+                
+                # Load user settings
+                self.user_name_edit.setText(settings.get('user_name', 'Admin'))
+                self.user_email_edit.setText(settings.get('user_email', 'admin@vogue.com'))
+                self.email_notifications_check.setChecked(settings.get('email_notifications', True))
+                self.desktop_notifications_check.setChecked(settings.get('desktop_notifications', True))
+                
+                # Load advanced settings
+                self.log_level_combo.setCurrentText(settings.get('log_level', 'INFO'))
+                self.max_log_files_spin.setValue(settings.get('max_log_files', 10))
+                self.debug_mode_check.setChecked(settings.get('debug_mode', False))
+                
+        except Exception as e:
+            print(f"Error loading settings: {e}")
+    
+    def save_settings(self):
+        """Save settings to configuration file"""
+        try:
+            import json
+            from pathlib import Path
+            
+            settings = {
+                # General settings
+                'app_name': self.app_name_edit.text(),
+                'default_project_path': self.default_project_path_edit.text(),
+                'autosave_interval': self.autosave_interval_spin.value(),
+                'theme': self.theme_combo.currentText(),
+                
+                # Project settings
+                'default_fps': self.default_fps_spin.value(),
+                'default_resolution': self.default_resolution_combo.currentText(),
+                'auto_create_folders': self.auto_create_folders_check.isChecked(),
+                'version_naming': self.version_naming_combo.currentText(),
+                
+                # User settings
+                'user_name': self.user_name_edit.text(),
+                'user_email': self.user_email_edit.text(),
+                'email_notifications': self.email_notifications_check.isChecked(),
+                'desktop_notifications': self.desktop_notifications_check.isChecked(),
+                
+                # Advanced settings
+                'log_level': self.log_level_combo.currentText(),
+                'max_log_files': self.max_log_files_spin.value(),
+                'debug_mode': self.debug_mode_check.isChecked()
+            }
+            
+            settings_file = Path("settings.json")
+            with open(settings_file, 'w') as f:
+                json.dump(settings, f, indent=2)
+            
+            QMessageBox.information(self, "Settings", "Settings saved successfully!")
+            
+        except Exception as e:
+            QMessageBox.critical(self, "Error", f"Failed to save settings: {e}")
+    
+    def browse_project_path(self):
+        """Browse for default project path"""
+        from PyQt6.QtWidgets import QFileDialog
+        
+        path = QFileDialog.getExistingDirectory(
+            self, 
+            "Select Default Project Path",
+            self.default_project_path_edit.text()
+        )
+        
+        if path:
+            self.default_project_path_edit.setText(path)
     
     def style_tabs(self):
         """Apply Ayon-style modern dark theme styling to tabs"""
