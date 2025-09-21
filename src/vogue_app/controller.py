@@ -1399,13 +1399,36 @@ class VogueController(PrismMainWindow):
         """Create a new task"""
         from vogue_app.dialogs import CreateTaskDialog
         
-        # Check if there are departments available
-        if not self.manager.current_project or not hasattr(self.manager.current_project, 'departments') or not self.manager.current_project.departments:
+        # Check if an entity is selected
+        if not self.project_browser.current_entity or not self.project_browser.current_entity_type:
+            QMessageBox.warning(self, "No Entity Selected", 
+                              "Please select an asset or shot first before creating tasks.\nTasks are specific to the selected entity.")
+            return
+        
+        # Check if there are departments available for the selected entity
+        if not self.manager.current_project:
+            QMessageBox.warning(self, "No Project", "Load or create a project first.")
+            return
+        
+        # Get departments for the current entity
+        entity_departments = []
+        if self.project_browser.current_entity_type == "Asset":
+            asset = self.manager.current_project.get_asset(self.project_browser.current_entity)
+            if asset:
+                entity_departments = asset.departments
+        elif self.project_browser.current_entity_type == "Shot":
+            if "/" in self.project_browser.current_entity:
+                sequence, name = self.project_browser.current_entity.split("/", 1)
+                shot = self.manager.current_project.get_shot(sequence, name)
+                if shot:
+                    entity_departments = shot.departments
+        
+        if not entity_departments:
             QMessageBox.warning(self, "No Departments", 
-                              "You must create at least one department before creating tasks.\nTasks are dependent on departments.")
+                              f"The selected {self.project_browser.current_entity_type.lower()} '{self.project_browser.current_entity}' has no departments.\nPlease add departments first before creating tasks.")
             return
 
-        dialog = CreateTaskDialog(self)
+        dialog = CreateTaskDialog(self, entity_departments=entity_departments)
         if dialog.exec() == QDialog.DialogCode.Accepted:
             data = dialog.get_task_data()
             if data:
@@ -1421,13 +1444,15 @@ class VogueController(PrismMainWindow):
                     if not hasattr(self.manager.current_project, 'tasks'):
                         self.manager.current_project.tasks = []
                     
-                    # Add task object to project
+                    # Add task object to project with entity association
                     from vogue_core.models import Task
                     task = Task(
                         name=data['name'],
                         department=data['department'],
                         status=data['status'],
-                        description=data['description']
+                        description=data['description'],
+                        entity=self.project_browser.current_entity,
+                        entity_type=self.project_browser.current_entity_type
                     )
                     self.manager.current_project.tasks.append(task)
                     self.manager.save_project()
@@ -1436,7 +1461,7 @@ class VogueController(PrismMainWindow):
                 self.ensure_department_selection_visible()
                 self.filter_tasks_by_department()
                 
-                self.logger.info(f"Created new task: {data['name']} in department: {data['department']}")
+                self.logger.info(f"Created new task: {data['name']} in department: {data['department']} for {self.project_browser.current_entity_type.lower()}: {self.project_browser.current_entity}")
 
     def assign_task(self):
         """Assign selected task"""
@@ -1509,8 +1534,12 @@ class VogueController(PrismMainWindow):
                     for task_name in deleted_tasks:
                         self.manager.current_project.tasks = [
                             task for task in self.manager.current_project.tasks 
-                            if (hasattr(task, 'name') and task.name != task_name) or
-                               (isinstance(task, dict) and task.get('name', '') != task_name)
+                            if not (hasattr(task, 'name') and task.name == task_name and
+                                   hasattr(task, 'entity') and task.entity == self.project_browser.current_entity and
+                                   hasattr(task, 'entity_type') and task.entity_type == self.project_browser.current_entity_type) and
+                               not (isinstance(task, dict) and task.get('name', '') == task_name and
+                                   task.get('entity') == self.project_browser.current_entity and
+                                   task.get('entity_type') == self.project_browser.current_entity_type)
                         ]
                     self.manager.save_project()
                 
@@ -1525,34 +1554,15 @@ class VogueController(PrismMainWindow):
 
     
     def load_tasks_from_project(self):
-        """Load tasks from project data into UI"""
+        """Load tasks from project data into UI - now only clears the list"""
         if not self.manager.current_project:
             return
         
-        # Clear existing tasks
+        # Clear existing tasks - no project-level tasks are shown initially
         self.project_browser.tasks_list.clear()
         
-        # Load tasks from project data if they exist
-        if hasattr(self.manager.current_project, 'tasks') and self.manager.current_project.tasks:
-            for task in self.manager.current_project.tasks:
-                if hasattr(task, 'name'):
-                    # Task object
-                    task_text = f"{task.name} - {task.status}"
-                    if task.description:
-                        task_text += f" ({task.description})"
-                elif isinstance(task, dict):
-                    # Legacy dict format
-                    task_text = f"{task.get('name', 'Unknown')} - {task.get('status', 'Pending')}"
-                    if task.get('description'):
-                        task_text += f" ({task['description']})"
-                else:
-                    continue
-                
-                self.project_browser.tasks_list.addItem(task_text)
-            
-            self.logger.info(f"Loaded {len(self.manager.current_project.tasks)} tasks from project")
-        else:
-            self.logger.info("No tasks found in project")
+        # No project-level tasks are loaded - only entity-specific tasks when an entity is selected
+        self.logger.info("Tasks list cleared - will show entity-specific tasks when an asset or shot is selected")
     
     def load_departments_from_project(self):
         """Load departments from project data into UI - now only clears the list"""
@@ -1566,8 +1576,12 @@ class VogueController(PrismMainWindow):
         self.logger.info("Departments list cleared - will show entity-specific departments when selected")
     
     def filter_tasks_by_department(self):
-        """Filter tasks by selected department"""
+        """Filter tasks by selected department for the current entity"""
         if not self.manager.current_project or not hasattr(self.manager.current_project, 'tasks'):
+            return
+        
+        # Check if we have a current entity selected
+        if not self.project_browser.current_entity or not self.project_browser.current_entity_type:
             return
         
         # Get selected department
@@ -1577,24 +1591,38 @@ class VogueController(PrismMainWindow):
         
         selected_dept = current_item.text().split(" - ")[0]
         
-        # Clear and repopulate tasks list with filtered tasks
+        # Clear and repopulate tasks list with filtered tasks for current entity
         self.project_browser.tasks_list.clear()
         
         for task in self.manager.current_project.tasks:
-            if hasattr(task, 'department') and task.department == selected_dept:
+            # Check if task belongs to current entity and selected department
+            task_entity = getattr(task, 'entity', None) if hasattr(task, 'entity') else None
+            task_entity_type = getattr(task, 'entity_type', None) if hasattr(task, 'entity_type') else None
+            
+            # Filter by entity and department
+            if (task_entity == self.project_browser.current_entity and 
+                task_entity_type == self.project_browser.current_entity_type and
+                hasattr(task, 'department') and task.department == selected_dept):
                 # Task object
                 task_text = f"{task.name} - {task.status}"
                 if task.description:
                     task_text += f" ({task.description})"
                 self.project_browser.tasks_list.addItem(task_text)
-            elif isinstance(task, dict) and task.get('department') == selected_dept:
+            elif (isinstance(task, dict) and 
+                  task.get('entity') == self.project_browser.current_entity and
+                  task.get('entity_type') == self.project_browser.current_entity_type and
+                  task.get('department') == selected_dept):
                 # Legacy dict format
                 task_text = f"{task.get('name', 'Unknown')} - {task.get('status', 'Pending')}"
                 if task.get('description'):
                     task_text += f" ({task['description']})"
                 self.project_browser.tasks_list.addItem(task_text)
         
-        self.logger.info(f"Filtered tasks for department: {selected_dept}")
+        # Auto-select first task if any exist
+        if self.project_browser.tasks_list.count() > 0:
+            self.project_browser.tasks_list.setCurrentRow(0)
+        
+        self.logger.info(f"Filtered tasks for department: {selected_dept} in {self.project_browser.current_entity_type.lower()}: {self.project_browser.current_entity}")
     
     def on_department_selection_changed(self):
         """Handle department selection change"""

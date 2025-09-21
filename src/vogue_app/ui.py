@@ -371,7 +371,7 @@ class ProjectBrowser(PrismStyleWidget):
         self.load_entity_departments(shot_key, "Shot")
     
     def load_entity_departments(self, entity_name: str, entity_type: str):
-        """Load departments for the selected entity (asset or shot)"""
+        """Load departments and tasks for the selected entity (asset or shot)"""
         # Get the main window to access the project manager
         main_window = self.window()
         if not hasattr(main_window, 'manager'):
@@ -381,10 +381,11 @@ class ProjectBrowser(PrismStyleWidget):
         if not manager.current_project:
             return
         
-        # Clear current departments list
+        # Clear current departments and tasks lists
         self.departments_list.clear()
+        self.tasks_list.clear()
         
-        # If no entity selected, show empty list
+        # If no entity selected, show empty lists
         if not entity_name or not entity_type:
             return
         
@@ -406,12 +407,71 @@ class ProjectBrowser(PrismStyleWidget):
         for dept in entity_departments:
             self.departments_list.addItem(f"{dept} - Active")
         
+        # Load entity-specific tasks
+        self.load_entity_tasks(entity_name, entity_type)
+        
         # Auto-select first department if any exist
         if self.departments_list.count() > 0:
             self.departments_list.setCurrentRow(0)
             # Trigger department selection change to update tasks
             if hasattr(main_window, 'filter_tasks_by_department'):
                 main_window.filter_tasks_by_department()
+    
+    def load_entity_tasks(self, entity_name: str, entity_type: str):
+        """Load tasks specific to the selected entity (asset or shot)"""
+        # Get the main window to access the project manager
+        main_window = self.window()
+        if not hasattr(main_window, 'manager'):
+            return
+        
+        manager = main_window.manager
+        if not manager.current_project:
+            return
+        
+        # Clear current tasks list
+        self.tasks_list.clear()
+        
+        # If no entity selected, show empty list
+        if not entity_name or not entity_type:
+            return
+        
+        # Get entity-specific tasks from project
+        entity_tasks = []
+        if hasattr(manager.current_project, 'tasks') and manager.current_project.tasks:
+            for task in manager.current_project.tasks:
+                # Check if task belongs to this entity
+                task_entity = getattr(task, 'entity', None) if hasattr(task, 'entity') else None
+                task_entity_type = getattr(task, 'entity_type', None) if hasattr(task, 'entity_type') else None
+                
+                # For legacy tasks without entity info, skip them (they're project-level)
+                if task_entity == entity_name and task_entity_type == entity_type:
+                    entity_tasks.append(task)
+                elif isinstance(task, dict):
+                    # Legacy dict format - check if it has entity info
+                    if (task.get('entity') == entity_name and 
+                        task.get('entity_type') == entity_type):
+                        entity_tasks.append(task)
+        
+        # Display entity-specific tasks
+        for task in entity_tasks:
+            if hasattr(task, 'name'):
+                # Task object
+                task_text = f"{task.name} - {task.status}"
+                if task.description:
+                    task_text += f" ({task.description})"
+            elif isinstance(task, dict):
+                # Legacy dict format
+                task_text = f"{task.get('name', 'Unknown')} - {task.get('status', 'Pending')}"
+                if task.get('description'):
+                    task_text += f" ({task['description']})"
+            else:
+                continue
+            
+            self.tasks_list.addItem(task_text)
+        
+        # Auto-select first task if any exist
+        if self.tasks_list.count() > 0:
+            self.tasks_list.setCurrentRow(0)
     
     def on_task_selection_changed(self):
         """Handle task selection change"""

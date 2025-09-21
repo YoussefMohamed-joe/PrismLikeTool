@@ -1617,8 +1617,9 @@ class SettingsDialog(QDialog):
 class CreateTaskDialog(QDialog):
     """Dialog for creating tasks"""
     
-    def __init__(self, parent=None):
+    def __init__(self, parent=None, entity_departments=None):
         super().__init__(parent)
+        self.entity_departments = entity_departments or []
         self.setWindowTitle("Create New Task")
         self.setModal(True)
         self.resize(400, 350)
@@ -1663,30 +1664,39 @@ class CreateTaskDialog(QDialog):
         
     def populate_departments(self):
         """Populate department dropdown with available departments"""
-        # Get the current project from the parent controller
-        if hasattr(self.parent(), 'manager') and self.parent().manager.current_project:
-            project = self.parent().manager.current_project
+        # Clear existing items
+        self.department_combo.clear()
+        
+        # Use entity-specific departments if provided
+        if self.entity_departments:
+            for dept in self.entity_departments:
+                self.department_combo.addItem(dept)
             
-            # Clear existing items
-            self.department_combo.clear()
-            
-            # Add departments from project
-            if hasattr(project, 'departments') and project.departments:
-                for dept in project.departments:
-                    if hasattr(dept, 'name'):
-                        self.department_combo.addItem(dept.name)
-                
-                # Select first department by default
-                if self.department_combo.count() > 0:
-                    self.department_combo.setCurrentIndex(0)
-            else:
-                # No departments available
-                self.department_combo.addItem("No departments available")
-                self.department_combo.setEnabled(False)
+            # Select first department by default
+            if self.department_combo.count() > 0:
+                self.department_combo.setCurrentIndex(0)
         else:
-            # No project loaded
-            self.department_combo.addItem("No project loaded")
-            self.department_combo.setEnabled(False)
+            # Fallback to project-level departments
+            if hasattr(self.parent(), 'manager') and self.parent().manager.current_project:
+                project = self.parent().manager.current_project
+                
+                # Add departments from project
+                if hasattr(project, 'departments') and project.departments:
+                    for dept in project.departments:
+                        if hasattr(dept, 'name'):
+                            self.department_combo.addItem(dept.name)
+                    
+                    # Select first department by default
+                    if self.department_combo.count() > 0:
+                        self.department_combo.setCurrentIndex(0)
+                else:
+                    # No departments available
+                    self.department_combo.addItem("No departments available")
+                    self.department_combo.setEnabled(False)
+            else:
+                # No project loaded
+                self.department_combo.addItem("No project loaded")
+                self.department_combo.setEnabled(False)
         
     def get_task_data(self):
         """Get task data from dialog"""

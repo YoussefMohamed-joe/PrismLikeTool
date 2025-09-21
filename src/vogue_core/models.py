@@ -40,6 +40,8 @@ class Task:
     department: str = ""  # Department this task belongs to
     status: str = "Pending"
     description: str = ""
+    entity: str = ""  # Asset or shot name this task belongs to
+    entity_type: str = ""  # "Asset" or "Shot"
 
 
 @dataclass
