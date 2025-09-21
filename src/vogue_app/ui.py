@@ -2378,15 +2378,93 @@ class PrismMainWindow(QMainWindow):
         
         self.setup_ui()
         self.setup_menu()
-        self.setup_toolbar()
+        # self.setup_toolbar()  # Removed toolbar with BROWSE, NEW, ADD SHOT, PUBLISH, REFRESH, SCAN buttons
         self.setup_statusbar()
         self.setup_docks()
     
     def setup_ui(self):
-        """Set up the main UI layout"""
+        """Set up the main UI layout with tabbed interface"""
+        # Create main tab widget
+        self.main_tab_widget = QTabWidget()
+        self.main_tab_widget.setTabPosition(QTabWidget.TabPosition.North)
+        self.main_tab_widget.setMovable(False)
+        self.main_tab_widget.setTabsClosable(False)
+        
+        # Set the tab widget as central widget
+        self.setCentralWidget(self.main_tab_widget)
+        
+        # Add tabs
+        self.setup_tabs()
+        
+        # Apply tab styling
+        self.style_tabs()
+    
+    def setup_tabs(self):
+        """Set up the main tabs with icons"""
+        # Create icons for tabs
+        self.create_tab_icons()
+        
+        # Tasks tab (placeholder for future implementation)
+        self.tasks_widget = self.create_tasks_tab()
+        self.main_tab_widget.addTab(self.tasks_widget, self.tasks_icon, "Tasks")
+        
+        # Browser tab (main content - departments, tasks, project browser)
+        self.browser_widget = self.create_browser_tab()
+        self.main_tab_widget.addTab(self.browser_widget, self.browser_icon, "Browser")
+        
+        # Inbox tab
+        self.inbox_widget = self.create_inbox_tab()
+        self.main_tab_widget.addTab(self.inbox_widget, self.inbox_icon, "Inbox")
+        
+        # Teams tab
+        self.teams_widget = self.create_teams_tab()
+        self.main_tab_widget.addTab(self.teams_widget, self.teams_icon, "Teams")
+        
+        # Dashboard tab
+        self.dashboard_widget = self.create_dashboard_tab()
+        self.main_tab_widget.addTab(self.dashboard_widget, self.dashboard_icon, "Dashboard")
+        
+        # Settings tab
+        self.settings_widget = self.create_settings_tab()
+        self.main_tab_widget.addTab(self.settings_widget, self.settings_icon, "Settings")
+    
+    def create_tab_icons(self):
+        """Create icons for the tabs"""
+        # Create simple colored icons using QPixmap
+        self.tasks_icon = self.create_colored_icon("#ff6b35", "📋")  # Orange document icon
+        self.browser_icon = self.create_colored_icon("#ffd700", "📁")  # Yellow folder icon
+        self.inbox_icon = self.create_colored_icon("#0078d4", "📧")  # Blue mailbox icon
+        self.teams_icon = self.create_colored_icon("#9c27b0", "👥")  # Purple people icon
+        self.dashboard_icon = self.create_colored_icon("#4caf50", "📊")  # Green chart icon
+        self.settings_icon = self.create_colored_icon("#757575", "⚙️")  # Grey settings icon
+    
+    def create_colored_icon(self, color, emoji):
+        """Create a colored icon with emoji"""
+        from PyQt6.QtCore import QSize
+        from PyQt6.QtGui import QPainter, QFont
+        
+        # Create a 24x24 pixmap
+        pixmap = QPixmap(24, 24)
+        pixmap.fill(QColor(0, 0, 0, 0))  # Transparent background
+        
+        painter = QPainter(pixmap)
+        painter.setRenderHint(QPainter.RenderHint.Antialiasing)
+        
+        # Set font for emoji
+        font = QFont()
+        font.setPointSize(16)
+        painter.setFont(font)
+        
+        # Draw emoji
+        painter.drawText(0, 0, 24, 24, Qt.AlignmentFlag.AlignCenter, emoji)
+        painter.end()
+        
+        return QIcon(pixmap)
+    
+    def create_browser_tab(self):
+        """Create the Browser tab content with main application layout"""
         # Create central widget with splitter
         central_widget = QWidget()
-        self.setCentralWidget(central_widget)
         
         layout = QHBoxLayout(central_widget)
         layout.setContentsMargins(0, 0, 0, 0)
@@ -2410,6 +2488,155 @@ class PrismMainWindow(QMainWindow):
         # Optimized for left panel with tabs+tasks+departments, center version manager, right asset info only
         main_splitter.setSizes([560, 700, 140])
         layout.addWidget(main_splitter)
+        
+        return central_widget
+    
+    def create_tasks_tab(self):
+        """Create the Tasks tab content (placeholder for future implementation)"""
+        widget = QWidget()
+        layout = QVBoxLayout(widget)
+        layout.setContentsMargins(20, 20, 20, 20)
+        
+        # Title
+        title = QLabel("Tasks")
+        title.setProperty("class", "title")
+        title.setAlignment(Qt.AlignmentFlag.AlignCenter)
+        layout.addWidget(title)
+        
+        # Content placeholder
+        content = QLabel("Advanced task management features will be implemented here")
+        content.setProperty("class", "muted")
+        content.setAlignment(Qt.AlignmentFlag.AlignCenter)
+        layout.addWidget(content)
+        
+        layout.addStretch()
+        return widget
+    
+    def create_inbox_tab(self):
+        """Create the Inbox tab content"""
+        widget = QWidget()
+        layout = QVBoxLayout(widget)
+        layout.setContentsMargins(20, 20, 20, 20)
+        
+        # Title
+        title = QLabel("Inbox")
+        title.setProperty("class", "title")
+        title.setAlignment(Qt.AlignmentFlag.AlignCenter)
+        layout.addWidget(title)
+        
+        # Content placeholder
+        content = QLabel("Notifications and messages will be here")
+        content.setProperty("class", "muted")
+        content.setAlignment(Qt.AlignmentFlag.AlignCenter)
+        layout.addWidget(content)
+        
+        layout.addStretch()
+        return widget
+    
+    def create_teams_tab(self):
+        """Create the Teams tab content"""
+        widget = QWidget()
+        layout = QVBoxLayout(widget)
+        layout.setContentsMargins(20, 20, 20, 20)
+        
+        # Title
+        title = QLabel("Teams")
+        title.setProperty("class", "title")
+        title.setAlignment(Qt.AlignmentFlag.AlignCenter)
+        layout.addWidget(title)
+        
+        # Content placeholder
+        content = QLabel("Team collaboration and user management will be here")
+        content.setProperty("class", "muted")
+        content.setAlignment(Qt.AlignmentFlag.AlignCenter)
+        layout.addWidget(content)
+        
+        layout.addStretch()
+        return widget
+    
+    def create_dashboard_tab(self):
+        """Create the Dashboard tab content"""
+        widget = QWidget()
+        layout = QVBoxLayout(widget)
+        layout.setContentsMargins(20, 20, 20, 20)
+        
+        # Title
+        title = QLabel("Dashboard")
+        title.setProperty("class", "title")
+        title.setAlignment(Qt.AlignmentFlag.AlignCenter)
+        layout.addWidget(title)
+        
+        # Content placeholder
+        content = QLabel("Project statistics and analytics will be here")
+        content.setProperty("class", "muted")
+        content.setAlignment(Qt.AlignmentFlag.AlignCenter)
+        layout.addWidget(content)
+        
+        layout.addStretch()
+        return widget
+    
+    def create_settings_tab(self):
+        """Create the Settings tab content"""
+        widget = QWidget()
+        layout = QVBoxLayout(widget)
+        layout.setContentsMargins(20, 20, 20, 20)
+        
+        # Title
+        title = QLabel("Settings")
+        title.setProperty("class", "title")
+        title.setAlignment(Qt.AlignmentFlag.AlignCenter)
+        layout.addWidget(title)
+        
+        # Content placeholder
+        content = QLabel("Application settings and preferences will be here")
+        content.setProperty("class", "muted")
+        content.setAlignment(Qt.AlignmentFlag.AlignCenter)
+        layout.addWidget(content)
+        
+        layout.addStretch()
+        return widget
+    
+    def style_tabs(self):
+        """Apply modern dark theme styling to tabs"""
+        tab_style = """
+        QTabWidget::pane {
+            border: 1px solid #2d2d2d;
+            background-color: #1e1e1e;
+        }
+        
+        QTabWidget::tab-bar {
+            alignment: left;
+        }
+        
+        QTabBar::tab {
+            background-color: #2d2d2d;
+            color: #ffffff;
+            padding: 12px 20px;
+            margin-right: 2px;
+            border-top-left-radius: 8px;
+            border-top-right-radius: 8px;
+            border: 1px solid #2d2d2d;
+            border-bottom: none;
+            min-width: 100px;
+        }
+        
+        QTabBar::tab:selected {
+            background-color: #0078d4;
+            color: #ffffff;
+            border-color: #0078d4;
+        }
+        
+        QTabBar::tab:hover:!selected {
+            background-color: #404040;
+            color: #ffffff;
+        }
+        
+        QTabBar::tab:first {
+            margin-left: 0px;
+        }
+        """
+        
+        self.main_tab_widget.setStyleSheet(tab_style)
     
     def setup_menu(self):
         """Set up the menu bar"""
