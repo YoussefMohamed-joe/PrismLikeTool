@@ -1,0 +1,78 @@
+{
+  "name": "ssssj",
+  "path": "D:\\project\\PrismLikeTool\\VogueProjects\\ssssj",
+  "fps": 24,
+  "resolution": [
+    1920,
+    1080
+  ],
+  "departments": [],
+  "tasks": [
+    {
+      "name": "wrt",
+      "department": "sdf",
+      "status": "WIP",
+      "description": "",
+      "entity": "ghj",
+      "entity_type": "Asset"
+    }
+  ],
+  "assets": [
+    {
+      "name": "ghj",
+      "type": "Props",
+      "path": "",
+      "departments": [
+        "sdf"
+      ],
+      "meta": {
+        "tags": [],
+        "artist": "",
+        "lod": "High",
+        "rigged": false,
+        "animated": false,
+        "image_path": null
+      }
+    }
+  ],
+  "shots": [],
+  "folders": [],
+  "versions": {
+    "ghj": [
+      {
+        "version": "v001",
+        "user": "sdf",
+        "date": "2025-09-22T10:49:37.029704",
+        "comment": "se",
+        "path": "D:\\project\\PrismLikeTool\\VogueProjects\\ssssj\\06_Scenes\\Assets\\Characters\\ghj\\ghj_v001.ma",
+        "status": "WIP"
+      },
+      {
+        "version": "v002",
+        "user": "qqw",
+        "date": "2025-09-22T10:54:16.147645",
+        "comment": "123",
+        "path": "D:\\project\\PrismLikeTool\\VogueProjects\\ssssj\\06_Scenes\\Assets\\Characters\\ghj\\ghj_v002.ma",
+        "status": "WIP"
+      },
+      {
+        "version": "v003",
+        "user": "d",
+        "date": "2025-09-22T11:02:13.821891",
+        "comment": "gsdf",
+        "path": "D:\\project\\PrismLikeTool\\VogueProjects\\ssssj\\06_Scenes\\Assets\\Characters\\ghj\\ghj_v003.ma",
+        "task_name": "wrt",
+        "status": "WIP"
+      },
+      {
+        "version": "v004",
+        "user": "r",
+        "date": "2025-09-22T11:09:46.142565",
+        "comment": "u",
+        "path": "D:\\project\\PrismLikeTool\\VogueProjects\\ssssj\\06_Scenes\\Assets\\Characters\\ghj\\ghj_v004.ma",
+        "task_name": "wrt",
+        "status": "WIP"
+      }
+    ]
+  }
+}

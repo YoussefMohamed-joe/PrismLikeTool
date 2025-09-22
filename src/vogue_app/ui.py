@@ -2768,6 +2768,7 @@ class VersionManager(PrismStyleWidget):
         super().__init__(parent)
         self.current_entity = None
         self.current_versions = []
+        self.view_mode = "list"
         self.setup_ui()
         self.setup_connections()
     
@@ -2790,10 +2791,9 @@ class VersionManager(PrismStyleWidget):
         
         # Version info panel (Ayon style)
         self.setup_version_info()
-        layout.addWidget(self.info_widget)
-        
-        # Add right-click hint after info_widget is created
-        self.add_right_click_hint()
+        # Hide version details panel; details are shown in list/grid items
+        self.info_widget.setVisible(False)
+
 
     def setup_version_header(self):
         """Setup version header in Ayon style"""
@@ -2923,6 +2923,25 @@ class VersionManager(PrismStyleWidget):
         controls_layout.addWidget(self.import_btn)
         controls_layout.addWidget(self.export_btn)
 
+        # View mode toggle (Prism-like list/grid)
+        from PyQt6.QtWidgets import QToolButton
+        self.view_list_btn = QToolButton()
+        self.view_list_btn.setText("List")
+        self.view_list_btn.setCheckable(True)
+        self.view_grid_btn = QToolButton()
+        self.view_grid_btn.setText("Grid")
+        self.view_grid_btn.setCheckable(True)
+        self.view_list_btn.setChecked(True)
+
+        self.view_list_btn.clicked.connect(lambda: self.set_view_mode("list"))
+        self.view_grid_btn.clicked.connect(lambda: self.set_view_mode("grid"))
+
+        controls_layout.addSpacing(12)
+        controls_layout.addWidget(self.view_list_btn)
+        controls_layout.addWidget(self.view_grid_btn)
+
+        # Removed density toggle to match single card style
+
     def setup_version_table(self):
         """Setup version table in Ayon style"""
         self.version_table = QTableWidget()
@@ -2974,6 +2993,20 @@ class VersionManager(PrismStyleWidget):
                 font-size: 12px;
             }}
         """)
+
+        # Card/grid view (Prism-like)
+        from PyQt6.QtWidgets import QListWidget
+        self.version_cards = QListWidget()
+        self.version_cards.setViewMode(QListWidget.ViewMode.IconMode)
+        self.version_cards.setResizeMode(QListWidget.ResizeMode.Adjust)
+        self.version_cards.setMovement(QListWidget.Movement.Static)
+        # Single card style matching provided screenshot
+        self.version_cards.setIconSize(QSize(128, 72))
+        self.version_cards.setGridSize(QSize(520, 120))
+        self.version_cards.setSpacing(12)
+        self.version_cards.setUniformItemSizes(False)
+        self.version_cards.setWordWrap(True)
+        self.version_cards.hide()
 
     def setup_version_info(self):
         """Setup version info panel in Ayon style"""
@@ -3090,43 +3123,15 @@ class VersionManager(PrismStyleWidget):
         info_layout.addWidget(info_content)
     
     def add_right_click_hint(self):
-        """Add a subtle hint about right-click functionality"""
-        hint_widget = QWidget()
-        hint_layout = QHBoxLayout(hint_widget)
-        hint_layout.setContentsMargins(8, 4, 8, 4)
-        
-        hint_label = QLabel("💡 Right-click in the version table to create versions with DCC apps")
-        hint_label.setStyleSheet(f"""
-            QLabel {{
-                font-size: 11px;
-                color: {COLORS['fg_variant']};
-                background-color: {COLORS['surface_high']};
-                padding: 6px 12px;
-                border-radius: 4px;
-                border: 1px solid {COLORS['outline']};
-            }}
-        """)
-        hint_label.setAlignment(Qt.AlignmentFlag.AlignCenter)
-        hint_layout.addWidget(hint_label)
-        
-        # Add the hint widget to the version manager layout
-        # We need to insert it before the info widget
-        parent_layout = self.layout()
-        if parent_layout and hasattr(self, 'info_widget'):
-            # Find the info widget and insert before it
-            for i in range(parent_layout.count()):
-                item = parent_layout.itemAt(i)
-                if item and item.widget() == self.info_widget:
-                    parent_layout.insertWidget(i, hint_widget)
-                    break
-        else:
-            # Fallback: just add to the end
-            parent_layout.addWidget(hint_widget)
+        """Deprecated: hint banner removed"""
+        return
     
     def setup_connections(self):
         """Setup signal connections"""
         # Version table selection
         self.version_table.itemSelectionChanged.connect(self.on_version_selected)
+        # Card selection mirrors table behavior
+        self.version_cards.itemSelectionChanged.connect(self.on_card_selected)
         
         # Action buttons
         self.publish_btn.clicked.connect(self.on_publish_clicked)
@@ -3139,6 +3144,9 @@ class VersionManager(PrismStyleWidget):
         # Context menu for version table
         self.version_table.setContextMenuPolicy(Qt.ContextMenuPolicy.CustomContextMenu)
         self.version_table.customContextMenuRequested.connect(self.show_version_context_menu)
+        # Context menu for card view as well
+        self.version_cards.setContextMenuPolicy(Qt.ContextMenuPolicy.CustomContextMenu)
+        self.version_cards.customContextMenuRequested.connect(self.show_version_context_menu)
     
     def update_entity(self, entity_name: str, entity_type: str = "Asset", task_name: str = None):
         """Update the current entity being managed"""
@@ -3160,15 +3168,44 @@ class VersionManager(PrismStyleWidget):
         if not self.current_entity:
             return
         
-        # Get controller and manager
-        from .main import get_current_controller
-        controller = get_current_controller()
-        if not controller or not controller.manager:
+        # Resolve manager robustly
+        manager = None
+        try:
+            win = self.window()
+            if hasattr(win, 'manager') and win.manager:
+                manager = win.manager
+        except Exception:
+            pass
+        if manager is None:
+            try:
+                from .ui import get_current_controller as ui_get_current_controller
+                ctrl = ui_get_current_controller()
+                if ctrl and hasattr(ctrl, 'manager') and ctrl.manager:
+                    manager = ctrl.manager
+            except Exception:
+                pass
+        if manager is None:
+            try:
+                from .main import get_current_controller as main_get_current_controller
+                ctrl = main_get_current_controller()
+                if ctrl and hasattr(ctrl, 'manager') and ctrl.manager:
+                    manager = ctrl.manager
+            except Exception:
+                pass
+        if manager is None:
             return
         
         # Get versions from manager
-        self.current_versions = controller.manager.list_versions(self.current_entity)
-        self.populate_version_table()
+        all_versions = manager.list_versions(self.current_entity)
+        # Filter by current task if provided, so each task sees its own versions
+        if getattr(self, 'current_task', None):
+            self.current_versions = [v for v in all_versions if getattr(v, 'task_name', '') == self.current_task]
+        else:
+            self.current_versions = all_versions
+        if self.view_mode == "grid":
+            self.populate_version_cards()
+        else:
+            self.populate_version_table()
     
     def populate_version_table(self):
         """Populate the version table with current versions"""
@@ -3213,32 +3250,58 @@ class VersionManager(PrismStyleWidget):
         
         # Enable/disable buttons based on selection
         self.update_button_states()
+
+    def populate_version_cards(self):
+        """Populate the card/grid view with current versions (Prism-like)"""
+        from PyQt6.QtWidgets import QListWidgetItem
+        self.version_cards.clear()
+        for version in self.current_versions:
+            subtitle = f"{version.user}  •  {version.date.split('T')[0]}"
+            comment = version.comment or ""
+            title = version.version
+
+            icon = QIcon()
+            # Card thumbnail and sizing
+            thumb_w = 200
+            thumb_h = 112
+            self.version_cards.setIconSize(QSize(thumb_w, int(thumb_h * 0.6)))
+
+            if getattr(version, "thumbnail", None) and os.path.exists(version.thumbnail):
+                pix = QPixmap(version.thumbnail).scaled(thumb_w, thumb_h, Qt.AspectRatioMode.KeepAspectRatio, Qt.TransformationMode.SmoothTransformation)
+                icon = QIcon(pix)
+            else:
+                icon = self.style().standardIcon(self.style().StandardPixmap.SP_FileIcon)
+
+            # Build a single-line card label similar to Prism: [thumb]  v0001   user   date
+            label = f"{title}    {version.user}    {version.date.split('T')[0]}"
+
+            item = QListWidgetItem(icon, label)
+            item.setToolTip(f"User: {version.user}\nDate: {version.date}\nComment: {comment}\nPath: {version.path}")
+            self.version_cards.addItem(item)
+
+        self.update_button_states()
     
     def on_version_selected(self):
         """Handle version selection"""
         self.update_version_info()
         self.update_button_states()
+
+    def on_card_selected(self):
+        """Mirror card selection into version info panel"""
+        row = self.version_cards.currentRow()
+        if row >= 0 and row < len(self.current_versions) and self.version_table.isVisible():
+            self.version_table.setCurrentCell(row, 0)
+        self.update_button_states()
     
     def update_version_info(self):
         """Update version info panel with selected version"""
-        current_row = self.version_table.currentRow()
-        if current_row < 0 or current_row >= len(self.current_versions):
-            # Clear info
-            self.version_label.setText("-")
-            self.user_label.setText("-")
-            self.date_label.setText("-")
-            self.comment_label.setText("-")
-            return
-        
-        version = self.current_versions[current_row]
-        self.version_label.setText(version.version)
-        self.user_label.setText(version.user)
-        self.date_label.setText(version.date)
-        self.comment_label.setText(version.comment)
+        # No-op since details panel is hidden; keep method to avoid signal errors
+        return
     
     def update_button_states(self):
         """Update button enabled states"""
-        has_selection = self.version_table.currentRow() >= 0
+        has_selection = (self.version_table.isVisible() and self.version_table.currentRow() >= 0) or \
+                        (self.version_cards.isVisible() and self.version_cards.currentRow() >= 0)
         has_entity = self.current_entity is not None
         
         self.publish_btn.setEnabled(has_entity)
@@ -3247,6 +3310,34 @@ class VersionManager(PrismStyleWidget):
         self.open_btn.setEnabled(has_selection)
         self.copy_btn.setEnabled(has_selection)
         self.delete_btn.setEnabled(has_selection)
+
+    def set_view_mode(self, mode: str):
+        """Toggle between list (table) and grid (cards) views"""
+        self.view_mode = mode
+        self.view_list_btn.setChecked(mode == "list")
+        self.view_grid_btn.setChecked(mode == "grid")
+
+        parent_layout = self.layout()
+        if mode == "grid":
+            if parent_layout.indexOf(self.version_cards) == -1:
+                idx = parent_layout.indexOf(self.version_table)
+                insert_idx = idx if idx != -1 else parent_layout.count() - 1
+                parent_layout.insertWidget(insert_idx, self.version_cards)
+            self.version_table.hide()
+            self.version_cards.show()
+            self.populate_version_cards()
+        else:
+            self.version_cards.hide()
+            self.version_table.show()
+            self.populate_version_table()
+
+    def set_density_mode(self, mode: str):
+        """Switch between compact and large card density"""
+        self.density_mode = mode
+        self.density_compact_btn.setChecked(mode == "compact")
+        self.density_large_btn.setChecked(mode == "large")
+        if self.version_cards.isVisible():
+            self.populate_version_cards()
     
     def show_version_context_menu(self, position):
         """Show context menu for version table - Prism style"""
@@ -3298,8 +3389,12 @@ class VersionManager(PrismStyleWidget):
             
             menu.addSeparator()
         
-        # Version creation section (always available)
-        create_section = menu.addMenu("➕ Create Version")
+        # Single Create Version action (Prism-like)
+        quick_create = menu.addAction("➕ Create Version…")
+        quick_create.triggered.connect(self.create_quick_version)
+
+        # DCC creation submenu (optional)
+        create_section = menu.addMenu("Create With DCC App")
         create_section.setStyleSheet(f"""
             QMenu {{
                 background-color: {COLORS['surface_high']};
@@ -3375,10 +3470,92 @@ class VersionManager(PrismStyleWidget):
             action = parent_menu.addAction(f"{icon} {display_name}")
             action.setToolTip(desc)
             action.triggered.connect(lambda checked, app_name=app_name: self.create_dcc_version(app_name))
+
+    def create_version_with_app_picker(self):
+        """Show a small picker to choose DCC app, then open create dialog"""
+        from .main import get_current_controller
+        controller = get_current_controller()
+        if not controller or not controller.manager:
+            return
+        dcc_apps = controller.manager.get_dcc_apps()
+        if not dcc_apps:
+            QMessageBox.information(self, "No DCC Apps", "No DCC apps are configured.")
+            return
+        # Simple picker: if only one app, use it; otherwise ask via a small menu
+        if len(dcc_apps) == 1:
+            self.create_dcc_version(dcc_apps[0]['name'])
+            return
+        menu = QMenu(self)
+        for app in dcc_apps:
+            action = menu.addAction(app['display_name'])
+            action.triggered.connect(lambda checked, name=app['name']: self.create_dcc_version(name))
+        menu.exec(self.cursor().pos())
+
+    def create_quick_version(self):
+        """Create a placeholder version immediately (no file picker), scoped to task."""
+        # Require entity and task to be selected so versions are tied correctly
+        if not getattr(self, 'current_entity', None):
+            QMessageBox.warning(self, "No Selection", "Select an asset or shot first.")
+            return
+        if not getattr(self, 'current_task', None):
+            QMessageBox.warning(self, "No Task", "Select a task for this entity before creating a version.")
+            return
+        # Resolve manager robustly
+        manager = None
+        try:
+            win = self.window()
+            if hasattr(win, 'manager') and win.manager:
+                manager = win.manager
+        except Exception:
+            pass
+        if manager is None:
+            try:
+                from .ui import get_current_controller as ui_get_current_controller
+                ctrl = ui_get_current_controller()
+                if ctrl and hasattr(ctrl, 'manager') and ctrl.manager:
+                    manager = ctrl.manager
+            except Exception:
+                pass
+        if manager is None:
+            try:
+                from .main import get_current_controller as main_get_current_controller
+                ctrl = main_get_current_controller()
+                if ctrl and hasattr(ctrl, 'manager') and ctrl.manager:
+                    manager = ctrl.manager
+            except Exception:
+                pass
+        if not manager:
+            QMessageBox.critical(self, "Error", "No project manager available.")
+            return
+        if not getattr(manager, 'current_project', None):
+            QMessageBox.warning(self, "No Project", "Load or create a project first from the File menu.")
+            return
+        # Basic prompt for user/comment
+        user, ok = QInputDialog.getText(self, "User", "Enter your name:")
+        if not ok or not user.strip():
+            return
+        comment, _ = QInputDialog.getText(self, "Comment", "Comment (optional):")
+        version = manager.create_placeholder_version(
+            entity_key=self.current_entity,
+            user=user.strip(),
+            comment=comment.strip() if comment else "",
+            task_name=self.current_task,
+        )
+        self.load_versions()
+        if self.current_versions:
+            last_index = len(self.current_versions) - 1
+            if self.version_table.isVisible():
+                self.version_table.setCurrentCell(last_index, 0)
+            if self.version_cards.isVisible():
+                self.version_cards.setCurrentRow(last_index)
     
     def create_dcc_version(self, dcc_app: str):
         """Create a new version with DCC app"""
-        if not self.current_entity:
+        if not getattr(self, 'current_entity', None):
+            QMessageBox.warning(self, "No Selection", "Select an asset or shot first.")
+            return
+        if not getattr(self, 'current_task', None):
+            QMessageBox.warning(self, "No Task", "Select a task for this entity before creating a version.")
             return
         
         # Show create version dialog
@@ -3386,6 +3563,13 @@ class VersionManager(PrismStyleWidget):
         if dialog.exec() == QDialog.DialogCode.Accepted:
             # Reload versions
             self.load_versions()
+            # Try to select the newest version row/card
+            if self.current_versions:
+                last_index = len(self.current_versions) - 1
+                if self.version_table.isVisible():
+                    self.version_table.setCurrentCell(last_index, 0)
+                if self.version_cards.isVisible():
+                    self.version_cards.setCurrentRow(last_index)
     
     def open_version_with_dcc(self, version):
         """Open version with its DCC app"""
@@ -3463,10 +3647,31 @@ class VersionManager(PrismStyleWidget):
         
         if reply == QMessageBox.StandardButton.Yes:
             try:
-                # Get controller and manager
-                from .main import get_current_controller
-                controller = get_current_controller()
-                if not controller or not controller.manager:
+                # Resolve manager robustly
+                manager = None
+                try:
+                    win = self.window()
+                    if hasattr(win, 'manager') and win.manager:
+                        manager = win.manager
+                except Exception:
+                    pass
+                if manager is None:
+                    try:
+                        from .ui import get_current_controller as ui_get_current_controller
+                        ctrl = ui_get_current_controller()
+                        if ctrl and hasattr(ctrl, 'manager') and ctrl.manager:
+                            manager = ctrl.manager
+                    except Exception:
+                        pass
+                if manager is None:
+                    try:
+                        from .main import get_current_controller as main_get_current_controller
+                        ctrl = main_get_current_controller()
+                        if ctrl and hasattr(ctrl, 'manager') and ctrl.manager:
+                            manager = ctrl.manager
+                    except Exception:
+                        pass
+                if not manager:
                     QMessageBox.critical(self, "Error", "No project manager available")
                     return
                 
@@ -3481,9 +3686,9 @@ class VersionManager(PrismStyleWidget):
                     os.remove(version.thumbnail)
                 
                 # Remove from project
-                versions = controller.manager.current_project.get_versions(self.current_entity)
+                versions = manager.current_project.get_versions(self.current_entity)
                 versions.remove(version)
-                controller.manager.save_project()
+                manager.save_project()
                 
                 # Reload versions
                 self.load_versions()
@@ -3942,6 +4147,17 @@ class CreateVersionDialog(QDialog):
             QMessageBox.warning(self, "Invalid Input", "User name is required")
             return
         
+        # Ensure a workfile path exists. If none picked, prompt once.
+        if not workfile_path:
+            self.browse_workfile()
+            workfile_path = self.workfile_edit.text().strip() or None
+            if not workfile_path:
+                QMessageBox.warning(self, "Missing File", "Please select a workfile to create a version from.")
+                return
+        if not os.path.exists(workfile_path):
+            QMessageBox.critical(self, "File Not Found", f"The file does not exist:\n{workfile_path}")
+            return
+
         try:
             # Get controller and create version
             from .main import get_current_controller

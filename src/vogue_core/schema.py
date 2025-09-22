@@ -255,9 +255,14 @@ def pipeline_to_project(data: Dict[str, Any]) -> Project:
                 version=version_data["version"],
                 user=version_data["user"],
                 date=version_data["date"],
-                comment=version_data["comment"],
-                path=version_data["path"],
-                thumbnail=version_data.get("thumbnail")
+                comment=version_data.get("comment", ""),
+                path=version_data.get("path", ""),
+                thumbnail=version_data.get("thumbnail"),
+                dcc_app=version_data.get("dcc_app"),
+                task_name=version_data.get("task_name", ""),
+                workfile_path=version_data.get("workfile_path"),
+                status=version_data.get("status", "WIP"),
+                tags=version_data.get("tags", [])
             )
             versions[entity_key].append(version)
 
@@ -356,6 +361,16 @@ def project_to_pipeline(project: Project) -> Dict[str, Any]:
             }
             if version.thumbnail:
                 version_data["thumbnail"] = version.thumbnail
+            if getattr(version, 'dcc_app', None):
+                version_data["dcc_app"] = version.dcc_app
+            if getattr(version, 'task_name', None):
+                version_data["task_name"] = version.task_name
+            if getattr(version, 'workfile_path', None):
+                version_data["workfile_path"] = version.workfile_path
+            if getattr(version, 'status', None):
+                version_data["status"] = version.status
+            if getattr(version, 'tags', None):
+                version_data["tags"] = version.tags
             versions[entity_key].append(version_data)
 
     # Convert departments to dictionaries

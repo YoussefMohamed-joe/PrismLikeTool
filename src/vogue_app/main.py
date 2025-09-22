@@ -69,7 +69,10 @@ def main():
     try:
         # Create and show main controller
         controller = VogueController()
-        set_current_controller(controller)  # Set global reference
+        # Set global references so UI dialogs can access the controller
+        set_current_controller(controller)  # sets ui._current_controller
+        global _current_controller
+        _current_controller = controller  # also set main._current_controller for callers importing from .main
         controller.show()
         
         logger.info("Vogue Manager started successfully")

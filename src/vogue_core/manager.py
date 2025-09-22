@@ -378,6 +378,59 @@ class ProjectManager:
         
         self.logger.info(f"Created DCC version {version_str} for {entity_key} using {app.display_name}")
         return version_obj
+
+    def create_placeholder_version(
+        self,
+        entity_key: str,
+        user: str,
+        comment: str = "",
+        dcc_app: str | None = None,
+        task_name: str | None = None,
+        status: str = "WIP",
+    ) -> Version:
+        """Create a version entry without requiring a source workfile.
+
+        Touches an empty file at the canonical version path so the UI has a real path
+        to show/open later. Useful for quickly registering versions from the UI.
+        """
+        if self.current_project is None:
+            raise ValueError("No project loaded")
+
+        # Determine next version string
+        existing_versions = [v.version for v in self.current_project.get_versions(entity_key)]
+        version_str = next_version(existing_versions)
+
+        # Canonical path and create an empty file
+        canonical_path = get_canonical_version_path(self.current_project.path, entity_key, version_str)
+        os.makedirs(os.path.dirname(canonical_path), exist_ok=True)
+        try:
+            with open(canonical_path, 'wb') as f:
+                f.write(b'')
+        except OSError:
+            # If path is not writable, fallback to no file but still register version
+            canonical_path = ""
+
+        # Build version object
+        version_obj = Version(
+            version=version_str,
+            user=user,
+            date=datetime.now().isoformat(),
+            comment=comment,
+            path=canonical_path,
+        )
+        # Optional fields if present on Version
+        if hasattr(version_obj, 'dcc_app'):
+            version_obj.dcc_app = dcc_app  # type: ignore
+        if hasattr(version_obj, 'task_name') and task_name:
+            version_obj.task_name = task_name  # type: ignore
+        if hasattr(version_obj, 'status'):
+            version_obj.status = status  # type: ignore
+
+        # Persist in project
+        self.current_project.add_version(entity_key, version_obj)
+        self.save_project()
+        self.logger.info(f"Created placeholder version {version_str} for {entity_key}")
+        return version_obj
     
     def launch_dcc_app(self, dcc_app: str, entity_key: str = None, 
                       task_name: str = None, version: str = None) -> bool:
