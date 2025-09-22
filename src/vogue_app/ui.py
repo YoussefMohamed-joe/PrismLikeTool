@@ -2691,7 +2691,8 @@ class PrismRightPanel(PrismStyleWidget):
                 }}
             """)
 
-        details_content_layout.addRow("Path:", self.asset_path_label)
+        # Hide Path row (remove it from details)
+        # details_content_layout.addRow("Path:", self.asset_path_label)
         details_content_layout.addRow("Artist:", self.asset_artist_label)
         details_content_layout.addRow("Modified:", self.asset_date_label)
 
@@ -2763,6 +2764,7 @@ class PrismRightPanel(PrismStyleWidget):
 
 class VersionManager(PrismStyleWidget):
     """Version manager widget - main right panel"""
+    selectedVersionChanged = pyqtSignal(object)
     
     def __init__(self, parent=None):
         super().__init__(parent)
@@ -3150,6 +3152,8 @@ class VersionManager(PrismStyleWidget):
         # Context menu for version table
         self.version_table.setContextMenuPolicy(Qt.ContextMenuPolicy.CustomContextMenu)
         self.version_table.customContextMenuRequested.connect(self.show_version_context_menu)
+        # Emit a selectionChanged signal we can connect from the ProjectBrowser
+        from PyQt6.QtCore import pyqtSignal
         # Context menu for card view as well
         self.version_cards.setContextMenuPolicy(Qt.ContextMenuPolicy.CustomContextMenu)
         self.version_cards.customContextMenuRequested.connect(self.show_version_context_menu)
@@ -3251,6 +3255,10 @@ class VersionManager(PrismStyleWidget):
             
             # No path column in the list view to keep it clean
         
+        # Auto-select first row if nothing selected
+        if self.version_table.rowCount() > 0 and self.version_table.currentRow() < 0:
+            self.version_table.setCurrentCell(0, 0)
+            self.on_version_selected()
         # Enable/disable buttons based on selection
         self.update_button_states()
 
@@ -3263,6 +3271,8 @@ class VersionManager(PrismStyleWidget):
         thumb_w, thumb_h = 160, 90
         for version in self.current_versions:
             item = QListWidgetItem()
+            # Ensure items are selectable/enabled
+            item.setFlags(item.flags() | Qt.ItemFlag.ItemIsSelectable | Qt.ItemFlag.ItemIsEnabled)
             # Set width to current viewport width, so it fills the parent
             viewport_w = self.version_cards.viewport().width()
             # Compute effective width minus small safety padding to avoid right cut-off
@@ -3271,6 +3281,11 @@ class VersionManager(PrismStyleWidget):
             self.version_cards.addItem(item)
             card = self._build_version_card_widget(version, thumb_w, thumb_h, effective_w, card_h)
             self.version_cards.setItemWidget(item, card)
+
+        # Auto-select first item if nothing selected
+        if self.version_cards.count() > 0 and self.version_cards.currentRow() < 0:
+            self.version_cards.setCurrentRow(0)
+            self.on_card_selected()
 
         self.update_button_states()
 
@@ -3364,6 +3379,7 @@ class VersionManager(PrismStyleWidget):
             if row >= 0 and row < len(self.current_versions):
                 v = self.current_versions[row]
                 self._update_right_preview(v)
+                self.selectedVersionChanged.emit(v)
         except Exception:
             pass
         self.update_button_states()
@@ -3380,6 +3396,7 @@ class VersionManager(PrismStyleWidget):
             try:
                 v = self.current_versions[row]
                 self._update_right_preview(v)
+                self.selectedVersionChanged.emit(v)
             except Exception:
                 pass
         self.update_button_states()
@@ -3390,7 +3407,9 @@ class VersionManager(PrismStyleWidget):
             win = self.window()
             if not win or not hasattr(win, 'project_browser'):
                 return
-            preview = getattr(win.project_browser, 'asset_preview_label', None)
+            # Prefer dedicated right panel if present
+            browser = getattr(win, 'right_panel', None) or getattr(win, 'project_browser', None)
+            preview = getattr(browser, 'asset_preview_label', None)
             if preview is None:
                 return
             if getattr(version, 'thumbnail', None) and os.path.exists(version.thumbnail):
@@ -3406,6 +3425,24 @@ class VersionManager(PrismStyleWidget):
                 preview.setPixmap(QPixmap())
                 # Show version name so it's clear what is selected
                 preview.setText(version.version or "No Preview Available")
+
+            # Update textual details if present in the right panel
+            name_lbl = getattr(browser, 'asset_name_label', None)
+            if name_lbl is not None:
+                name_lbl.setText(version.version or "No Selection")
+            path_lbl = getattr(browser, 'asset_path_label', None)
+            if path_lbl is not None:
+                path_lbl.setText(getattr(version, 'path', '') or "-")
+            artist_lbl = getattr(browser, 'asset_artist_label', None)
+            if artist_lbl is not None:
+                artist_lbl.setText(getattr(version, 'user', '') or "-")
+            date_lbl = getattr(browser, 'asset_date_label', None)
+            if date_lbl is not None:
+                date_lbl.setText(getattr(version, 'date', '') or "-")
+            # Status chip if available
+            status_lbl = getattr(browser, 'asset_status_label', None)
+            if status_lbl is not None:
+                status_lbl.setText(getattr(version, 'status', 'Unknown'))
         except Exception:
             return
     
@@ -4514,15 +4551,19 @@ class PrismMainWindow(QMainWindow):
         
         # Center panel - Version Manager
         self.version_manager = VersionManager()
+        # Connect selection signal to update right panel consistently
+        try:
+            self.version_manager.selectedVersionChanged.connect(lambda v: self.version_manager._update_right_preview(v))
+        except Exception:
+            pass
         main_splitter.addWidget(self.version_manager)
         
         # Right panel - Prism-style Tasks/Departments/Asset Info
         self.right_panel = PrismRightPanel()
         main_splitter.addWidget(self.right_panel)
         
-        # Set splitter proportions (40% left, 50% center, 10% right)
-        # Optimized for left panel with tabs+tasks+departments, center version manager, right asset info only
-        main_splitter.setSizes([560, 700, 140])
+        # Set splitter proportions; reduce right panel width to emphasize center
+        main_splitter.setSizes([560, 820, 120])
         layout.addWidget(main_splitter)
         
         return central_widget
