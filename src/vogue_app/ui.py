@@ -3888,9 +3888,83 @@ class VersionManager(PrismStyleWidget):
         pass
     
     def on_import_clicked(self):
-        """Handle import button click"""
-        # TODO: Implement import
-        pass
+        """Handle import button click - quick import into current entity/task"""
+        try:
+            # Preconditions
+            if not getattr(self, 'current_entity', None):
+                QMessageBox.warning(self, "No Selection", "Select an asset or shot first.")
+                return
+            if not getattr(self, 'current_task', None):
+                QMessageBox.warning(self, "No Task", "Select a task for this entity before importing.")
+                return
+            # Pick a file to import
+            from PyQt6.QtWidgets import QFileDialog
+            workfile_path, _ = QFileDialog.getOpenFileName(self, "Select Workfile to Import", "", "All Files (*.*)")
+            if not workfile_path:
+                return
+            # Basic metadata
+            user, ok = QInputDialog.getText(self, "User", "Enter your name:")
+            if not ok or not user.strip():
+                return
+            comment, _ = QInputDialog.getText(self, "Comment", "Comment (optional):")
+
+            # Resolve manager
+            manager = None
+            try:
+                win = self.window()
+                if hasattr(win, 'manager') and win.manager:
+                    manager = win.manager
+            except Exception:
+                pass
+            if manager is None:
+                try:
+                    from .ui import get_current_controller as ui_get_current_controller
+                    ctrl = ui_get_current_controller()
+                    if ctrl and hasattr(ctrl, 'manager') and ctrl.manager:
+                        manager = ctrl.manager
+                except Exception:
+                    pass
+            if manager is None:
+                try:
+                    from .main import get_current_controller as main_get_current_controller
+                    ctrl = main_get_current_controller()
+                    if ctrl and hasattr(ctrl, 'manager') and ctrl.manager:
+                        manager = ctrl.manager
+                except Exception:
+                    pass
+            if not manager or not getattr(manager, 'current_project', None):
+                QMessageBox.critical(self, "Error", "No project manager available")
+                return
+
+            # Create a placeholder version and copy the workfile into canonical path
+            version = manager.create_placeholder_version(
+                entity_key=self.current_entity,
+                user=user.strip(),
+                comment=comment.strip() if comment else "",
+                task_name=self.current_task,
+            )
+            # If we have a canonical path, copy selected workfile there
+            try:
+                if version.path:
+                    import shutil
+                    shutil.copy2(workfile_path, version.path)
+                    if hasattr(version, 'workfile_path'):
+                        version.workfile_path = workfile_path
+                    manager.save_project()
+            except Exception:
+                pass
+
+            # Refresh UI and select the new version
+            self.load_versions()
+            if self.current_versions:
+                last_index = len(self.current_versions) - 1
+                if self.version_table.isVisible():
+                    self.version_table.setCurrentCell(last_index, 0)
+                if self.version_cards.isVisible():
+                    self.version_cards.setCurrentRow(last_index)
+                self.on_version_selected()
+        except Exception as e:
+            QMessageBox.critical(self, "Import Error", str(e))
     
     def on_export_clicked(self):
         """Handle export button click"""
