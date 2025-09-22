@@ -2530,8 +2530,9 @@ class PrismRightPanel(PrismStyleWidget):
         info_layout.addWidget(self.asset_details_widget)
 
         # Actions toolbar (Ayon style)
-        self.setup_asset_actions()
-        info_layout.addWidget(self.asset_actions_widget)
+        # Remove actions as requested
+        # self.setup_asset_actions()
+        # info_layout.addWidget(self.asset_actions_widget)
 
         info_layout.addStretch()
 
@@ -2636,7 +2637,7 @@ class PrismRightPanel(PrismStyleWidget):
         # Preview area
         self.asset_preview_label = QLabel("No Preview Available")
         self.asset_preview_label.setAlignment(Qt.AlignmentFlag.AlignCenter)
-        self.asset_preview_label.setMinimumHeight(120)
+        self.asset_preview_label.setMinimumHeight(220)
         self.asset_preview_label.setStyleSheet(f"""
             QLabel {{
                 background-color: {COLORS['surface']};
@@ -2677,9 +2678,10 @@ class PrismRightPanel(PrismStyleWidget):
         self.asset_path_label = QLabel("-")
         self.asset_artist_label = QLabel("-")
         self.asset_date_label = QLabel("-")
+        self.asset_type_label2 = QLabel("Dummy")
 
         # Style the labels
-        for label in [self.asset_path_label, self.asset_artist_label, self.asset_date_label]:
+        for label in [self.asset_path_label, self.asset_artist_label, self.asset_date_label, self.asset_type_label2]:
             label.setStyleSheet(f"""
                 QLabel {{
                     font-size: 12px;
@@ -2695,6 +2697,7 @@ class PrismRightPanel(PrismStyleWidget):
         # details_content_layout.addRow("Path:", self.asset_path_label)
         details_content_layout.addRow("Artist:", self.asset_artist_label)
         details_content_layout.addRow("Modified:", self.asset_date_label)
+        details_content_layout.addRow("Type:", self.asset_type_label2)
 
         details_layout.addWidget(details_content)
 
@@ -3432,6 +3435,7 @@ class VersionManager(PrismStyleWidget):
                 name_lbl.setText(version.version or "No Selection")
             path_lbl = getattr(browser, 'asset_path_label', None)
             if path_lbl is not None:
+                # Hidden in UI, but keep value updated internally
                 path_lbl.setText(getattr(version, 'path', '') or "-")
             artist_lbl = getattr(browser, 'asset_artist_label', None)
             if artist_lbl is not None:
@@ -3443,6 +3447,10 @@ class VersionManager(PrismStyleWidget):
             status_lbl = getattr(browser, 'asset_status_label', None)
             if status_lbl is not None:
                 status_lbl.setText(getattr(version, 'status', 'Unknown'))
+            # Type (dummy)
+            type_lbl2 = getattr(browser, 'asset_type_label2', None)
+            if type_lbl2 is not None:
+                type_lbl2.setText("Dummy")
         except Exception:
             return
     
