@@ -225,7 +225,9 @@ def pipeline_to_project(data: Dict[str, Any]) -> Project:
                 name=task_data.get("name", "Unknown"),
                 department=task_data.get("department", ""),
                 status=task_data.get("status", "Pending"),
-                description=task_data.get("description", "")
+                description=task_data.get("description", ""),
+                entity=task_data.get("entity", ""),
+                entity_type=task_data.get("entity_type", "")
             )
         else:
             continue
@@ -372,7 +374,9 @@ def project_to_pipeline(project: Project) -> Dict[str, Any]:
             "name": task.name,
             "department": task.department,
             "status": task.status,
-            "description": task.description
+            "description": task.description,
+            "entity": task.entity,
+            "entity_type": task.entity_type
         }
         tasks.append(task_data)
 

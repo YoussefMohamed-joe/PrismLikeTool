@@ -5812,61 +5812,11 @@ class PrismMainWindow(QMainWindow):
             QMessageBox.information(self, "Info", f"Opening project: {project_path}")
     
     def load_tasks_data(self):
-        """Load tasks data"""
+        """Load tasks data - start with empty table"""
         try:
-            # Sample tasks data
-            tasks = [
-                ("Create character model", "TestProject", "John Doe", "In Progress", "High", "2024-01-20"),
-                ("Animate walk cycle", "TestProject", "Jane Smith", "Pending", "Medium", "2024-01-25"),
-                ("Texture environment", "CompleteTestProject", "Mike Johnson", "Completed", "Low", "2024-01-15"),
-                ("Lighting setup", "TestProject", "Sarah Wilson", "Pending", "High", "2024-01-22"),
-                ("Rig character", "CompleteTestProject", "John Doe", "In Progress", "Medium", "2024-01-18"),
-                ("Render turntable", "TestProject", "Jane Smith", "Overdue", "High", "2024-01-10"),
-                ("Create storyboard", "NewProject", "Mike Johnson", "Pending", "Low", "2024-01-30"),
-                ("Sound design", "CompleteTestProject", "Sarah Wilson", "Completed", "Medium", "2024-01-12")
-            ]
+            # Start with empty task table
+            self.tasks_table.setRowCount(0)
             
-            self.tasks_table.setRowCount(len(tasks))
-            
-            for row, (task_name, project, assignee, status, priority, due_date) in enumerate(tasks):
-                # Task name
-                task_item = QTableWidgetItem(task_name)
-                self.tasks_table.setItem(row, 0, task_item)
-                
-                # Project
-                project_item = QTableWidgetItem(project)
-                self.tasks_table.setItem(row, 1, project_item)
-                
-                # Assignee
-                assignee_item = QTableWidgetItem(assignee)
-                self.tasks_table.setItem(row, 2, assignee_item)
-                
-                # Status
-                status_item = QTableWidgetItem(status)
-                if status == "Completed":
-                    status_item.setBackground(QColor(144, 238, 144, 100))  # Light green
-                elif status == "In Progress":
-                    status_item.setBackground(QColor(173, 216, 230, 100))  # Light blue
-                elif status == "Overdue":
-                    status_item.setBackground(QColor(255, 182, 193, 100))  # Light red
-                else:
-                    status_item.setBackground(QColor(255, 235, 59, 100))   # Light yellow
-                self.tasks_table.setItem(row, 3, status_item)
-                
-                # Priority
-                priority_item = QTableWidgetItem(priority)
-                if priority == "High":
-                    priority_item.setBackground(QColor(255, 182, 193, 100))  # Light red
-                elif priority == "Medium":
-                    priority_item.setBackground(QColor(255, 235, 59, 100))   # Light yellow
-                else:
-                    priority_item.setBackground(QColor(144, 238, 144, 100))  # Light green
-                self.tasks_table.setItem(row, 4, priority_item)
-                
-                # Due date
-                due_date_item = QTableWidgetItem(due_date)
-                self.tasks_table.setItem(row, 5, due_date_item)
-                
         except Exception as e:
             print(f"Error loading tasks data: {e}")
     

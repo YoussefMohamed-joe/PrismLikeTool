@@ -1,0 +1,64 @@
+{
+  "name": "meoww",
+  "path": "D:\\project\\PrismLikeTool\\VogueProjects\\meoww",
+  "fps": 24,
+  "resolution": [
+    1920,
+    1080
+  ],
+  "departments": [],
+  "tasks": [
+    {
+      "name": "wwwww",
+      "department": "wer",
+      "status": "WIP",
+      "description": "",
+      "entity": "",
+      "entity_type": ""
+    },
+    {
+      "name": "sdf",
+      "department": "wer",
+      "status": "WIP",
+      "description": "",
+      "entity": "eyr",
+      "entity_type": "Asset"
+    }
+  ],
+  "assets": [
+    {
+      "name": "eyr",
+      "type": "Props",
+      "path": "",
+      "departments": [
+        "wer",
+        "erg"
+      ],
+      "meta": {
+        "tags": [],
+        "artist": "",
+        "lod": "High",
+        "rigged": false,
+        "animated": false,
+        "image_path": null
+      }
+    },
+    {
+      "name": "wer2",
+      "type": "Props",
+      "path": "",
+      "departments": [],
+      "meta": {
+        "tags": [],
+        "artist": "",
+        "lod": "High",
+        "rigged": false,
+        "animated": false,
+        "image_path": null
+      }
+    }
+  ],
+  "shots": [],
+  "folders": [],
+  "versions": {}
+}
