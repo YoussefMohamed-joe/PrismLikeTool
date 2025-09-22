@@ -2641,7 +2641,7 @@ class PrismRightPanel(PrismStyleWidget):
         self.asset_preview_label.setStyleSheet(f"""
             QLabel {{
                 background-color: {COLORS['surface']};
-                border: 1px solid {COLORS['outline']};
+                border: none;
                 border-radius: 8px;
                 color: {COLORS['muted']};
                 font-size: 12px;
@@ -2686,10 +2686,10 @@ class PrismRightPanel(PrismStyleWidget):
                 QLabel {{
                     font-size: 12px;
                     color: {COLORS['fg_variant']};
-                    background-color: {COLORS['surface']};
+                    background-color: transparent;
                     padding: 4px 8px;
                     border-radius: 4px;
-                    border: 1px solid {COLORS['outline']};
+                    border: none;
                 }}
             """)
 
@@ -2774,6 +2774,7 @@ class VersionManager(PrismStyleWidget):
         self.current_entity = None
         self.current_versions = []
         self.view_mode = "list"
+        self.version_card_widgets = []
         self.setup_ui()
         self.setup_connections()
     
@@ -2957,6 +2958,8 @@ class VersionManager(PrismStyleWidget):
         self.version_table.setSelectionBehavior(QAbstractItemView.SelectionBehavior.SelectRows)
         self.version_table.setAlternatingRowColors(True)
         self.version_table.setSortingEnabled(True)
+        # Make the list read-only (no in-place editing)
+        self.version_table.setEditTriggers(QAbstractItemView.EditTrigger.NoEditTriggers)
         
         # Set column widths
         header = self.version_table.horizontalHeader()
@@ -3014,7 +3017,9 @@ class VersionManager(PrismStyleWidget):
         self.version_cards.setHorizontalScrollBarPolicy(Qt.ScrollBarPolicy.ScrollBarAlwaysOff)
         self.version_cards.setVerticalScrollBarPolicy(Qt.ScrollBarPolicy.ScrollBarAsNeeded)
         self.version_cards.setStyleSheet(f"""
-            QListWidget::item {{ margin: 0px; padding: 0px; }}
+            QListWidget::item {{ margin: 0px; padding: 0px; border: none; }}
+            QListWidget::item:selected {{ background-color: transparent; border: none; }}
+            QListWidget::item:hover {{ background-color: transparent; }}
             QListWidget {{ background-color: {COLORS['surface_high']}; border: none; }}
         """)
         self.version_cards.hide()
@@ -3272,6 +3277,7 @@ class VersionManager(PrismStyleWidget):
         # Card height; width bound to viewport so it's not scrollable horizontally
         card_h = 120
         thumb_w, thumb_h = 160, 90
+        self.version_card_widgets = []
         for version in self.current_versions:
             item = QListWidgetItem()
             # Ensure items are selectable/enabled
@@ -3284,12 +3290,15 @@ class VersionManager(PrismStyleWidget):
             self.version_cards.addItem(item)
             card = self._build_version_card_widget(version, thumb_w, thumb_h, effective_w, card_h)
             self.version_cards.setItemWidget(item, card)
+            self.version_card_widgets.append(card)
 
         # Auto-select first item if nothing selected
         if self.version_cards.count() > 0 and self.version_cards.currentRow() < 0:
             self.version_cards.setCurrentRow(0)
             self.on_card_selected()
 
+        # Update highlight for current selection
+        self._update_card_highlight()
         self.update_button_states()
 
     def _build_version_card_widget(self, version, thumb_w: int, thumb_h: int, card_w: int, card_h: int):
@@ -3300,7 +3309,7 @@ class VersionManager(PrismStyleWidget):
         card.setStyleSheet(f"""
             QWidget {{
                 background-color: {COLORS['surface']};
-                border: none;
+                border: 1px solid transparent;
                 border-radius: 8px;
             }}
         """)
@@ -3327,11 +3336,11 @@ class VersionManager(PrismStyleWidget):
         mid = QVBoxLayout()
         mid.setSpacing(4)
         title = QLabel(version.version)
-        title.setStyleSheet("font-weight: 700; font-size: 14px;")
+        title.setStyleSheet("font-weight: 700; font-size: 14px; background-color: transparent; border: none;")
         mid.addWidget(title)
         comment_text = version.comment or ""
         comment = QLabel(comment_text)
-        comment.setStyleSheet("font-size: 12px; color: #aab0b6;")
+        comment.setStyleSheet("font-size: 12px; color: #aab0b6; background-color: transparent; border: none;")
         comment.setWordWrap(True)
         mid.addWidget(comment)
         mid.addStretch(1)
@@ -3341,10 +3350,10 @@ class VersionManager(PrismStyleWidget):
         right = QVBoxLayout()
         right.setSpacing(2)
         user = QLabel(version.user or "-")
-        user.setStyleSheet("font-size: 12px;")
+        user.setStyleSheet("font-size: 12px; background-color: transparent; border: none;")
         date_str = version.date.split('T')[0] if 'T' in version.date else (version.date or "-")
         date = QLabel(date_str)
-        date.setStyleSheet("font-size: 12px; color: #aab0b6;")
+        date.setStyleSheet("font-size: 12px; color: #aab0b6; background-color: transparent; border: none;")
         right.addWidget(user, alignment=Qt.AlignmentFlag.AlignRight)
         right.addWidget(date, alignment=Qt.AlignmentFlag.AlignRight)
         # Status chip
@@ -3402,7 +3411,26 @@ class VersionManager(PrismStyleWidget):
                 self.selectedVersionChanged.emit(v)
             except Exception:
                 pass
+            self._update_card_highlight()
         self.update_button_states()
+
+    def _set_card_selected(self, card: QWidget, selected: bool):
+        border_color = COLORS['accent'] if selected else 'transparent'
+        border_width = 2 if selected else 1
+        card.setStyleSheet(f"""
+            QWidget {{
+                background-color: {COLORS['surface']};
+                border: {border_width}px solid {border_color};
+                border-radius: 8px;
+            }}
+        """)
+
+    def _update_card_highlight(self):
+        if not self.version_card_widgets:
+            return
+        sel = self.version_cards.currentRow()
+        for idx, card in enumerate(self.version_card_widgets):
+            self._set_card_selected(card, idx == sel)
 
     def _update_right_preview(self, version):
         """Set the right-side preview image/text based on a Version object."""
@@ -6945,6 +6973,63 @@ Time: {message['time']}
         
         scroll_layout.addWidget(project_group)
         
+        # DCC Applications Settings
+        dcc_group = QGroupBox("DCC Applications")
+        dcc_group.setStyleSheet("""
+            QGroupBox {
+                font-weight: bold;
+                border: 2px solid #dee2e6;
+                border-radius: 5px;
+                margin-top: 10px;
+                padding-top: 10px;
+            }
+            QGroupBox::title {
+                subcontrol-origin: margin;
+                left: 10px;
+                padding: 0 5px 0 5px;
+            }
+        """)
+        dcc_layout = QFormLayout(dcc_group)
+
+        # Known DCC apps (you can add more later)
+        self.dcc_maya_path = QLineEdit("")
+        self.dcc_maya_path.setPlaceholderText(r"C:\\Program Files\\Autodesk\\Maya2025\\bin\\maya.exe")
+        self.dcc_maya_browse = QPushButton("Browse")
+        self.dcc_maya_browse.clicked.connect(lambda: self._browse_exec_path(self.dcc_maya_path))
+        maya_row = QHBoxLayout()
+        maya_row.addWidget(self.dcc_maya_path)
+        maya_row.addWidget(self.dcc_maya_browse)
+        dcc_layout.addRow("Autodesk Maya:", maya_row)
+
+        self.dcc_blender_path = QLineEdit("")
+        self.dcc_blender_path.setPlaceholderText(r"C:\\Program Files\\Blender Foundation\\Blender 4.0\\blender.exe")
+        self.dcc_blender_browse = QPushButton("Browse")
+        self.dcc_blender_browse.clicked.connect(lambda: self._browse_exec_path(self.dcc_blender_path))
+        blender_row = QHBoxLayout()
+        blender_row.addWidget(self.dcc_blender_path)
+        blender_row.addWidget(self.dcc_blender_browse)
+        dcc_layout.addRow("Blender:", blender_row)
+
+        self.dcc_houdini_path = QLineEdit("")
+        self.dcc_houdini_path.setPlaceholderText(r"C:\\Program Files\\Side Effects Software\\Houdini 20.5.332\\bin\\houdini.exe")
+        self.dcc_houdini_browse = QPushButton("Browse")
+        self.dcc_houdini_browse.clicked.connect(lambda: self._browse_exec_path(self.dcc_houdini_path))
+        houdini_row = QHBoxLayout()
+        houdini_row.addWidget(self.dcc_houdini_path)
+        houdini_row.addWidget(self.dcc_houdini_browse)
+        dcc_layout.addRow("SideFX Houdini:", houdini_row)
+
+        self.dcc_nuke_path = QLineEdit("")
+        self.dcc_nuke_path.setPlaceholderText(r"C:\\Program Files\\Nuke15.1v4\\Nuke15.1.exe")
+        self.dcc_nuke_browse = QPushButton("Browse")
+        self.dcc_nuke_browse.clicked.connect(lambda: self._browse_exec_path(self.dcc_nuke_path))
+        nuke_row = QHBoxLayout()
+        nuke_row.addWidget(self.dcc_nuke_path)
+        nuke_row.addWidget(self.dcc_nuke_browse)
+        dcc_layout.addRow("Foundry Nuke:", nuke_row)
+
+        scroll_layout.addWidget(dcc_group)
+
         # User Settings
         user_group = QGroupBox("User Settings")
         user_group.setStyleSheet("""
@@ -7024,8 +7109,9 @@ Time: {message['time']}
         scroll_area.setWidget(scroll_content)
         layout.addWidget(scroll_area)
         
-        # Load current settings
+        # Load current settings, then best-effort auto-detect DCC paths for this user
         self.load_settings()
+        self.autodetect_dcc_paths()
         
         return widget
     
@@ -7062,9 +7148,93 @@ Time: {message['time']}
                 self.log_level_combo.setCurrentText(settings.get('log_level', 'INFO'))
                 self.max_log_files_spin.setValue(settings.get('max_log_files', 10))
                 self.debug_mode_check.setChecked(settings.get('debug_mode', False))
+                # DCC apps
+                dcc = settings.get('dcc_apps', {})
+                if hasattr(self, 'dcc_maya_path'):
+                    self.dcc_maya_path.setText(dcc.get('maya', ''))
+                if hasattr(self, 'dcc_blender_path'):
+                    self.dcc_blender_path.setText(dcc.get('blender', ''))
+                if hasattr(self, 'dcc_houdini_path'):
+                    self.dcc_houdini_path.setText(dcc.get('houdini', ''))
+                if hasattr(self, 'dcc_nuke_path'):
+                    self.dcc_nuke_path.setText(dcc.get('nuke', ''))
                 
         except Exception as e:
             print(f"Error loading settings: {e}")
+
+    def autodetect_dcc_paths(self):
+        """Detect common DCC install paths on Windows and fill empty fields."""
+        import os, glob
+        program_files = os.environ.get('ProgramFiles', r'C:\\Program Files')
+        program_files_x86 = os.environ.get('ProgramFiles(x86)', r'C:\\Program Files (x86)')
+
+        def first_match(patterns):
+            for pattern in patterns:
+                matches = glob.glob(pattern)
+                if matches:
+                    return matches[0]
+            return ''
+
+        # Maya
+        if hasattr(self, 'dcc_maya_path') and not self.dcc_maya_path.text().strip():
+            p = first_match([
+                os.path.join(program_files, 'Autodesk', 'Maya*', 'bin', 'maya.exe'),
+                os.path.join(program_files_x86, 'Autodesk', 'Maya*', 'bin', 'maya.exe')
+            ])
+            if p:
+                self.dcc_maya_path.setText(p)
+
+        # Blender
+        if hasattr(self, 'dcc_blender_path') and not self.dcc_blender_path.text().strip():
+            p = first_match([
+                os.path.join(program_files, 'Blender Foundation', 'Blender *', 'blender.exe'),
+                os.path.join(program_files, 'Blender Foundation', 'Blender', 'blender.exe')
+            ])
+            if p:
+                self.dcc_blender_path.setText(p)
+
+        # Houdini
+        if hasattr(self, 'dcc_houdini_path') and not self.dcc_houdini_path.text().strip():
+            p = first_match([
+                os.path.join(program_files, 'Side Effects Software', 'Houdini *', 'bin', 'houdini.exe')
+            ])
+            if p:
+                self.dcc_houdini_path.setText(p)
+
+        # Nuke
+        if hasattr(self, 'dcc_nuke_path') and not self.dcc_nuke_path.text().strip():
+            p = first_match([
+                os.path.join(program_files, 'Nuke*', 'Nuke*.exe'),
+                os.path.join(program_files, 'Foundry', 'Nuke*', 'Nuke*.exe')
+            ])
+            if p:
+                self.dcc_nuke_path.setText(p)
+        
+        # Load DCC app paths if present
+        try:
+            from pathlib import Path
+            import json
+            settings_file = Path("settings.json")
+            if settings_file.exists():
+                with open(settings_file, 'r') as f:
+                    settings = json.load(f)
+                dcc = settings.get('dcc_apps', {})
+                if hasattr(self, 'dcc_maya_path'):
+                    self.dcc_maya_path.setText(dcc.get('maya', ''))
+                if hasattr(self, 'dcc_blender_path'):
+                    self.dcc_blender_path.setText(dcc.get('blender', ''))
+                if hasattr(self, 'dcc_houdini_path'):
+                    self.dcc_houdini_path.setText(dcc.get('houdini', ''))
+                if hasattr(self, 'dcc_nuke_path'):
+                    self.dcc_nuke_path.setText(dcc.get('nuke', ''))
+        except Exception:
+            pass
+
+    def _browse_exec_path(self, line_edit: QLineEdit):
+        from PyQt6.QtWidgets import QFileDialog
+        path, _ = QFileDialog.getOpenFileName(self, "Select Executable", "", "Executables (*.exe *.bat *.sh);;All Files (*.*)")
+        if path:
+            line_edit.setText(path)
     
     def save_settings(self):
         """Save settings to configuration file"""
@@ -7094,7 +7264,14 @@ Time: {message['time']}
                 # Advanced settings
                 'log_level': self.log_level_combo.currentText(),
                 'max_log_files': self.max_log_files_spin.value(),
-                'debug_mode': self.debug_mode_check.isChecked()
+                'debug_mode': self.debug_mode_check.isChecked(),
+                # DCC apps
+                'dcc_apps': {
+                    'maya': getattr(self, 'dcc_maya_path', QLineEdit()).text() if hasattr(self, 'dcc_maya_path') else '',
+                    'blender': getattr(self, 'dcc_blender_path', QLineEdit()).text() if hasattr(self, 'dcc_blender_path') else '',
+                    'houdini': getattr(self, 'dcc_houdini_path', QLineEdit()).text() if hasattr(self, 'dcc_houdini_path') else '',
+                    'nuke': getattr(self, 'dcc_nuke_path', QLineEdit()).text() if hasattr(self, 'dcc_nuke_path') else ''
+                }
             }
             
             settings_file = Path("settings.json")
