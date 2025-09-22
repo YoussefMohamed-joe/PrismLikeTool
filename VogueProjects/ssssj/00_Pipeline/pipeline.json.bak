@@ -15,6 +15,14 @@
       "description": "",
       "entity": "ghj",
       "entity_type": "Asset"
+    },
+    {
+      "name": "aaaa",
+      "department": "sdf",
+      "status": "Final",
+      "description": "",
+      "entity": "ghj",
+      "entity_type": "Asset"
     }
   ],
   "assets": [
@@ -61,6 +69,15 @@
         "date": "2025-09-22T11:02:13.821891",
         "comment": "gsdf",
         "path": "D:\\project\\PrismLikeTool\\VogueProjects\\ssssj\\06_Scenes\\Assets\\Characters\\ghj\\ghj_v003.ma",
+        "task_name": "wrt",
+        "status": "WIP"
+      },
+      {
+        "version": "v004",
+        "user": "r",
+        "date": "2025-09-22T11:09:46.142565",
+        "comment": "u",
+        "path": "D:\\project\\PrismLikeTool\\VogueProjects\\ssssj\\06_Scenes\\Assets\\Characters\\ghj\\ghj_v004.ma",
         "task_name": "wrt",
         "status": "WIP"
       }

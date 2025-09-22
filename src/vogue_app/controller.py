@@ -1480,18 +1480,62 @@ class VogueController(PrismMainWindow):
         current_item = self.project_browser.tasks_list.currentItem()
         if current_item:
             task_text = current_item.text()
+            # Extract task name consistently
+            task_name = task_text.split(" - ")[0] if " - " in task_text else task_text
             if " - Complete" not in task_text:
-                # Update task status to complete
-                if " - " in task_text:
-                    task_name = task_text.split(" - ")[0]
-                    new_text = f"{task_name} - Complete"
-                else:
-                    new_text = f"{task_text} - Complete"
+                # Update task status to complete (UI label)
+                new_text = f"{task_name} - Complete"
                 
                 current_item.setText(new_text)
                 self.logger.info(f"Completed task: {task_name}")
                 # Ensure department selection is maintained
                 self.ensure_department_selection_visible()
+
+                # Persist task status change to project and update related versions
+                try:
+                    if self.manager.current_project:
+                        # Update task object in project if present
+                        if hasattr(self.manager.current_project, 'tasks') and self.manager.current_project.tasks:
+                            updated_any = False
+                            for idx, t in enumerate(self.manager.current_project.tasks):
+                                # Support both object and dict storage
+                                if hasattr(t, 'name'):
+                                    match = (
+                                        t.name == task_name and
+                                        getattr(t, 'entity', None) == self.project_browser.current_entity and
+                                        getattr(t, 'entity_type', None) == self.project_browser.current_entity_type
+                                    )
+                                    if match:
+                                        t.status = 'Complete'
+                                        updated_any = True
+                                elif isinstance(t, dict):
+                                    match = (
+                                        t.get('name') == task_name and
+                                        t.get('entity') == self.project_browser.current_entity and
+                                        t.get('entity_type') == self.project_browser.current_entity_type
+                                    )
+                                    if match:
+                                        t['status'] = 'Complete'
+                                        self.manager.current_project.tasks[idx] = t
+                                        updated_any = True
+                        # Update versions that belong to this task
+                        entity_key = self.project_browser.current_entity
+                        versions = self.manager.current_project.get_versions(entity_key)
+                        for v in versions:
+                            if getattr(v, 'task_name', '') == task_name:
+                                setattr(v, 'status', 'Complete')
+                        # Save
+                        self.manager.save_project()
+                        # Refresh versions UI if available
+                        if hasattr(self, 'version_manager') and self.version_manager:
+                            try:
+                                self.version_manager.update_entity(entity_key, self.project_browser.current_entity_type, task_name)
+                            except Exception:
+                                # Fallback to reload
+                                self.version_manager.load_versions()
+                        self.logger.info(f"Marked related versions as Complete for task: {task_name}")
+                except Exception as e:
+                    self.logger.warning(f"Failed to persist completion state: {e}")
             else:
                 QMessageBox.information(self, "Already Complete", "This task is already marked as complete.")
         else:

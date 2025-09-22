@@ -2789,9 +2789,8 @@ class VersionManager(PrismStyleWidget):
         self.setup_version_table()
         layout.addWidget(self.version_table)
         
-        # Version info panel (Ayon style)
+        # Version info panel exists but not shown; we use the right-side Preview instead
         self.setup_version_info()
-        # Hide version details panel; details are shown in list/grid items
         self.info_widget.setVisible(False)
 
 
@@ -2945,9 +2944,9 @@ class VersionManager(PrismStyleWidget):
     def setup_version_table(self):
         """Setup version table in Ayon style"""
         self.version_table = QTableWidget()
-        self.version_table.setColumnCount(6)
+        self.version_table.setColumnCount(5)
         self.version_table.setHorizontalHeaderLabels([
-            "Version", "User", "Date", "Comment", "Status", "Path"
+            "Version", "User", "Date", "Comment", "Status"
         ])
         self.version_table.horizontalHeader().setStretchLastSection(True)
         self.version_table.setSelectionBehavior(QAbstractItemView.SelectionBehavior.SelectRows)
@@ -2997,15 +2996,22 @@ class VersionManager(PrismStyleWidget):
         # Card/grid view (Prism-like)
         from PyQt6.QtWidgets import QListWidget
         self.version_cards = QListWidget()
-        self.version_cards.setViewMode(QListWidget.ViewMode.IconMode)
+        # List mode lets each row span the full width
+        self.version_cards.setViewMode(QListWidget.ViewMode.ListMode)
+        self.version_cards.setWrapping(False)
         self.version_cards.setResizeMode(QListWidget.ResizeMode.Adjust)
         self.version_cards.setMovement(QListWidget.Movement.Static)
-        # Single card style matching provided screenshot
         self.version_cards.setIconSize(QSize(128, 72))
-        self.version_cards.setGridSize(QSize(520, 120))
-        self.version_cards.setSpacing(12)
+        self.version_cards.setSpacing(10)
         self.version_cards.setUniformItemSizes(False)
         self.version_cards.setWordWrap(True)
+        # Never show a horizontal scrollbar; width always matches viewport
+        self.version_cards.setHorizontalScrollBarPolicy(Qt.ScrollBarPolicy.ScrollBarAlwaysOff)
+        self.version_cards.setVerticalScrollBarPolicy(Qt.ScrollBarPolicy.ScrollBarAsNeeded)
+        self.version_cards.setStyleSheet(f"""
+            QListWidget::item {{ margin: 0px; padding: 0px; }}
+            QListWidget {{ background-color: {COLORS['surface_high']}; border: none; }}
+        """)
         self.version_cards.hide()
 
     def setup_version_info(self):
@@ -3243,60 +3249,181 @@ class VersionManager(PrismStyleWidget):
                 status_item.setBackground(QColor(108, 117, 125, 50))  # Gray
             self.version_table.setItem(row, 4, status_item)
             
-            # Path
-            path_item = QTableWidgetItem(version.path)
-            path_item.setToolTip(version.path)  # Show full path on hover
-            self.version_table.setItem(row, 5, path_item)
+            # No path column in the list view to keep it clean
         
         # Enable/disable buttons based on selection
         self.update_button_states()
 
     def populate_version_cards(self):
-        """Populate the card/grid view with current versions (Prism-like)"""
+        """Populate the card/grid view with current versions (Prism-style layout)"""
         from PyQt6.QtWidgets import QListWidgetItem
         self.version_cards.clear()
+        # Card height; width bound to viewport so it's not scrollable horizontally
+        card_h = 120
+        thumb_w, thumb_h = 160, 90
         for version in self.current_versions:
-            subtitle = f"{version.user}  •  {version.date.split('T')[0]}"
-            comment = version.comment or ""
-            title = version.version
-
-            icon = QIcon()
-            # Card thumbnail and sizing
-            thumb_w = 200
-            thumb_h = 112
-            self.version_cards.setIconSize(QSize(thumb_w, int(thumb_h * 0.6)))
-
-            if getattr(version, "thumbnail", None) and os.path.exists(version.thumbnail):
-                pix = QPixmap(version.thumbnail).scaled(thumb_w, thumb_h, Qt.AspectRatioMode.KeepAspectRatio, Qt.TransformationMode.SmoothTransformation)
-                icon = QIcon(pix)
-            else:
-                icon = self.style().standardIcon(self.style().StandardPixmap.SP_FileIcon)
-
-            # Build a single-line card label similar to Prism: [thumb]  v0001   user   date
-            label = f"{title}    {version.user}    {version.date.split('T')[0]}"
-
-            item = QListWidgetItem(icon, label)
-            item.setToolTip(f"User: {version.user}\nDate: {version.date}\nComment: {comment}\nPath: {version.path}")
+            item = QListWidgetItem()
+            # Set width to current viewport width, so it fills the parent
+            viewport_w = self.version_cards.viewport().width()
+            # Compute effective width minus small safety padding to avoid right cut-off
+            effective_w = max(140, viewport_w - 4)
+            item.setSizeHint(QSize(effective_w, card_h))
             self.version_cards.addItem(item)
+            card = self._build_version_card_widget(version, thumb_w, thumb_h, effective_w, card_h)
+            self.version_cards.setItemWidget(item, card)
 
         self.update_button_states()
+
+    def _build_version_card_widget(self, version, thumb_w: int, thumb_h: int, card_w: int, card_h: int):
+        """Create a QWidget that mimics Prism VFX version card: thumbnail left; center: version; right: user/date."""
+        from PyQt6.QtWidgets import QWidget, QLabel, QHBoxLayout, QVBoxLayout
+        card = QWidget()
+        card.setMinimumSize(card_w, card_h)
+        card.setStyleSheet(f"""
+            QWidget {{
+                background-color: {COLORS['surface']};
+                border: none;
+                border-radius: 8px;
+            }}
+        """)
+        row = QHBoxLayout(card)
+        row.setContentsMargins(8, 8, 16, 8)  # extra right margin
+        row.setSpacing(12)
+
+        # Thumbnail
+        thumb_label = QLabel()
+        thumb_label.setFixedSize(thumb_w, thumb_h)
+        thumb_label.setAlignment(Qt.AlignmentFlag.AlignCenter)
+        thumb_label.setStyleSheet("background-color: #2b2f33; border-radius: 4px;")
+        try:
+            if getattr(version, "thumbnail", None) and os.path.exists(version.thumbnail):
+                pix = QPixmap(version.thumbnail).scaled(thumb_w, thumb_h, Qt.AspectRatioMode.KeepAspectRatio, Qt.TransformationMode.SmoothTransformation)
+                thumb_label.setPixmap(pix)
+            else:
+                thumb_label.setText("🗂️")
+        except Exception:
+            thumb_label.setText("🗂️")
+        row.addWidget(thumb_label)
+
+        # Middle column (title/comment)
+        mid = QVBoxLayout()
+        mid.setSpacing(4)
+        title = QLabel(version.version)
+        title.setStyleSheet("font-weight: 700; font-size: 14px;")
+        mid.addWidget(title)
+        comment_text = version.comment or ""
+        comment = QLabel(comment_text)
+        comment.setStyleSheet("font-size: 12px; color: #aab0b6;")
+        comment.setWordWrap(True)
+        mid.addWidget(comment)
+        mid.addStretch(1)
+        row.addLayout(mid, 1)
+
+        # Right column (user/date/status)
+        right = QVBoxLayout()
+        right.setSpacing(2)
+        user = QLabel(version.user or "-")
+        user.setStyleSheet("font-size: 12px;")
+        date_str = version.date.split('T')[0] if 'T' in version.date else (version.date or "-")
+        date = QLabel(date_str)
+        date.setStyleSheet("font-size: 12px; color: #aab0b6;")
+        right.addWidget(user, alignment=Qt.AlignmentFlag.AlignRight)
+        right.addWidget(date, alignment=Qt.AlignmentFlag.AlignRight)
+        # Status chip
+        status = getattr(version, 'status', 'WIP')
+        chip = QLabel(status)
+        chip.setAlignment(Qt.AlignmentFlag.AlignCenter)
+        chip.setFixedHeight(20)
+        chip.setStyleSheet("""
+            QLabel { padding: 2px 8px; border-radius: 10px; font-size: 11px; }
+        """)
+        if status == "Approved":
+            chip.setStyleSheet(chip.styleSheet() + "background-color: rgba(40,167,69,0.25); color: #28a745;")
+        elif status == "Review":
+            chip.setStyleSheet(chip.styleSheet() + "background-color: rgba(0,123,255,0.25); color: #007bff;")
+        elif status == "Published":
+            chip.setStyleSheet(chip.styleSheet() + "background-color: rgba(108,117,125,0.25); color: #6c757d;")
+        else:
+            chip.setStyleSheet(chip.styleSheet() + "background-color: rgba(255,193,7,0.25); color: #ffc107;")
+        right.addStretch(1)
+        right.addWidget(chip, alignment=Qt.AlignmentFlag.AlignRight)
+        row.addLayout(right)
+
+        return card
     
     def on_version_selected(self):
         """Handle version selection"""
         self.update_version_info()
+        # Update right-side preview with selected version thumbnail
+        try:
+            row = -1
+            if self.version_table.isVisible():
+                row = self.version_table.currentRow()
+            elif self.version_cards.isVisible():
+                row = self.version_cards.currentRow()
+            if row >= 0 and row < len(self.current_versions):
+                v = self.current_versions[row]
+                self._update_right_preview(v)
+        except Exception:
+            pass
         self.update_button_states()
 
     def on_card_selected(self):
         """Mirror card selection into version info panel"""
         row = self.version_cards.currentRow()
-        if row >= 0 and row < len(self.current_versions) and self.version_table.isVisible():
-            self.version_table.setCurrentCell(row, 0)
+        if row >= 0 and row < len(self.current_versions):
+            # Keep table selection in sync
+            if self.version_table.isVisible():
+                self.version_table.setCurrentCell(row, 0)
+            self.update_version_info()
+            # Update preview for card selection
+            try:
+                v = self.current_versions[row]
+                self._update_right_preview(v)
+            except Exception:
+                pass
         self.update_button_states()
+
+    def _update_right_preview(self, version):
+        """Set the right-side preview image/text based on a Version object."""
+        try:
+            win = self.window()
+            if not win or not hasattr(win, 'project_browser'):
+                return
+            preview = getattr(win.project_browser, 'asset_preview_label', None)
+            if preview is None:
+                return
+            if getattr(version, 'thumbnail', None) and os.path.exists(version.thumbnail):
+                pix = QPixmap(version.thumbnail).scaled(
+                    max(120, preview.width()-20),
+                    max(120, preview.height()-20),
+                    Qt.AspectRatioMode.KeepAspectRatio,
+                    Qt.TransformationMode.SmoothTransformation
+                )
+                preview.setPixmap(pix)
+                preview.setText("")
+            else:
+                preview.setPixmap(QPixmap())
+                # Show version name so it's clear what is selected
+                preview.setText(version.version or "No Preview Available")
+        except Exception:
+            return
     
     def update_version_info(self):
         """Update version info panel with selected version"""
-        # No-op since details panel is hidden; keep method to avoid signal errors
-        return
+        # Determine current selection from visible view
+        row = -1
+        if self.version_table.isVisible():
+            row = self.version_table.currentRow()
+        elif self.version_cards.isVisible():
+            row = self.version_cards.currentRow()
+        if row < 0 or row >= len(self.current_versions):
+            self.version_label.setText("-")
+            self.user_label.setText("-")
+            self.date_label.setText("-")
+            self.comment_label.setText("-")
+            return
+        # We no longer display an inline details widget; info goes to the right Preview panel only
     
     def update_button_states(self):
         """Update button enabled states"""
@@ -3323,13 +3450,25 @@ class VersionManager(PrismStyleWidget):
                 idx = parent_layout.indexOf(self.version_table)
                 insert_idx = idx if idx != -1 else parent_layout.count() - 1
                 parent_layout.insertWidget(insert_idx, self.version_cards)
+            # Preserve selection from table
+            sel_row = self.version_table.currentRow()
             self.version_table.hide()
             self.version_cards.show()
             self.populate_version_cards()
+            if sel_row >= 0 and sel_row < len(self.current_versions):
+                self.version_cards.setCurrentRow(sel_row)
+                self.update_version_info()
+            # Ensure items reflow to new width on resize
+            self.version_cards.viewport().resizeEvent = lambda e, _orig=self.version_cards.viewport().resizeEvent: (self.populate_version_cards(), _orig(e) if _orig else None)
         else:
+            # Preserve selection from cards
+            sel_row = self.version_cards.currentRow()
             self.version_cards.hide()
             self.version_table.show()
             self.populate_version_table()
+            if sel_row >= 0 and sel_row < len(self.current_versions):
+                self.version_table.setCurrentCell(sel_row, 0)
+                self.update_version_info()
 
     def set_density_mode(self, mode: str):
         """Switch between compact and large card density"""
@@ -3958,11 +4097,7 @@ class ImportVersionDialog(QDialog):
                 self.file_path
             )
             
-            QMessageBox.information(
-                self, 
-                "Success", 
-                f"Imported version {version.version} successfully!"
-            )
+            # Silent success; caller will reflect changes
             
             self.accept()
             
@@ -4175,11 +4310,7 @@ class CreateVersionDialog(QDialog):
                 workfile_path
             )
             
-            QMessageBox.information(
-                self, 
-                "Success", 
-                f"Created version {version.version} successfully!"
-            )
+            # Silent success; UI will refresh in caller
             
             self.accept()
             

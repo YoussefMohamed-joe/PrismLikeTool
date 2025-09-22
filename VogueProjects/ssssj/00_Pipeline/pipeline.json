@@ -11,7 +11,15 @@
     {
       "name": "wrt",
       "department": "sdf",
-      "status": "WIP",
+      "status": "Complete",
+      "description": "",
+      "entity": "ghj",
+      "entity_type": "Asset"
+    },
+    {
+      "name": "aaaa",
+      "department": "sdf",
+      "status": "Final",
       "description": "",
       "entity": "ghj",
       "entity_type": "Asset"
@@ -62,7 +70,7 @@
         "comment": "gsdf",
         "path": "D:\\project\\PrismLikeTool\\VogueProjects\\ssssj\\06_Scenes\\Assets\\Characters\\ghj\\ghj_v003.ma",
         "task_name": "wrt",
-        "status": "WIP"
+        "status": "Complete"
       },
       {
         "version": "v004",
@@ -71,7 +79,7 @@
         "comment": "u",
         "path": "D:\\project\\PrismLikeTool\\VogueProjects\\ssssj\\06_Scenes\\Assets\\Characters\\ghj\\ghj_v004.ma",
         "task_name": "wrt",
-        "status": "WIP"
+        "status": "Complete"
       }
     ]
   }
