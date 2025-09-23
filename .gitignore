@@ -7,3 +7,6 @@ Ayon/ayon-maya/
 Ayon/ayon-docker-main/addons/.gitkeep
 Ayon/ayon-docker-main/storage/.gitkeep
 Ayon/ayon-docker/
+
+# VS Code temp runner for Python
+src/vogue_app/tempCodeRunnerFile.py

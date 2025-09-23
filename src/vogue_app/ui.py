@@ -3165,6 +3165,9 @@ class VersionManager(PrismStyleWidget):
         # Context menu for card view as well
         self.version_cards.setContextMenuPolicy(Qt.ContextMenuPolicy.CustomContextMenu)
         self.version_cards.customContextMenuRequested.connect(self.show_version_context_menu)
+        # Double-click open handlers
+        self.version_table.cellDoubleClicked.connect(lambda r, c: self.on_open_clicked())
+        self.version_cards.itemDoubleClicked.connect(lambda item: self.on_open_clicked())
     
     def update_entity(self, entity_name: str, entity_type: str = "Asset", task_name: str = None):
         """Update the current entity being managed"""
@@ -3651,16 +3654,22 @@ class VersionManager(PrismStyleWidget):
         """Add DCC app creation options to menu - Prism style"""
         from .main import get_current_controller
         controller = get_current_controller()
-        if not controller or not controller.manager:
-            return
-        
-        # Get available DCC apps
-        dcc_apps = controller.manager.get_dcc_apps()
+        # Build list of apps. If manager missing or returns none, fall back to core four.
+        allowed = {"maya", "blender", "houdini", "nuke"}
+        dcc_apps = []
+        try:
+            if controller and controller.manager:
+                dcc_apps = [a for a in controller.manager.get_dcc_apps() if a.get("name") in allowed]
+        except Exception:
+            dcc_apps = []
         if not dcc_apps:
-            # Add placeholder if no DCC apps available
-            no_apps_action = parent_menu.addAction("⚠️ No DCC Apps Available")
-            no_apps_action.setEnabled(False)
-            return
+            # Fallback to static core apps so the dialog can still be used
+            dcc_apps = [
+                {"name": "maya", "display_name": "Autodesk Maya", "file_extensions": [".ma", ".mb"]},
+                {"name": "blender", "display_name": "Blender", "file_extensions": [".blend"]},
+                {"name": "houdini", "display_name": "SideFX Houdini", "file_extensions": [".hip", ".hipnc"]},
+                {"name": "nuke", "display_name": "Foundry Nuke", "file_extensions": [".nk"]},
+            ]
         
         # DCC app icons and descriptions (Prism style)
         app_info = {
@@ -3681,27 +3690,41 @@ class VersionManager(PrismStyleWidget):
             # Create action with icon and description
             action = parent_menu.addAction(f"{icon} {display_name}")
             action.setToolTip(desc)
+            # Open the Create Version dialog for the chosen app
             action.triggered.connect(lambda checked, app_name=app_name: self.create_dcc_version(app_name))
 
-    def create_version_with_app_picker(self):
-        """Show a small picker to choose DCC app, then open create dialog"""
+    def create_dcc_quick(self, dcc_app: str):
+        """Open the selected DCC app immediately. If multiple file types, ask first; if one, just open."""
         from .main import get_current_controller
         controller = get_current_controller()
         if not controller or not controller.manager:
+            QMessageBox.warning(self, "No Manager", "Project manager not available.")
             return
-        dcc_apps = controller.manager.get_dcc_apps()
-        if not dcc_apps:
-            QMessageBox.information(self, "No DCC Apps", "No DCC apps are configured.")
-            return
-        # Simple picker: if only one app, use it; otherwise ask via a small menu
-        if len(dcc_apps) == 1:
-            self.create_dcc_version(dcc_apps[0]['name'])
-            return
-        menu = QMenu(self)
-        for app in dcc_apps:
-            action = menu.addAction(app['display_name'])
-            action.triggered.connect(lambda checked, name=app['name']: self.create_dcc_version(name))
-        menu.exec(self.cursor().pos())
+        # Determine available extensions for the app
+        app_info = None
+        for app in controller.manager.get_dcc_apps():
+            if app['name'] == dcc_app:
+                app_info = app
+                break
+        file_exts = app_info.get('file_extensions', []) if app_info else []
+        # If multiple extensions, ask user which type; we don't need the path now, just preference
+        chosen_ext = None
+        if len(file_exts) > 1:
+            menu = QMenu(self)
+            actions = []
+            for ext in file_exts:
+                act = menu.addAction(ext)
+                actions.append((act, ext))
+            picked = menu.exec(self.cursor().pos())
+            if picked:
+                for act, ext in actions:
+                    if act is picked:
+                        chosen_ext = ext
+                        break
+        # Launch immediately (workfile path optional; app opens ready to save)
+        ok = controller.manager.launch_dcc_app(dcc_app, entity_key=None, task_name=None, version=None)
+        if not ok:
+            QMessageBox.critical(self, "Launch Failed", f"Could not launch {dcc_app.title()}.\nEnsure it is installed and detected in settings.")
 
     def create_quick_version(self):
         """Create a placeholder version immediately (no file picker), scoped to task."""
@@ -3764,14 +3787,14 @@ class VersionManager(PrismStyleWidget):
     def create_dcc_version(self, dcc_app: str):
         """Create a new version with DCC app"""
         if not getattr(self, 'current_entity', None):
-            QMessageBox.warning(self, "No Selection", "Select an asset or shot first.")
-            return
+            # Allow proceeding; dialog will still open and let user pick workfile
+            QMessageBox.information(self, "No Selection", "No asset/shot selected. You can still pick a workfile to create a version.")
         if not getattr(self, 'current_task', None):
-            QMessageBox.warning(self, "No Task", "Select a task for this entity before creating a version.")
-            return
+            # Allow proceeding; dialog includes a task field
+            pass
         
         # Show create version dialog
-        dialog = CreateVersionDialog(dcc_app, self.current_entity, self, self.current_task)
+        dialog = CreateVersionDialog(dcc_app, getattr(self, 'current_entity', '') or '', self, getattr(self, 'current_task', '') or None)
         if dialog.exec() == QDialog.DialogCode.Accepted:
             # Reload versions
             self.load_versions()
@@ -4179,6 +4202,11 @@ class ImportVersionDialog(QDialog):
         button_layout = QHBoxLayout()
         button_layout.addStretch()
         
+        # Option: open in app after creation
+        self.open_after_create_cb = QCheckBox("Open in App after Create")
+        self.open_after_create_cb.setChecked(True)
+        layout.addWidget(self.open_after_create_cb)
+
         cancel_btn = QPushButton("Cancel")
         cancel_btn.clicked.connect(self.reject)
         
@@ -4313,6 +4341,28 @@ class CreateVersionDialog(QDialog):
         form_layout = QFormLayout()
         form_layout.setSpacing(10)
         
+        # File type selector (extensions per app)
+        from .main import get_current_controller
+        self.ext_combo = QComboBox()
+        self.ext_combo.setEditable(False)
+        self.available_exts = []
+        try:
+            controller = get_current_controller()
+            if controller and controller.manager:
+                dcc_apps = controller.manager.get_dcc_apps()
+                for app in dcc_apps:
+                    if app['name'] == self.dcc_app:
+                        self.available_exts = app.get('file_extensions', [])
+                        break
+        except Exception:
+            self.available_exts = []
+        if not self.available_exts:
+            self.available_exts = [""]
+        self.ext_combo.clear()
+        for ext in self.available_exts:
+            self.ext_combo.addItem(ext or "", ext)
+        form_layout.addRow("File Type:", self.ext_combo)
+
         # Task name
         self.task_name_edit = QLineEdit()
         self.task_name_edit.setPlaceholderText("Enter task name (e.g., modeling, animation)")
@@ -4390,19 +4440,14 @@ class CreateVersionDialog(QDialog):
         """Browse for workfile"""
         from PyQt6.QtWidgets import QFileDialog
         
-        # Get file filter for DCC app
-        from .main import get_current_controller
-        controller = get_current_controller()
-        if controller and controller.manager:
-            dcc_apps = controller.manager.get_dcc_apps()
-            for app in dcc_apps:
-                if app['name'] == self.dcc_app:
-                    file_filter = f"{app['display_name']} Files ({' '.join(f'*{ext}' for ext in app['file_extensions'])})"
-                    break
-            else:
-                file_filter = "All Files (*.*)"
-        else:
-            file_filter = "All Files (*.*)"
+        # Build a filter from selected extension and app extensions
+        selected_ext = self.ext_combo.currentData() or ""
+        file_filter = "All Files (*.*)"
+        if getattr(self, 'available_exts', None):
+            patterns = " ".join(f"*{ext}" for ext in self.available_exts if ext)
+            file_filter = f"Supported ({patterns})"
+        if selected_ext:
+            file_filter = f"Selected (*{selected_ext});;" + file_filter
         
         file_path, _ = QFileDialog.getOpenFileName(
             self, 
@@ -4420,6 +4465,7 @@ class CreateVersionDialog(QDialog):
         user = self.user_edit.text().strip()
         comment = self.comment_edit.toPlainText().strip()
         workfile_path = self.workfile_edit.text().strip() or None
+        selected_ext = self.ext_combo.currentData() or ""
         
         if not task_name:
             QMessageBox.warning(self, "Invalid Input", "Task name is required")
@@ -4439,6 +4485,15 @@ class CreateVersionDialog(QDialog):
         if not os.path.exists(workfile_path):
             QMessageBox.critical(self, "File Not Found", f"The file does not exist:\n{workfile_path}")
             return
+        if selected_ext and not workfile_path.lower().endswith(selected_ext.lower()):
+            reply = QMessageBox.question(
+                self,
+                "Extension Mismatch",
+                f"The selected file does not match the chosen type ({selected_ext}). Continue?",
+                QMessageBox.StandardButton.Yes | QMessageBox.StandardButton.No
+            )
+            if reply != QMessageBox.StandardButton.Yes:
+                return
 
         try:
             # Get controller and create version
@@ -4457,6 +4512,18 @@ class CreateVersionDialog(QDialog):
                 workfile_path
             )
             
+            # Optionally open the created version in the DCC
+            if self.open_after_create_cb.isChecked() and version and getattr(version, 'version', None):
+                try:
+                    controller.manager.launch_dcc_app(
+                        self.dcc_app,
+                        entity_key=self.entity_name,
+                        task_name=task_name,
+                        version=version.version
+                    )
+                except Exception:
+                    pass
+
             # Silent success; UI will refresh in caller
             
             self.accept()

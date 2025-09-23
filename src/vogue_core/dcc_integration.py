@@ -225,6 +225,27 @@ class DCCManager:
                         return maya_bridge.generate_thumbnail(file_path, output_path, size)
                 except ImportError:
                     pass
+            elif ext in ['.blend']:
+                try:
+                    from ..vogue_app.integrations.blender_bridge import blender_bridge  # type: ignore
+                    if getattr(blender_bridge, 'is_available', lambda: False)():
+                        return blender_bridge.generate_thumbnail(file_path, output_path, size)
+                except Exception:
+                    pass
+            elif ext in ['.hip', '.hipnc']:
+                try:
+                    from ..vogue_app.integrations.houdini_bridge import houdini_bridge  # type: ignore
+                    if getattr(houdini_bridge, 'is_available', lambda: False)():
+                        return houdini_bridge.generate_thumbnail(file_path, output_path, size)
+                except Exception:
+                    pass
+            elif ext in ['.nk']:
+                try:
+                    from ..vogue_app.integrations.nuke_bridge import nuke_bridge  # type: ignore
+                    if getattr(nuke_bridge, 'is_available', lambda: False)():
+                        return nuke_bridge.generate_thumbnail(file_path, output_path, size)
+                except Exception:
+                    pass
             
             # Fallback to placeholder thumbnail
             self._create_placeholder_thumbnail(file_path, output_path, size)

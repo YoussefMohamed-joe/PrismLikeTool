@@ -1,0 +1,10 @@
+{
+  "code-runner.runInTerminal": true,
+  "code-runner.ignoreSelection": true,
+  "code-runner.fileDirectoryAsCwd": true,
+  "code-runner.executorMap.python": "python -u",
+  "code-runner.executorMapByFileExtension": {
+    ".py": "python -u"
+  }
+}
+
