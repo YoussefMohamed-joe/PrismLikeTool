@@ -240,7 +240,15 @@ def next_version(versions: List[str]) -> str:
     return f"v{next_num:03d}"
 
 
-def get_canonical_version_path(project_path: str, entity_key: str, version: str, file_extension: str = ".ma") -> str:
+def get_canonical_version_path(
+    project_path: str,
+    entity_key: str,
+    version: str,
+    file_extension: str = ".ma",
+    asset_type: str | None = None,
+    task_name: str | None = None,
+    department: str | None = None,
+) -> str:
     """
     Get the canonical path for a version file
     
@@ -260,16 +268,17 @@ def get_canonical_version_path(project_path: str, entity_key: str, version: str,
         # This is a shot (sequence/shot)
         sequence, shot_name = entity_key.split("/", 1)
         shot_dir = scenes_dir / "Shots" / sequence / shot_name
+        # Organize by task if provided
+        if task_name:
+            shot_dir = shot_dir / str(task_name)
         shot_dir.mkdir(parents=True, exist_ok=True)
         return str(shot_dir / f"{shot_name}_{version}{file_extension}")
     else:
         # This is an asset - need to determine type
-        # For now, assume we can find it in the project data
-        # This is a limitation that should be addressed by the caller
         asset_name = entity_key
-        # Default to Characters if we can't determine type
-        asset_type = "Characters"
-        asset_dir = scenes_dir / "Assets" / asset_type / asset_name
+        # Use task/department for first-level organization if provided; else use asset_type
+        first_level = (department or task_name or asset_type or "Characters")
+        asset_dir = scenes_dir / "Assets" / first_level / asset_name
         asset_dir.mkdir(parents=True, exist_ok=True)
         return str(asset_dir / f"{asset_name}_{version}{file_extension}")
 

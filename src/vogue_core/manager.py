@@ -332,17 +332,60 @@ class ProjectManager:
         version_str = next_version(existing_versions)
         version_num = int(version_str[1:])  # Extract number from v001
         
-        # Create workfile path if not provided
+        # If no workfile path, create an empty/new workfile in canonical location (Prism-like new version)
         if not workfile_path:
-            workfile_path = dcc_manager.create_workfile_path(
-                dcc_app, entity_key, task_name, version_num, self.current_project.path
+            app_exts = app.file_extensions or [".ma"]
+            file_ext = app_exts[0]
+            # Determine first-level folder for assets
+            asset_type = None
+            if "/" not in entity_key:
+                if task_name:
+                    asset_type = str(task_name).strip()
+                if not asset_type:
+                    asset = self.current_project.get_asset(entity_key)
+                    if asset and hasattr(asset, 'type'):
+                        asset_type = asset.type
+            canonical_path = get_canonical_version_path(
+                self.current_project.path,
+                entity_key,
+                version_str,
+                file_extension=file_ext,
+                asset_type=asset_type,
+                task_name=task_name,
+                department=None,
             )
+            Path(canonical_path).parent.mkdir(parents=True, exist_ok=True)
+            open(canonical_path, 'ab').close()
+            workfile_path = canonical_path
         
+        # Determine file extension from workfile if present
+        file_ext = Path(workfile_path).suffix if workfile_path else (app.file_extensions[0] if app.file_extensions else ".ma")
+
+        # Determine folder under Assets based on task (department) per request
+        # If task_name is provided, prefer it as the folder; otherwise, fall back to asset.type
+        asset_type = None
+        if "/" not in entity_key:
+            if task_name:
+                asset_type = str(task_name).strip()
+            if not asset_type:
+                asset = self.current_project.get_asset(entity_key)
+                if asset and hasattr(asset, 'type'):
+                    asset_type = asset.type
+
         # Get canonical version path
-        canonical_path = get_canonical_version_path(self.current_project.path, entity_key, version_str)
+        canonical_path = get_canonical_version_path(
+            self.current_project.path,
+            entity_key,
+            version_str,
+            file_extension=file_ext,
+            asset_type=asset_type,
+            task_name=task_name,
+            department=None,
+        )
         
-        # Copy workfile to canonical location
-        copy_version_file(workfile_path, canonical_path)
+        # If workfile is not already at canonical path, copy/link it
+        if os.path.abspath(workfile_path) != os.path.abspath(canonical_path):
+            copy_version_file(workfile_path, canonical_path)
         
         # Generate thumbnail
         thumbnail_path = ""

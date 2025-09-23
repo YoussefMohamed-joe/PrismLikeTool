@@ -4198,14 +4198,13 @@ class ImportVersionDialog(QDialog):
         
         layout.addLayout(form_layout)
         
-        # Buttons
-        button_layout = QHBoxLayout()
-        button_layout.addStretch()
-        
-        # Option: open in app after creation
+        # Buttons and options
         self.open_after_create_cb = QCheckBox("Open in App after Create")
         self.open_after_create_cb.setChecked(True)
         layout.addWidget(self.open_after_create_cb)
+        
+        button_layout = QHBoxLayout()
+        button_layout.addStretch()
 
         cancel_btn = QPushButton("Cancel")
         cancel_btn.clicked.connect(self.reject)
@@ -4288,6 +4287,8 @@ class CreateVersionDialog(QDialog):
         self.dcc_app = dcc_app
         self.entity_name = entity_name
         self.current_task = current_task
+        # Ensure attributes exist before UI setup
+        self.open_after_create_cb = None
         self.setWindowTitle(f"Create Version with {dcc_app.title()}")
         self.setModal(True)
         self.setup_ui()
@@ -4475,35 +4476,57 @@ class CreateVersionDialog(QDialog):
             QMessageBox.warning(self, "Invalid Input", "User name is required")
             return
         
-        # Ensure a workfile path exists. If none picked, prompt once.
-        if not workfile_path:
-            self.browse_workfile()
-            workfile_path = self.workfile_edit.text().strip() or None
-            if not workfile_path:
-                QMessageBox.warning(self, "Missing File", "Please select a workfile to create a version from.")
+        # Workfile is optional: only validate if provided
+        if workfile_path:
+            if not os.path.exists(workfile_path):
+                QMessageBox.critical(self, "File Not Found", f"The file does not exist:\n{workfile_path}")
                 return
-        if not os.path.exists(workfile_path):
-            QMessageBox.critical(self, "File Not Found", f"The file does not exist:\n{workfile_path}")
-            return
-        if selected_ext and not workfile_path.lower().endswith(selected_ext.lower()):
-            reply = QMessageBox.question(
-                self,
-                "Extension Mismatch",
-                f"The selected file does not match the chosen type ({selected_ext}). Continue?",
-                QMessageBox.StandardButton.Yes | QMessageBox.StandardButton.No
-            )
-            if reply != QMessageBox.StandardButton.Yes:
-                return
+            if selected_ext and not workfile_path.lower().endswith(selected_ext.lower()):
+                reply = QMessageBox.question(
+                    self,
+                    "Extension Mismatch",
+                    f"The selected file does not match the chosen type ({selected_ext}). Continue?",
+                    QMessageBox.StandardButton.Yes | QMessageBox.StandardButton.No
+                )
+                if reply != QMessageBox.StandardButton.Yes:
+                    return
 
         try:
-            # Get controller and create version
-            from .main import get_current_controller
-            controller = get_current_controller()
-            if not controller or not controller.manager:
-                QMessageBox.critical(self, "Error", "No project manager available")
+            # Resolve manager robustly
+            manager = None
+            # 1) Try parent window
+            try:
+                win = self.window()
+                if hasattr(win, 'manager') and win.manager:
+                    manager = win.manager
+            except Exception:
+                pass
+            # 2) Try ui module global
+            if manager is None:
+                try:
+                    from .ui import get_current_controller as ui_get_current_controller
+                    ctrl = ui_get_current_controller()
+                    if ctrl and hasattr(ctrl, 'manager') and ctrl.manager:
+                        manager = ctrl.manager
+                except Exception:
+                    pass
+            # 3) Try main module global
+            if manager is None:
+                try:
+                    from .main import get_current_controller as main_get_current_controller
+                    ctrl = main_get_current_controller()
+                    if ctrl and hasattr(ctrl, 'manager') and ctrl.manager:
+                        manager = ctrl.manager
+                except Exception:
+                    pass
+            if manager is None:
+                QMessageBox.critical(self, "No Project", "No project manager available. Load or create a project first from the File menu.")
                 return
-            
-            version = controller.manager.create_dcc_version(
+            if not getattr(manager, 'current_project', None):
+                QMessageBox.warning(self, "No Project Loaded", "Please load or create a project first from the File menu.")
+                return
+
+            version = manager.create_dcc_version(
                 self.entity_name,
                 self.dcc_app,
                 task_name,
@@ -4511,11 +4534,11 @@ class CreateVersionDialog(QDialog):
                 comment,
                 workfile_path
             )
-            
+
             # Optionally open the created version in the DCC
-            if self.open_after_create_cb.isChecked() and version and getattr(version, 'version', None):
+            if getattr(self, 'open_after_create_cb', None) and self.open_after_create_cb.isChecked() and version and getattr(version, 'version', None):
                 try:
-                    controller.manager.launch_dcc_app(
+                    manager.launch_dcc_app(
                         self.dcc_app,
                         entity_key=self.entity_name,
                         task_name=task_name,
@@ -4525,9 +4548,8 @@ class CreateVersionDialog(QDialog):
                     pass
 
             # Silent success; UI will refresh in caller
-            
             self.accept()
-            
+
         except Exception as e:
             QMessageBox.critical(self, "Error", f"Failed to create version: {str(e)}")
 

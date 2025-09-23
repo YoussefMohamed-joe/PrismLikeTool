@@ -98,6 +98,42 @@
         "path": "D:\\project\\PrismLikeTool\\VogueProjects\\ssssj\\06_Scenes\\Assets\\Characters\\ghj\\ghj_v006.ma",
         "task_name": "wrt",
         "status": "WIP"
+      },
+      {
+        "version": "v007",
+        "user": "User",
+        "date": "2025-09-23T15:58:17.433141",
+        "comment": "",
+        "path": "D:\\project\\PrismLikeTool\\VogueProjects\\ssssj\\06_Scenes\\Assets\\wrt\\ghj\\ghj_v007.ma",
+        "thumbnail": "D:\\project\\PrismLikeTool\\VogueProjects\\ssssj\\thumbnails\\versions\\ghj_v007_thumb.png",
+        "dcc_app": "maya",
+        "task_name": "wrt",
+        "workfile_path": "D:\\project\\PrismLikeTool\\VogueProjects\\ssssj\\06_Scenes\\Assets\\wrt\\ghj\\ghj_v007.ma",
+        "status": "WIP"
+      },
+      {
+        "version": "v008",
+        "user": "User",
+        "date": "2025-09-23T16:28:13.197796",
+        "comment": "",
+        "path": "D:\\project\\PrismLikeTool\\VogueProjects\\ssssj\\06_Scenes\\Assets\\wrt\\ghj\\ghj_v008.blend",
+        "thumbnail": "D:\\project\\PrismLikeTool\\VogueProjects\\ssssj\\thumbnails\\versions\\ghj_v008_thumb.png",
+        "dcc_app": "blender",
+        "task_name": "wrt",
+        "workfile_path": "D:\\project\\PrismLikeTool\\VogueProjects\\ssssj\\06_Scenes\\Assets\\wrt\\ghj\\ghj_v008.blend",
+        "status": "WIP"
+      },
+      {
+        "version": "v009",
+        "user": "User",
+        "date": "2025-09-23T17:18:24.017594",
+        "comment": "",
+        "path": "D:\\project\\PrismLikeTool\\VogueProjects\\ssssj\\06_Scenes\\Assets\\wrt\\ghj\\ghj_v009.ma",
+        "thumbnail": "D:\\project\\PrismLikeTool\\VogueProjects\\ssssj\\thumbnails\\versions\\ghj_v009_thumb.png",
+        "dcc_app": "maya",
+        "task_name": "wrt",
+        "workfile_path": "D:\\project\\PrismLikeTool\\VogueProjects\\ssssj\\06_Scenes\\Assets\\wrt\\ghj\\ghj_v009.ma",
+        "status": "WIP"
       }
     ]
   }
