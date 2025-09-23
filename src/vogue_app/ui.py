@@ -28,6 +28,37 @@ from .colors import COLORS
 from .qss import build_qss
 
 
+def _load_dcc_icon(app_name: str) -> Optional[QIcon]:
+    """Load official DCC icon from common asset locations if present.
+    Searches multiple locations and filename variants.
+    """
+    try:
+        name_variants = [
+            app_name,
+            app_name.lower(),
+            app_name.capitalize(),
+            f"{app_name}_logo",
+            f"logo_{app_name}",
+        ]
+        exts = ["png", "ico", "svg", "jpg", "jpeg"]
+        base_dirs = [
+            Path(__file__).parent / "assets" / "icons",
+            Path(__file__).parent / "assets",
+            Path.cwd() / "src" / "vogue_app" / "assets" / "icons",
+            Path.cwd() / "src" / "vogue_app" / "assets",
+            Path.cwd() / "assets" / "icons",
+            Path.cwd() / "assets",
+        ]
+        for base in base_dirs:
+            for nm in name_variants:
+                for ext in exts:
+                    p = base / f"{nm}.{ext}"
+                    if p.exists():
+                        return QIcon(str(p))
+    except Exception:
+        pass
+    return None
+
 def sync_ui_to_project_model(project_browser, manager):
     """Sync UI tree structure to the project model"""
     if not manager.current_project:
@@ -2950,6 +2981,7 @@ class VersionManager(PrismStyleWidget):
     def setup_version_table(self):
         """Setup version table in Ayon style"""
         self.version_table = QTableWidget()
+        # Keep 5 columns; first column will show icon + version text together
         self.version_table.setColumnCount(5)
         self.version_table.setHorizontalHeaderLabels([
             "Version", "User", "Date", "Comment", "Status"
@@ -2963,7 +2995,7 @@ class VersionManager(PrismStyleWidget):
         
         # Set column widths
         header = self.version_table.horizontalHeader()
-        header.resizeSection(0, 80)   # Version
+        header.resizeSection(0, 120)  # Version (icon + text)
         header.resizeSection(1, 100)  # User
         header.resizeSection(2, 120)  # Date
         header.resizeSection(3, 200)  # Comment
@@ -3233,10 +3265,14 @@ class VersionManager(PrismStyleWidget):
         self.version_table.setRowCount(len(self.current_versions))
         
         for row, version in enumerate(self.current_versions):
-            # Version
+            # First column: icon + version text together
             version_item = QTableWidgetItem(version.version)
             if version.dcc_app:
-                version_item.setText(f"{version.get_dcc_app_icon()} {version.version}")
+                qicon = _load_dcc_icon(version.dcc_app)
+                if qicon:
+                    version_item.setIcon(qicon)
+                else:
+                    version_item.setText(f"{version.get_dcc_app_icon()} {version.version}")
             self.version_table.setItem(row, 0, version_item)
             
             # User
@@ -3684,11 +3720,16 @@ class VersionManager(PrismStyleWidget):
         for app in dcc_apps:
             app_name = app['name']
             display_name = app['display_name']
-            icon = app_info.get(app_name, {}).get('icon', '📁')
+            # Prefer official icon; fallback to emoji desc
+            qicon = _load_dcc_icon(app_name)
+            emoji = app_info.get(app_name, {}).get('icon', '📁')
             desc = app_info.get(app_name, {}).get('desc', display_name)
             
             # Create action with icon and description
-            action = parent_menu.addAction(f"{icon} {display_name}")
+            if qicon:
+                action = parent_menu.addAction(qicon, display_name)
+            else:
+                action = parent_menu.addAction(f"{emoji} {display_name}")
             action.setToolTip(desc)
             # Open the Create Version dialog for the chosen app
             action.triggered.connect(lambda checked, app_name=app_name: self.create_dcc_version(app_name))
