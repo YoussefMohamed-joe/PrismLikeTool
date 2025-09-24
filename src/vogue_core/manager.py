@@ -304,7 +304,8 @@ class ProjectManager:
         return version_obj
     
     def create_dcc_version(self, entity_key: str, dcc_app: str, task_name: str, 
-                          user: str, comment: str = "", workfile_path: str = None) -> Version:
+                          user: str, comment: str = "", workfile_path: str = None,
+                          preferred_extension: str | None = None) -> Version:
         """
         Create a new version using a DCC application
         
@@ -332,7 +333,7 @@ class ProjectManager:
         version_str = next_version(existing_versions)
         version_num = int(version_str[1:])  # Extract number from v001
         
-        # If no workfile path, create an empty/new workfile in canonical location (Prism-like new version)
+        # If no workfile path, create a valid default workfile in canonical location
         if not workfile_path:
             app_exts = app.file_extensions or [".ma"]
             file_ext = app_exts[0]
@@ -355,8 +356,19 @@ class ProjectManager:
                 department=None,
             )
             Path(canonical_path).parent.mkdir(parents=True, exist_ok=True)
-            open(canonical_path, 'ab').close()
-            workfile_path = canonical_path
+            # Try to initialize a valid DCC file so it opens externally
+            try:
+                from .dcc_integration import dcc_manager as _dcc_mgr
+                init_ok = _dcc_mgr.initialize_workfile(dcc_app, canonical_path, preferred_extension=preferred_extension)
+                if init_ok:
+                    workfile_path = canonical_path
+                else:
+                    # Fall back to touching an empty file if initialization is unavailable
+                    open(canonical_path, 'ab').close()
+                    workfile_path = canonical_path
+            except Exception:
+                open(canonical_path, 'ab').close()
+                workfile_path = canonical_path
         
         # Determine file extension from workfile if present
         file_ext = Path(workfile_path).suffix if workfile_path else (app.file_extensions[0] if app.file_extensions else ".ma")
@@ -494,19 +506,37 @@ class ProjectManager:
             return False
         
         workfile_path = None
-        
-        # If entity and version specified, find the workfile
+        resolved_app = dcc_app
+
+        # If entity and version specified, try to locate the version entry
         if entity_key and version:
             versions = self.current_project.get_versions(entity_key)
+            target_version = None
             for v in versions:
-                if v.version == version and v.dcc_app == dcc_app:
-                    workfile_path = v.workfile_path or v.path
+                if v.version == version:
+                    target_version = v
                     break
-        
-        # Launch the DCC app
+
+            if target_version:
+                # Prefer explicit workfile_path; fall back to stored path
+                workfile_path = getattr(target_version, "workfile_path", None) or target_version.path
+
+                # If no app provided or version has no dcc_app, infer from extension
+                if not resolved_app:
+                    resolved_app = getattr(target_version, "dcc_app", None)
+                if not resolved_app and workfile_path:
+                    info = dcc_manager.get_file_info(workfile_path)
+                    inferred = info.get("dcc_app") if isinstance(info, dict) else None
+                    if inferred and inferred != "unknown":
+                        resolved_app = inferred
+
+        # As a last resort, if still no app resolved but a version wasn't specified,
+        # keep using the provided dcc_app (may be None) and no workfile.
+
+        # Launch the DCC app with whatever best information we have
         return dcc_manager.launch_app(
-            dcc_app, 
-            workfile_path, 
+            resolved_app or dcc_app,
+            workfile_path,
             self.current_project.path
         )
     

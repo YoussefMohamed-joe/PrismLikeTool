@@ -3281,9 +3281,24 @@ class VersionManager(PrismStyleWidget):
         # Context menu for card view as well
         self.version_cards.setContextMenuPolicy(Qt.ContextMenuPolicy.CustomContextMenu)
         self.version_cards.customContextMenuRequested.connect(self.show_version_context_menu)
-        # Double-click open handlers
-        self.version_table.cellDoubleClicked.connect(lambda r, c: self.on_open_clicked())
-        self.version_cards.itemDoubleClicked.connect(lambda item: self.on_open_clicked())
+        # Double-click open handlers: ensure clicked becomes current before opening
+        def _table_dblclick(r, c):
+            try:
+                self.version_table.setCurrentCell(r, 0)
+            except Exception:
+                pass
+            self.on_open_clicked()
+        self.version_table.cellDoubleClicked.connect(_table_dblclick)
+
+        def _cards_dblclick(item):
+            try:
+                row = self.version_cards.row(item)
+                if row >= 0:
+                    self.version_cards.setCurrentRow(row)
+            except Exception:
+                pass
+            self.on_open_clicked()
+        self.version_cards.itemDoubleClicked.connect(_cards_dblclick)
         # Treat double-click on empty area as opening the list as a whole (latest)
         try:
             from PyQt6.QtCore import QObject, QEvent
@@ -3998,16 +4013,43 @@ class VersionManager(PrismStyleWidget):
     def open_version_with_dcc(self, version):
         """Open version with its DCC app"""
         from .main import get_current_controller
+        # Resolve app safely. Some versions may not have dcc_app explicitly set.
+        try:
+            dcc_app = getattr(version, 'dcc_app', None)
+        except Exception:
+            dcc_app = None
+        # If not set, infer from file path extension
+        if not dcc_app:
+            try:
+                from vogue_core.dcc_integration import dcc_manager
+                file_path = getattr(version, 'workfile_path', None) or getattr(version, 'path', '')
+                if file_path:
+                    info = dcc_manager.get_file_info(file_path)
+                    inferred = info.get('dcc_app') if isinstance(info, dict) else None
+                    if inferred and inferred != 'unknown':
+                        dcc_app = inferred
+            except Exception:
+                pass
         controller = get_current_controller()
         if not controller or not controller.manager:
-            return
+            return False
         
-        controller.manager.launch_dcc_app(
-            version.dcc_app, 
+        ok = controller.manager.launch_dcc_app(
+            dcc_app, 
             self.current_entity, 
-            version.task_name, 
+            getattr(version, 'task_name', None), 
             version.version
         )
+        if not ok:
+            # Try to surface last error from DCC manager for user visibility
+            try:
+                from vogue_core.dcc_integration import dcc_manager
+                last_err = getattr(dcc_manager, 'get_last_error', lambda: '')() or ''
+                if last_err:
+                    QMessageBox.critical(self, "Launch Failed", last_err)
+            except Exception:
+                pass
+        return ok
     
     def copy_version(self, version):
         """Copy version to clipboard or file"""
@@ -4221,7 +4263,12 @@ class VersionManager(PrismStyleWidget):
             row = self.version_cards.currentRow()
         if row >= 0 and row < len(self.current_versions):
             version = self.current_versions[row]
-            self.open_version_with_dcc(version)
+            ok = self.open_version_with_dcc(version)
+            if not ok:
+                try:
+                    QMessageBox.critical(self, "Launch Failed", "Could not launch the DCC application.\nCheck DCC paths in Settings and that the file exists.")
+                except Exception:
+                    pass
 
     def open_latest_version(self):
         """Open the latest version when treating the list as a whole."""
@@ -4392,6 +4439,12 @@ class ImportVersionDialog(QDialog):
         
         # Form layout
         form_layout = QFormLayout()
+        # Maya-specific extension choice (.ma / .mb)
+        self.maya_ext_combo = None
+        if self.dcc_app.lower() == 'maya':
+            self.maya_ext_combo = QComboBox()
+            self.maya_ext_combo.addItems(['.ma', '.mb'])
+            form_layout.addRow("Maya File Type:", self.maya_ext_combo)
         form_layout.setSpacing(10)
         
         # Task name
@@ -4742,13 +4795,22 @@ class CreateVersionDialog(QDialog):
                 QMessageBox.warning(self, "No Project Loaded", "Please load or create a project first from the File menu.")
                 return
 
+            # Determine preferred extension for Maya
+            preferred_ext = None
+            try:
+                if self.dcc_app.lower() == 'maya' and self.maya_ext_combo is not None:
+                    preferred_ext = self.maya_ext_combo.currentText()
+            except Exception:
+                preferred_ext = None
+
             version = manager.create_dcc_version(
                 self.entity_name,
                 self.dcc_app,
                 task_name,
                 user,
                 comment,
-                workfile_path
+                workfile_path,
+                preferred_extension=preferred_ext
             )
 
             # Optionally open the created version in the DCC

@@ -13,6 +13,7 @@ from typing import Dict, List, Optional, Any, Tuple
 from dataclasses import dataclass
 from datetime import datetime
 import json
+import tempfile
 
 from .models import Version, Project
 from .logging_utils import get_logger
@@ -54,7 +55,36 @@ class DCCManager:
     def __init__(self):
         self.logger = get_logger("DCCManager")
         self.apps: Dict[str, DCCApp] = {}
+        self.last_error: str = ""
+        # First load user-defined paths if present, then auto-detect missing
+        self._load_from_settings()
         self._detect_applications()
+
+    def _load_from_settings(self):
+        """Load DCC executable paths from settings.json if available."""
+        try:
+            settings_paths = [
+                Path.cwd() / "settings.json",
+                Path("settings.json"),
+            ]
+            settings = None
+            for p in settings_paths:
+                if p.exists():
+                    with open(p, 'r', encoding='utf-8') as f:
+                        settings = json.load(f)
+                    break
+            if not settings:
+                return
+            dcc = settings.get('dcc_apps', {}) if isinstance(settings, dict) else {}
+            for name, exe in dcc.items():
+                if isinstance(exe, str) and exe and os.path.isfile(exe):
+                    self._register_app(name, exe)
+                else:
+                    if isinstance(exe, str) and exe:
+                        self.last_error = f"Configured path for {name} is invalid: {exe}"
+        except Exception as e:
+            self.logger.warning(f"Failed to load DCC paths from settings: {e}")
+            self.last_error = str(e)
     
     def _detect_applications(self):
         """Auto-detect installed DCC applications"""
@@ -153,13 +183,151 @@ class DCCManager:
     def list_apps(self) -> List[DCCApp]:
         """Get list of all registered DCC apps"""
         return list(self.apps.values())
+
+    def initialize_workfile(self, app_name: str, dest_path: str, preferred_extension: Optional[str] = None) -> bool:
+        """Create a valid default workfile for the DCC so it opens externally.
+
+        Returns True on success. Uses the registered executable when needed.
+        """
+        try:
+            app = self.get_app(app_name)
+            dest_path = str(Path(dest_path))
+            os.makedirs(os.path.dirname(dest_path), exist_ok=True)
+
+            # Maya: prefer batch save to ensure valid defaults; fallback to minimal ASCII
+            if app_name == "maya":
+                # Ensure ASCII extension for better portability
+                picked_ext = preferred_extension.lower() if preferred_extension in (".ma", ".mb") else None
+                if Path(dest_path).suffix.lower() not in [".ma", ".mb"]:
+                    dest_path = str(Path(dest_path).with_suffix(picked_ext or ".ma"))
+                if app and os.path.isfile(app.executable_path):
+                    try:
+                        # Use maya in batch to create a new scene and save as ASCII
+                        maya_dest = dest_path.replace("\\", "/")
+                        # Choose mayaAscii or mayaBinary based on extension
+                        maya_type = "mayaAscii" if maya_dest.lower().endswith(".ma") else "mayaBinary"
+                        cmd = [app.executable_path, "-batch", "-command",
+                               f'file -f -new; file -rename "{maya_dest}"; file -save -type "{maya_type}";']
+                        self.logger.info(f"Initializing Maya workfile via batch: {' '.join(cmd)}")
+                        creationflags = 0
+                        startupinfo = None
+                        # Hide console window on Windows
+                        if os.name == 'nt':
+                            creationflags = getattr(subprocess, 'CREATE_NO_WINDOW', 0)
+                            startupinfo = subprocess.STARTUPINFO()
+                            startupinfo.dwFlags |= subprocess.STARTF_USESHOWWINDOW
+                        subprocess.check_call(cmd, creationflags=creationflags, startupinfo=startupinfo)
+                        return os.path.isfile(dest_path)
+                    except Exception as e:
+                        self.logger.warning(f"Maya batch initialization failed, falling back to template: {e}")
+                        self.last_error = str(e)
+                # Fallback: minimal .ma header (opens as empty scene in Maya)
+                try:
+                    if dest_path.lower().endswith('.ma'):
+                        content = (
+                            "//Maya ASCII 2020 scene\n"
+                            "requires maya \"2020\";\n"
+                            "currentUnit -l centimeter -a degree -t film;\n"
+                            "fileInfo \"application\" \"maya\";\n"
+                        )
+                        with open(dest_path, "w", encoding="utf-8") as f:
+                            f.write(content)
+                    else:
+                        # Minimal mayaBinary is non-trivial; create ASCII and rename if .mb requested
+                        ascii_tmp = dest_path[:-3] + 'ma'
+                        content = (
+                            "//Maya ASCII 2020 scene\n"
+                            "requires maya \"2020\";\n"
+                            "currentUnit -l centimeter -a degree -t film;\n"
+                            "fileInfo \"application\" \"maya\";\n"
+                        )
+                        with open(ascii_tmp, "w", encoding="utf-8") as f:
+                            f.write(content)
+                        try:
+                            os.replace(ascii_tmp, dest_path)
+                        except Exception:
+                            shutil.copy2(ascii_tmp, dest_path)
+                            try:
+                                os.remove(ascii_tmp)
+                            except Exception:
+                                pass
+                    return True
+                except Exception as e:
+                    self.last_error = str(e)
+                    return False
+
+            # Blender: use headless save
+            if app_name == "blender":
+                if Path(dest_path).suffix.lower() != ".blend":
+                    dest_path = str(Path(dest_path).with_suffix(".blend"))
+                if app and os.path.isfile(app.executable_path):
+                    blender_dest = dest_path.replace("\\", "/")
+                    script = (
+                        "import bpy\n"
+                        "bpy.ops.wm.read_factory_settings(use_empty=True)\n"
+                        f"bpy.ops.wm.save_as_mainfile(filepath=r'{blender_dest}', copy=False)\n"
+                    )
+                    with tempfile.NamedTemporaryFile("w", suffix="_init_blender.py", delete=False) as tf:
+                        tf.write(script)
+                        tf_path = tf.name
+                    try:
+                        cmd = [app.executable_path, "-b", "-noaudio", "-y", "-P", tf_path]
+                        self.logger.info(f"Initializing Blender workfile: {' '.join(cmd)}")
+                        creationflags = 0
+                        startupinfo = None
+                        if os.name == 'nt':
+                            creationflags = getattr(subprocess, 'CREATE_NO_WINDOW', 0)
+                            startupinfo = subprocess.STARTUPINFO()
+                            startupinfo.dwFlags |= subprocess.STARTF_USESHOWWINDOW
+                        subprocess.check_call(cmd, creationflags=creationflags, startupinfo=startupinfo)
+                        return os.path.isfile(dest_path)
+                    except Exception as e:
+                        self.logger.error(f"Failed to initialize Blender file: {e}")
+                        self.last_error = str(e)
+                        return False
+                    finally:
+                        try:
+                            os.unlink(tf_path)
+                        except Exception:
+                            pass
+                return False
+
+            # Nuke: write minimal .nk
+            if app_name == "nuke":
+                if Path(dest_path).suffix.lower() != ".nk":
+                    dest_path = str(Path(dest_path).with_suffix(".nk"))
+                try:
+                    # Minimal Nuke script that opens as empty project
+                    content = (
+                        "Root {\n"
+                        " version 13.2\n"
+                        " name \"Untitled\"\n"
+                        "}\n"
+                    )
+                    with open(dest_path, "w", encoding="utf-8") as f:
+                        f.write(content)
+                    return True
+                except Exception as e:
+                    self.logger.error(f"Failed to write Nuke file: {e}")
+                    self.last_error = str(e)
+                    return False
+
+            # Houdini and others: attempt to create empty file is unsafe; require app-side creation
+            # Return False to indicate the file could not be initialized here
+            return False
+        except Exception as e:
+            self.logger.error(f"initialize_workfile error for {app_name}: {e}")
+            self.last_error = str(e)
+            return False
     
     def launch_app(self, app_name: str, workfile_path: Optional[str] = None, 
                    project_path: Optional[str] = None) -> bool:
         """Launch DCC application with optional workfile"""
         app = self.get_app(app_name)
         if not app:
-            self.logger.error(f"DCC app '{app_name}' not found")
+            msg = f"DCC app '{app_name}' not found"
+            self.logger.error(msg)
+            self.last_error = msg
             return False
         
         try:
@@ -186,12 +354,29 @@ class DCCManager:
                     args.extend(["-proj", project_path])
             
             self.logger.info(f"Launching {app.display_name}: {' '.join(args)}")
+            # Ensure the executable exists
+            if not os.path.isfile(app.executable_path):
+                msg = f"Executable not found: {app.executable_path}"
+                self.logger.error(msg)
+                self.last_error = msg
+                return False
+            # Ensure workfile exists if provided
+            if workfile_path and not os.path.exists(workfile_path):
+                msg = f"Workfile not found: {workfile_path}"
+                self.logger.error(msg)
+                self.last_error = msg
+                return False
             subprocess.Popen(args, cwd=project_path or os.path.dirname(app.executable_path))
             return True
             
         except Exception as e:
-            self.logger.error(f"Failed to launch {app.display_name}: {e}")
+            msg = f"Failed to launch {app.display_name}: {e}"
+            self.logger.error(msg)
+            self.last_error = msg
             return False
+
+    def get_last_error(self) -> str:
+        return self.last_error
     
     def create_workfile_path(self, app_name: str, entity_name: str, 
                            task_name: str, version: int, project_path: str) -> str:
