@@ -2996,7 +2996,7 @@ class VersionManager(PrismStyleWidget):
         
         # Set column widths
         header = self.version_table.horizontalHeader()
-        header.resizeSection(0, 28)   # Logo icon
+        header.resizeSection(0, 48)   # Logo icon (wider to fit)
         header.resizeSection(1, 120)  # Version text
         header.resizeSection(2, 100)  # User
         header.resizeSection(3, 120)  # Date
@@ -3005,6 +3005,8 @@ class VersionManager(PrismStyleWidget):
 
         # Hide row numbers for a cleaner look with a logo column
         self.version_table.verticalHeader().setVisible(False)
+        # Increase default row height so the logo can fill the cell
+        self.version_table.verticalHeader().setDefaultSectionSize(48)
 
         # Style the table
         self.version_table.setStyleSheet(f"""
@@ -3043,6 +3045,70 @@ class VersionManager(PrismStyleWidget):
 
         # Make entire row react to a single click anywhere in the row
         self.version_table.cellClicked.connect(lambda r, c: self.version_table.setCurrentCell(r, 1))
+
+        # Install a delegate that paints the logo edge-to-edge without padding
+        try:
+            from PyQt6.QtWidgets import QStyledItemDelegate, QStyle
+            from PyQt6.QtGui import QPainter
+            from PyQt6.QtCore import QRect, Qt
+            QtNS = 'PyQt6'
+        except Exception:
+            try:
+                from PySide2.QtWidgets import QStyledItemDelegate, QStyle
+                from PySide2.QtGui import QPainter
+                from PySide2.QtCore import QRect, Qt
+                QtNS = 'PySide2'
+            except Exception:
+                QStyledItemDelegate = None
+                QPainter = None
+                QRect = None
+                Qt = None
+                QStyle = None
+                QtNS = None
+
+        if QStyledItemDelegate is not None:
+            class LogoDelegate(QStyledItemDelegate):
+                def paint(self, painter: QPainter, option, index):
+                    # Preserve selection background across PyQt6 and PySide2
+                    try:
+                        select_flag = getattr(QStyle, 'StateFlag', None)
+                        if select_flag is not None:
+                            selected_enum = QStyle.StateFlag.State_Selected
+                        else:
+                            selected_enum = getattr(QStyle, 'State_Selected', 0)
+                        if option.state & selected_enum:
+                            painter.fillRect(option.rect, option.palette.highlight())
+                    except Exception:
+                        pass
+                    # Resolve cross-API roles
+                    decoration_role = getattr(getattr(Qt, 'ItemDataRole', Qt), 'DecorationRole', getattr(Qt, 'DecorationRole', None))
+                    display_role = getattr(getattr(Qt, 'ItemDataRole', Qt), 'DisplayRole', getattr(Qt, 'DisplayRole', None))
+                    align_center = getattr(getattr(Qt, 'AlignmentFlag', Qt), 'AlignCenter', getattr(Qt, 'AlignCenter', 0))
+
+                    icon = index.data(decoration_role)
+                    text = index.data(display_role)
+                    if icon is not None and hasattr(icon, 'pixmap'):
+                        # Scale to fill cell rect completely
+                        target_rect = option.rect
+                        size = target_rect.size()
+                        pm = icon.pixmap(size)
+                        if not pm.isNull():
+                            # If aspect ratio doesn't match, scale by expanding then center crop
+                            scaled = pm.scaled(size, Qt.AspectRatioMode.KeepAspectRatioByExpanding, Qt.TransformationMode.SmoothTransformation)
+                            # Center-crop to target rect
+                            sx = max(0, (scaled.width() - size.width()) // 2)
+                            sy = max(0, (scaled.height() - size.height()) // 2)
+                            source = QRect(sx, sy, size.width(), size.height())
+                            painter.drawPixmap(target_rect, scaled, source)
+                            return
+                    if text:
+                        # Fallback: draw centered text (e.g., emoji)
+                        painter.drawText(option.rect, int(align_center), str(text))
+                def sizeHint(self, option, index):
+                    # Keep default row height; width controlled by header section size
+                    return super().sizeHint(option, index)
+
+            self.version_table.setItemDelegateForColumn(0, LogoDelegate(self.version_table))
 
         # Card/grid view (Prism-like)
         from PyQt6.QtWidgets import QListWidget
@@ -4773,7 +4839,8 @@ class PrismMainWindow(QMainWindow):
     def __init__(self):
         super().__init__()
         self.setWindowTitle("Vogue Manager - Prism Interface")
-        self.setMinimumSize(1600, 1000)  # Larger size for better layout
+        self.setMinimumSize(1800, 1100)  # Larger minimum to avoid clipping
+        self.resize(1800, 1100)
         
         # Apply global QSS styling
         self.setStyleSheet(build_qss())
