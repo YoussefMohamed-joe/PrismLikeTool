@@ -3002,11 +3002,32 @@ class VersionManager(PrismStyleWidget):
         header.resizeSection(3, 120)  # Date
         header.resizeSection(4, 200)  # Comment
         header.resizeSection(5, 80)   # Status
+        # Make columns adapt to available width: keep icon/status fixed; stretch data columns
+        try:
+            from PyQt6.QtWidgets import QHeaderView
+        except Exception:
+            try:
+                from PySide2.QtWidgets import QHeaderView
+            except Exception:
+                QHeaderView = None
+        if QHeaderView is not None:
+            header.setMinimumSectionSize(60)
+            header.setSectionResizeMode(0, QHeaderView.ResizeMode.Fixed)
+            header.setSectionResizeMode(5, QHeaderView.ResizeMode.Fixed)
+            for col in (1, 2, 3, 4):
+                header.setSectionResizeMode(col, QHeaderView.ResizeMode.Stretch)
 
         # Hide row numbers for a cleaner look with a logo column
         self.version_table.verticalHeader().setVisible(False)
         # Increase default row height so the logo can fill the cell
         self.version_table.verticalHeader().setDefaultSectionSize(48)
+        # Prevent horizontal scrolling; wrap text to avoid cutoff
+        self.version_table.setHorizontalScrollBarPolicy(Qt.ScrollBarPolicy.ScrollBarAlwaysOff)
+        self.version_table.setWordWrap(True)
+        try:
+            self.version_table.resizeRowsToContents()
+        except Exception:
+            pass
 
         # Style the table
         self.version_table.setStyleSheet(f"""
@@ -3047,24 +3068,8 @@ class VersionManager(PrismStyleWidget):
         self.version_table.cellClicked.connect(lambda r, c: self.version_table.setCurrentCell(r, 1))
 
         # Install a delegate that paints the logo edge-to-edge without padding
-        try:
-            from PyQt6.QtWidgets import QStyledItemDelegate, QStyle
-            from PyQt6.QtGui import QPainter
-            from PyQt6.QtCore import QRect, Qt
-            QtNS = 'PyQt6'
-        except Exception:
-            try:
-                from PySide2.QtWidgets import QStyledItemDelegate, QStyle
-                from PySide2.QtGui import QPainter
-                from PySide2.QtCore import QRect, Qt
-                QtNS = 'PySide2'
-            except Exception:
-                QStyledItemDelegate = None
-                QPainter = None
-                QRect = None
-                Qt = None
-                QStyle = None
-                QtNS = None
+        # Use globally imported Qt classes to avoid shadowing and launch issues
+        QtNS = 'PyQt6'
 
         if QStyledItemDelegate is not None:
             class LogoDelegate(QStyledItemDelegate):
@@ -3125,6 +3130,8 @@ class VersionManager(PrismStyleWidget):
         # Never show a horizontal scrollbar; width always matches viewport
         self.version_cards.setHorizontalScrollBarPolicy(Qt.ScrollBarPolicy.ScrollBarAlwaysOff)
         self.version_cards.setVerticalScrollBarPolicy(Qt.ScrollBarPolicy.ScrollBarAsNeeded)
+        # Ensure items scale to viewport width
+        self.version_cards.setSizePolicy(QSizePolicy.Policy.Expanding, QSizePolicy.Policy.Expanding)
         self.version_cards.setStyleSheet(f"""
             QListWidget::item {{ margin: 0px; padding: 0px; border: none; }}
             QListWidget::item:selected {{ background-color: transparent; border: none; }}
@@ -4849,8 +4856,8 @@ class PrismMainWindow(QMainWindow):
     def __init__(self):
         super().__init__()
         self.setWindowTitle("Vogue Manager - Prism Interface")
-        self.setMinimumSize(1800, 1100)  # Larger minimum to avoid clipping
-        self.resize(1800, 1100)
+        self.setMinimumSize(1650, 1100)  # Larger minimum to avoid clipping
+        self.resize(1650, 1100)
         
         # Apply global QSS styling
         self.setStyleSheet(build_qss())
@@ -4956,6 +4963,11 @@ class PrismMainWindow(QMainWindow):
         
         # Left panel - Project Browser
         self.project_browser = ProjectBrowser()
+        # Ensure left list resizes with window
+        try:
+            self.project_browser.setSizePolicy(QSizePolicy.Policy.Expanding, QSizePolicy.Policy.Preferred)
+        except Exception:
+            pass
         main_splitter.addWidget(self.project_browser)
         
         # Center panel - Version Manager
@@ -4965,14 +4977,34 @@ class PrismMainWindow(QMainWindow):
             self.version_manager.selectedVersionChanged.connect(lambda v: self.version_manager._update_right_preview(v))
         except Exception:
             pass
+        # Ensure center area resizes with window
+        try:
+            self.version_manager.setSizePolicy(QSizePolicy.Policy.Expanding, QSizePolicy.Policy.Preferred)
+        except Exception:
+            pass
         main_splitter.addWidget(self.version_manager)
         
         # Right panel - Prism-style Tasks/Departments/Asset Info
         self.right_panel = PrismRightPanel()
+        # Keep right panel (comment/status) width stable during window resize
+        try:
+            self.right_panel.setMinimumWidth(340)
+            self.right_panel.setMaximumWidth(340)
+            self.right_panel.setSizePolicy(QSizePolicy.Policy.Fixed, QSizePolicy.Policy.Preferred)
+        except Exception:
+            pass
         main_splitter.addWidget(self.right_panel)
         
-        # Set splitter proportions; reduce right panel width to emphasize center
-        main_splitter.setSizes([560, 820, 120])
+        # Splitter behavior: left and center stretch; right stays fixed
+        try:
+            main_splitter.setChildrenCollapsible(False)
+            main_splitter.setStretchFactor(0, 1)  # Left list
+            main_splitter.setStretchFactor(1, 3)  # Center manager
+            main_splitter.setStretchFactor(2, 0)  # Right fixed
+        except Exception:
+            pass
+        # Initial sizes close to desired layout
+        main_splitter.setSizes([700, 900, 340])
         layout.addWidget(main_splitter)
         
         return central_widget
