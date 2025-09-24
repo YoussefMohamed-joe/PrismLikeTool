@@ -3449,10 +3449,15 @@ class VersionManager(PrismStyleWidget):
             item = QListWidgetItem()
             # Ensure items are selectable/enabled
             item.setFlags(item.flags() | Qt.ItemFlag.ItemIsSelectable | Qt.ItemFlag.ItemIsEnabled)
-            # Set width to current viewport width, so it fills the parent
+            # Compute effective width so cards never exceed the visible viewport
             viewport_w = self.version_cards.viewport().width()
-            # Allow cards to shrink further on small window widths
-            effective_w = max(100, viewport_w - 4)
+            try:
+                scroll_w = self.version_cards.verticalScrollBar().sizeHint().width()
+            except Exception:
+                scroll_w = 16
+            frame_w = getattr(self.version_cards, 'frameWidth', lambda: 1)()
+            gutter = 12
+            effective_w = max(280, viewport_w - scroll_w - (frame_w * 2) - gutter)
             item.setSizeHint(QSize(effective_w, card_h))
             self.version_cards.addItem(item)
             card = self._build_version_card_widget(version, effective_w, card_h)
@@ -3472,7 +3477,11 @@ class VersionManager(PrismStyleWidget):
         """Create a compact version card: left app logo; middle title/comment; right user/date/status."""
         from PyQt6.QtWidgets import QWidget, QLabel, QHBoxLayout, QVBoxLayout
         card = QWidget()
-        card.setMinimumSize(card_w, card_h)
+        # Expand horizontally with parent, fixed height
+        from PyQt6.QtWidgets import QSizePolicy
+        card.setSizePolicy(QSizePolicy.Policy.Expanding, QSizePolicy.Policy.Fixed)
+        card.setMinimumWidth(220)
+        card.setFixedHeight(card_h)
         card.setStyleSheet(f"""
             QWidget {{
                 background-color: {COLORS['surface']};
@@ -3481,8 +3490,9 @@ class VersionManager(PrismStyleWidget):
             }}
         """)
         row = QHBoxLayout(card)
-        row.setContentsMargins(8, 8, 16, 8)  # extra right margin
-        row.setSpacing(12)
+        # Balanced margins and spacing to reduce overflow
+        row.setContentsMargins(8, 8, 8, 8)
+        row.setSpacing(8)
 
         # App logo (left). Preview is only in the right panel now.
         logo = QLabel()
