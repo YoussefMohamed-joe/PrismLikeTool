@@ -166,14 +166,24 @@ class DCCManager:
             args = [app.executable_path] + app.launch_args.copy()
             
             if workfile_path and os.path.exists(workfile_path):
-                args.append(workfile_path)
+                # App-specific flags to open a file directly
+                if app_name == "maya":
+                    # Maya can open file by passing path
+                    args.append(workfile_path)
+                elif app_name == "blender":
+                    # Blender opens file when path is last arg
+                    args.append(workfile_path)
+                elif app_name == "nuke":
+                    # Nuke opens script when path is first arg after exe
+                    args.append(workfile_path)
+                elif app_name == "houdini":
+                    # Houdini opens hip by path
+                    args.append(workfile_path)
             
             if project_path:
                 # Set project directory for the DCC app
                 if app_name == "maya":
                     args.extend(["-proj", project_path])
-                elif app_name == "blender":
-                    args.extend(["--", workfile_path] if workfile_path else [])
             
             self.logger.info(f"Launching {app.display_name}: {' '.join(args)}")
             subprocess.Popen(args, cwd=project_path or os.path.dirname(app.executable_path))

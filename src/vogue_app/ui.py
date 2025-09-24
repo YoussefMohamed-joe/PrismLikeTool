@@ -2988,6 +2988,7 @@ class VersionManager(PrismStyleWidget):
         ])
         self.version_table.horizontalHeader().setStretchLastSection(True)
         self.version_table.setSelectionBehavior(QAbstractItemView.SelectionBehavior.SelectRows)
+        self.version_table.setSelectionMode(QAbstractItemView.SelectionMode.SingleSelection)
         self.version_table.setAlternatingRowColors(True)
         self.version_table.setSortingEnabled(True)
         # Make the list read-only (no in-place editing)
@@ -3011,6 +3012,7 @@ class VersionManager(PrismStyleWidget):
                 gridline-color: {COLORS['outline']};
                 font-size: 12px;
             }}
+            QTableWidget::item:!active:!selected {{ background: transparent; }}
             QTableWidget::item {{
                 padding: 8px 12px;
                 border: none;
@@ -3020,6 +3022,8 @@ class VersionManager(PrismStyleWidget):
                 background-color: {COLORS['accent']};
                 color: white;
             }}
+            QTableWidget::item:active:selected {{ background-color: {COLORS['accent']}; color: white; }}
+            QTableWidget::item:focus {{ outline: none; }}
             QTableWidget::item:hover {{
                 background-color: {COLORS['hover']};
             }}
@@ -3032,6 +3036,9 @@ class VersionManager(PrismStyleWidget):
                 font-size: 12px;
             }}
         """)
+
+        # Make entire row react to a single click anywhere in the row
+        self.version_table.cellClicked.connect(lambda r, c: self.version_table.setCurrentCell(r, 0))
 
         # Card/grid view (Prism-like)
         from PyQt6.QtWidgets import QListWidget
@@ -3200,6 +3207,50 @@ class VersionManager(PrismStyleWidget):
         # Double-click open handlers
         self.version_table.cellDoubleClicked.connect(lambda r, c: self.on_open_clicked())
         self.version_cards.itemDoubleClicked.connect(lambda item: self.on_open_clicked())
+        # Treat double-click on empty area as opening the list as a whole (latest)
+        try:
+            from PyQt6.QtCore import QObject, QEvent
+        except Exception:
+            try:
+                from PySide2.QtCore import QObject, QEvent
+            except Exception:
+                QObject = None
+                QEvent = None
+        if QObject is not None and QEvent is not None:
+            class _EmptyAreaDblClickFilter(QObject):
+                def __init__(self, parent_widget):
+                    super().__init__(parent_widget)
+                    self._vm = parent_widget
+
+                def eventFilter(self, obj, event):
+                    # Mouse double click on view's viewport with no valid index selected
+                    if event and event.type() == QEvent.Type.MouseButtonDblClick:
+                        try:
+                            # Determine if click was on empty space
+                            if obj is self._vm.version_table.viewport():
+                                pos = event.position().toPoint() if hasattr(event, 'position') else event.pos()
+                                index_row = self._vm.version_table.rowAt(pos.y())
+                                index_col = self._vm.version_table.columnAt(pos.x())
+                                if index_row < 0 or index_col < 0:
+                                    self._vm.open_latest_version()
+                                    return True
+                            if obj is self._vm.version_cards.viewport():
+                                # QListWidget: -1 means empty area
+                                pos = event.position().toPoint() if hasattr(event, 'position') else event.pos()
+                                item = self._vm.version_cards.itemAt(pos)
+                                if item is None:
+                                    self._vm.open_latest_version()
+                                    return True
+                        except Exception:
+                            pass
+                    return False
+
+            filt = _EmptyAreaDblClickFilter(self)
+            # Install on viewports so we can detect empty-area clicks
+            self.version_table.viewport().installEventFilter(filt)
+            self.version_cards.viewport().installEventFilter(filt)
+            # Keep a reference to avoid GC
+            self._empty_area_filter = filt
     
     def update_entity(self, entity_name: str, entity_type: str = "Asset", task_name: str = None):
         """Update the current entity being managed"""
@@ -3310,12 +3361,11 @@ class VersionManager(PrismStyleWidget):
         self.update_button_states()
 
     def populate_version_cards(self):
-        """Populate the card/grid view with current versions (Prism-style layout)"""
+        """Populate the card/grid view with current versions (compact cards)."""
         from PyQt6.QtWidgets import QListWidgetItem
         self.version_cards.clear()
-        # Card height; width bound to viewport so it's not scrollable horizontally
-        card_h = 120
-        thumb_w, thumb_h = 160, 90
+        # Compact height; preview moved to right panel
+        card_h = 92
         self.version_card_widgets = []
         for version in self.current_versions:
             item = QListWidgetItem()
@@ -3323,11 +3373,11 @@ class VersionManager(PrismStyleWidget):
             item.setFlags(item.flags() | Qt.ItemFlag.ItemIsSelectable | Qt.ItemFlag.ItemIsEnabled)
             # Set width to current viewport width, so it fills the parent
             viewport_w = self.version_cards.viewport().width()
-            # Compute effective width minus small safety padding to avoid right cut-off
-            effective_w = max(140, viewport_w - 4)
+            # Allow cards to shrink further on small window widths
+            effective_w = max(100, viewport_w - 4)
             item.setSizeHint(QSize(effective_w, card_h))
             self.version_cards.addItem(item)
-            card = self._build_version_card_widget(version, thumb_w, thumb_h, effective_w, card_h)
+            card = self._build_version_card_widget(version, effective_w, card_h)
             self.version_cards.setItemWidget(item, card)
             self.version_card_widgets.append(card)
 
@@ -3340,8 +3390,8 @@ class VersionManager(PrismStyleWidget):
         self._update_card_highlight()
         self.update_button_states()
 
-    def _build_version_card_widget(self, version, thumb_w: int, thumb_h: int, card_w: int, card_h: int):
-        """Create a QWidget that mimics Prism VFX version card: thumbnail left; center: version; right: user/date."""
+    def _build_version_card_widget(self, version, card_w: int, card_h: int):
+        """Create a compact version card: left app logo; middle title/comment; right user/date/status."""
         from PyQt6.QtWidgets import QWidget, QLabel, QHBoxLayout, QVBoxLayout
         card = QWidget()
         card.setMinimumSize(card_w, card_h)
@@ -3356,20 +3406,23 @@ class VersionManager(PrismStyleWidget):
         row.setContentsMargins(8, 8, 16, 8)  # extra right margin
         row.setSpacing(12)
 
-        # Thumbnail
-        thumb_label = QLabel()
-        thumb_label.setFixedSize(thumb_w, thumb_h)
-        thumb_label.setAlignment(Qt.AlignmentFlag.AlignCenter)
-        thumb_label.setStyleSheet("background-color: #2b2f33; border-radius: 4px;")
+        # App logo (left). Preview is only in the right panel now.
+        logo = QLabel()
+        logo_size = 40
+        logo.setFixedSize(logo_size, logo_size)
+        logo.setAlignment(Qt.AlignmentFlag.AlignCenter)
+        logo.setStyleSheet("background-color: transparent; border-radius: 4px;")
         try:
-            if getattr(version, "thumbnail", None) and os.path.exists(version.thumbnail):
-                pix = QPixmap(version.thumbnail).scaled(thumb_w, thumb_h, Qt.AspectRatioMode.KeepAspectRatio, Qt.TransformationMode.SmoothTransformation)
-                thumb_label.setPixmap(pix)
+            app = getattr(version, 'dcc_app', None)
+            qicon = _load_dcc_icon(app) if app else None
+            if qicon:
+                pm = qicon.pixmap(QSize(logo_size, logo_size))
+                logo.setPixmap(pm)
             else:
-                thumb_label.setText("🗂️")
+                logo.setText(version.get_dcc_app_icon() if app else "📁")
         except Exception:
-            thumb_label.setText("🗂️")
-        row.addWidget(thumb_label)
+            logo.setText("📁")
+        row.addWidget(logo)
 
         # Middle column (title/comment)
         mid = QVBoxLayout()
@@ -4065,10 +4118,37 @@ class VersionManager(PrismStyleWidget):
     
     def on_open_clicked(self):
         """Handle open button click"""
-        current_row = self.version_table.currentRow()
-        if current_row >= 0 and current_row < len(self.current_versions):
-            version = self.current_versions[current_row]
+        # Determine selection from the visible view
+        row = -1
+        if self.version_table.isVisible():
+            row = self.version_table.currentRow()
+        elif self.version_cards.isVisible():
+            row = self.version_cards.currentRow()
+        if row >= 0 and row < len(self.current_versions):
+            version = self.current_versions[row]
             self.open_version_with_dcc(version)
+
+    def open_latest_version(self):
+        """Open the latest version when treating the list as a whole."""
+        if not self.current_versions:
+            return
+        # Assume list is chronological; otherwise sort by version field if available
+        try:
+            latest_idx = len(self.current_versions) - 1
+            # If versions have sortable attribute like version_number/date, prefer it
+            if hasattr(self.current_versions[0], 'date'):
+                latest_idx = max(range(len(self.current_versions)), key=lambda i: getattr(self.current_versions[i], 'date') or '')
+            elif hasattr(self.current_versions[0], 'version_number'):
+                latest_idx = max(range(len(self.current_versions)), key=lambda i: getattr(self.current_versions[i], 'version_number') or 0)
+        except Exception:
+            latest_idx = len(self.current_versions) - 1
+        version = self.current_versions[latest_idx]
+        # Reflect selection for UI consistency
+        if self.version_table.isVisible():
+            self.version_table.setCurrentCell(latest_idx, 0)
+        if self.version_cards.isVisible():
+            self.version_cards.setCurrentRow(latest_idx)
+        self.open_version_with_dcc(version)
     
     def on_copy_clicked(self):
         """Handle copy button click"""
