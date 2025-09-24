@@ -134,6 +134,39 @@
         "task_name": "wrt",
         "workfile_path": "D:\\project\\PrismLikeTool\\VogueProjects\\ssssj\\06_Scenes\\Assets\\wrt\\ghj\\ghj_v019.hip",
         "status": "WIP"
+      },
+      {
+        "version": "v020",
+        "user": "User",
+        "date": "2025-09-24T16:17:36.573129",
+        "comment": "",
+        "path": "D:\\project\\PrismLikeTool\\VogueProjects\\ssssj\\06_Scenes\\Assets\\wrt\\ghj\\ghj_v020.nk",
+        "thumbnail": "D:\\project\\PrismLikeTool\\VogueProjects\\ssssj\\thumbnails\\versions\\ghj_v020_thumb.png",
+        "dcc_app": "nuke",
+        "task_name": "wrt",
+        "workfile_path": "D:\\project\\PrismLikeTool\\VogueProjects\\ssssj\\06_Scenes\\Assets\\wrt\\ghj\\ghj_v020.nk",
+        "status": "WIP"
+      },
+      {
+        "version": "v021",
+        "user": "User",
+        "date": "2025-09-24T16:59:08.119494",
+        "comment": "",
+        "path": "D:\\project\\PrismLikeTool\\VogueProjects\\ssssj\\06_Scenes\\Assets\\wrt\\ghj\\ghj_v021.ma",
+        "thumbnail": "D:\\project\\PrismLikeTool\\VogueProjects\\ssssj\\thumbnails\\versions\\ghj_v021_thumb.png",
+        "dcc_app": "maya",
+        "task_name": "wrt",
+        "workfile_path": "D:\\project\\PrismLikeTool\\VogueProjects\\ssssj\\06_Scenes\\Assets\\wrt\\ghj\\ghj_v021.ma",
+        "status": "WIP"
+      },
+      {
+        "version": "v022",
+        "user": "g",
+        "date": "2025-09-24T17:15:06.370930",
+        "comment": "retf",
+        "path": "D:\\project\\PrismLikeTool\\VogueProjects\\ssssj\\06_Scenes\\Assets\\Characters\\ghj\\ghj_v022.ma",
+        "task_name": "wrt",
+        "status": "WIP"
       }
     ]
   }

@@ -7,6 +7,7 @@ Complete Prism interface clone with all standard Prism functionalities.
 import os
 import shutil
 from pathlib import Path
+import sys
 from typing import List, Dict, Any, Optional
 
 # Import PyQt6 directly for better compatibility
@@ -4037,8 +4038,41 @@ class VersionManager(PrismStyleWidget):
                         dcc_app = inferred
             except Exception:
                 pass
+        # Normalize paths and verify existence; attempt to repair missing extension by trying known extensions
+        try:
+            target_path = getattr(version, 'workfile_path', None) or getattr(version, 'path', '')
+            if target_path and not os.path.exists(target_path):
+                from vogue_core.manager import ProjectManager  # type: ignore
+                from vogue_core.dcc_integration import dcc_manager as _dcc
+                # Try app's extensions at the same base name
+                app_obj = _dcc.get_app(dcc_app) if dcc_app else None
+                exts = (app_obj.file_extensions if app_obj else []) or ['.ma', '.mb', '.blend', '.nk', '.hip', '.hipnc']
+                base = os.path.splitext(target_path)[0]
+                for ext in exts:
+                    candidate = base + ext
+                    if os.path.exists(candidate):
+                        target_path = candidate
+                        # Update version object in memory for future calls
+                        if hasattr(version, 'workfile_path'):
+                            version.workfile_path = candidate
+                        break
+        except Exception:
+            pass
         controller = get_current_controller()
         if not controller or not controller.manager:
+            # Fall back to OS open if manager missing
+            try:
+                fp = getattr(version, 'workfile_path', None) or getattr(version, 'path', '')
+                if fp and os.path.exists(fp):
+                    if os.name == 'nt':
+                        os.startfile(fp)  # type: ignore[attr-defined]
+                        return True
+                    else:
+                        import subprocess as _sp
+                        _sp.Popen(['xdg-open', fp])
+                        return True
+            except Exception:
+                pass
             return False
         
         ok = controller.manager.launch_dcc_app(
@@ -4054,6 +4088,13 @@ class VersionManager(PrismStyleWidget):
                 last_err = getattr(dcc_manager, 'get_last_error', lambda: '')() or ''
                 if last_err:
                     QMessageBox.critical(self, "Launch Failed", last_err)
+                else:
+                    # Provide precise hints based on what was missing
+                    fp = getattr(version, 'workfile_path', None) or getattr(version, 'path', '')
+                    if fp and not os.path.exists(fp):
+                        QMessageBox.critical(self, "Launch Failed", f"Workfile not found:\n{fp}")
+                    elif not dcc_app:
+                        QMessageBox.critical(self, "Launch Failed", "No DCC app resolved for this file type.")
             except Exception:
                 pass
         return ok

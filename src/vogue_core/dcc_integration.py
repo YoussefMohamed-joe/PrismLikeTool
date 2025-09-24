@@ -323,8 +323,23 @@ class DCCManager:
     def launch_app(self, app_name: str, workfile_path: Optional[str] = None, 
                    project_path: Optional[str] = None) -> bool:
         """Launch DCC application with optional workfile"""
-        app = self.get_app(app_name)
+        app = self.get_app(app_name) if app_name else None
         if not app:
+            # If app missing but we have a file path, try OS default app as a graceful fallback
+            if workfile_path and os.path.exists(workfile_path):
+                try:
+                    if os.name == 'nt':
+                        os.startfile(workfile_path)  # type: ignore[attr-defined]
+                        return True
+                    else:
+                        import subprocess as _sp
+                        _sp.Popen(['xdg-open', workfile_path])
+                        return True
+                except Exception as e:
+                    msg = f"DCC app '{app_name}' not found and OS open failed: {e}"
+                    self.logger.error(msg)
+                    self.last_error = msg
+                    return False
             msg = f"DCC app '{app_name}' not found"
             self.logger.error(msg)
             self.last_error = msg

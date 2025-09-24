@@ -530,6 +530,48 @@ class ProjectManager:
                     if inferred and inferred != "unknown":
                         resolved_app = inferred
 
+        # If we have entity/version but could not find a valid file path, try reconstructing
+        if (not workfile_path or not os.path.exists(workfile_path)) and entity_key and version:
+            try:
+                # Try canonical locations for known extensions of the app
+                from .fs import get_canonical_version_path
+                from .dcc_integration import dcc_manager as _dcc
+                ext_candidates = []
+                if resolved_app:
+                    app_obj = _dcc.get_app(resolved_app)
+                else:
+                    app_obj = None
+                if app_obj and getattr(app_obj, 'file_extensions', None):
+                    ext_candidates = app_obj.file_extensions
+                else:
+                    # Fallback common extensions by resolved_app name
+                    fallback_map = {
+                        'maya': ['.ma', '.mb'],
+                        'blender': ['.blend'],
+                        'nuke': ['.nk'],
+                        'houdini': ['.hip', '.hipnc'],
+                    }
+                    if resolved_app in fallback_map:
+                        ext_candidates = fallback_map[resolved_app]
+                # Always try a safe default list if still empty
+                if not ext_candidates:
+                    ext_candidates = ['.ma', '.mb', '.blend', '.nk', '.hip', '.hipnc']
+                for ext in ext_candidates:
+                    candidate = get_canonical_version_path(
+                        self.current_project.path,
+                        entity_key,
+                        version,
+                        file_extension=ext,
+                        asset_type=None,
+                        task_name=task_name,
+                        department=None,
+                    )
+                    if os.path.exists(candidate):
+                        workfile_path = candidate
+                        break
+            except Exception:
+                pass
+
         # As a last resort, if still no app resolved but a version wasn't specified,
         # keep using the provided dcc_app (may be None) and no workfile.
 
