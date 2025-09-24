@@ -3803,9 +3803,7 @@ class VersionManager(PrismStyleWidget):
             
             menu.addSeparator()
         
-        # Single Create Version action (Prism-like)
-        quick_create = menu.addAction("➕ Create Version…")
-        quick_create.triggered.connect(self.create_quick_version)
+        # Remove plain create version to enforce DCC-based creation
 
         # DCC creation submenu (optional)
         create_section = menu.addMenu("Create With DCC App")
@@ -3888,14 +3886,23 @@ class VersionManager(PrismStyleWidget):
             emoji = app_info.get(app_name, {}).get('icon', '📁')
             desc = app_info.get(app_name, {}).get('desc', display_name)
             
-            # Create action with icon and description
-            if qicon:
-                action = parent_menu.addAction(qicon, display_name)
+            # Maya gets a submenu to choose .ma/.mb
+            if app_name == 'maya':
+                maya_menu = parent_menu.addMenu(qicon or QIcon(), display_name)
+                maya_menu.setToolTip(desc)
+                act_ma = maya_menu.addAction("Maya (.ma)")
+                act_mb = maya_menu.addAction("Maya (.mb)")
+                act_ma.triggered.connect(lambda checked, app_name=app_name: self.create_dcc_version(app_name, preferred_ext='.ma'))
+                act_mb.triggered.connect(lambda checked, app_name=app_name: self.create_dcc_version(app_name, preferred_ext='.mb'))
             else:
-                action = parent_menu.addAction(f"{emoji} {display_name}")
-            action.setToolTip(desc)
-            # Open the Create Version dialog for the chosen app
-            action.triggered.connect(lambda checked, app_name=app_name: self.create_dcc_version(app_name))
+                # Create single action with icon and description
+                if qicon:
+                    action = parent_menu.addAction(qicon, display_name)
+                else:
+                    action = parent_menu.addAction(f"{emoji} {display_name}")
+                action.setToolTip(desc)
+                # Open the Create Version dialog for the chosen app
+                action.triggered.connect(lambda checked, app_name=app_name: self.create_dcc_version(app_name))
 
     def create_dcc_quick(self, dcc_app: str):
         """Open the selected DCC app immediately. If multiple file types, ask first; if one, just open."""
@@ -3988,7 +3995,7 @@ class VersionManager(PrismStyleWidget):
             if self.version_cards.isVisible():
                 self.version_cards.setCurrentRow(last_index)
     
-    def create_dcc_version(self, dcc_app: str):
+    def create_dcc_version(self, dcc_app: str, preferred_ext: str | None = None):
         """Create a new version with DCC app"""
         if not getattr(self, 'current_entity', None):
             # Allow proceeding; dialog will still open and let user pick workfile
@@ -3998,7 +4005,7 @@ class VersionManager(PrismStyleWidget):
             pass
         
         # Show create version dialog
-        dialog = CreateVersionDialog(dcc_app, getattr(self, 'current_entity', '') or '', self, getattr(self, 'current_task', '') or None)
+        dialog = CreateVersionDialog(dcc_app, getattr(self, 'current_entity', '') or '', self, getattr(self, 'current_task', '') or None, preferred_ext=preferred_ext)
         if dialog.exec() == QDialog.DialogCode.Accepted:
             # Reload versions
             self.load_versions()
@@ -4551,11 +4558,12 @@ class ImportVersionDialog(QDialog):
 class CreateVersionDialog(QDialog):
     """Dialog for creating new versions with DCC apps"""
     
-    def __init__(self, dcc_app: str, entity_name: str, parent=None, current_task: str = None):
+    def __init__(self, dcc_app: str, entity_name: str, parent=None, current_task: str = None, preferred_ext: str | None = None):
         super().__init__(parent)
         self.dcc_app = dcc_app
         self.entity_name = entity_name
         self.current_task = current_task
+        self.preferred_ext = preferred_ext
         # Ensure attributes exist before UI setup
         self.open_after_create_cb = None
         self.setWindowTitle(f"Create Version with {dcc_app.title()}")
@@ -4631,6 +4639,14 @@ class CreateVersionDialog(QDialog):
         self.ext_combo.clear()
         for ext in self.available_exts:
             self.ext_combo.addItem(ext or "", ext)
+        # Preselect preferred extension if provided
+        try:
+            if self.preferred_ext and self.preferred_ext in self.available_exts:
+                idx = self.ext_combo.findData(self.preferred_ext)
+                if idx >= 0:
+                    self.ext_combo.setCurrentIndex(idx)
+        except Exception:
+            pass
         form_layout.addRow("File Type:", self.ext_combo)
 
         # Task name
@@ -4795,11 +4811,11 @@ class CreateVersionDialog(QDialog):
                 QMessageBox.warning(self, "No Project Loaded", "Please load or create a project first from the File menu.")
                 return
 
-            # Determine preferred extension for Maya
+            # Determine preferred extension (use selected file type; relevant for Maya)
             preferred_ext = None
             try:
-                if self.dcc_app.lower() == 'maya' and self.maya_ext_combo is not None:
-                    preferred_ext = self.maya_ext_combo.currentText()
+                if self.dcc_app.lower() == 'maya':
+                    preferred_ext = (self.ext_combo.currentData() or None)
             except Exception:
                 preferred_ext = None
 
