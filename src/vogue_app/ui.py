@@ -2981,10 +2981,10 @@ class VersionManager(PrismStyleWidget):
     def setup_version_table(self):
         """Setup version table in Ayon style"""
         self.version_table = QTableWidget()
-        # Keep 5 columns; first column will show icon + version text together
-        self.version_table.setColumnCount(5)
+        # Add a leading icon column, then 5 data columns
+        self.version_table.setColumnCount(6)
         self.version_table.setHorizontalHeaderLabels([
-            "Version", "User", "Date", "Comment", "Status"
+            "", "Version", "User", "Date", "Comment", "Status"
         ])
         self.version_table.horizontalHeader().setStretchLastSection(True)
         self.version_table.setSelectionBehavior(QAbstractItemView.SelectionBehavior.SelectRows)
@@ -2996,11 +2996,15 @@ class VersionManager(PrismStyleWidget):
         
         # Set column widths
         header = self.version_table.horizontalHeader()
-        header.resizeSection(0, 120)  # Version (icon + text)
-        header.resizeSection(1, 100)  # User
-        header.resizeSection(2, 120)  # Date
-        header.resizeSection(3, 200)  # Comment
-        header.resizeSection(4, 80)   # Status
+        header.resizeSection(0, 28)   # Logo icon
+        header.resizeSection(1, 120)  # Version text
+        header.resizeSection(2, 100)  # User
+        header.resizeSection(3, 120)  # Date
+        header.resizeSection(4, 200)  # Comment
+        header.resizeSection(5, 80)   # Status
+
+        # Hide row numbers for a cleaner look with a logo column
+        self.version_table.verticalHeader().setVisible(False)
 
         # Style the table
         self.version_table.setStyleSheet(f"""
@@ -3038,7 +3042,7 @@ class VersionManager(PrismStyleWidget):
         """)
 
         # Make entire row react to a single click anywhere in the row
-        self.version_table.cellClicked.connect(lambda r, c: self.version_table.setCurrentCell(r, 0))
+        self.version_table.cellClicked.connect(lambda r, c: self.version_table.setCurrentCell(r, 1))
 
         # Card/grid view (Prism-like)
         from PyQt6.QtWidgets import QListWidget
@@ -3316,46 +3320,54 @@ class VersionManager(PrismStyleWidget):
         self.version_table.setRowCount(len(self.current_versions))
         
         for row, version in enumerate(self.current_versions):
-            # First column: icon + version text together
-            version_item = QTableWidgetItem(version.version)
-            if version.dcc_app:
-                qicon = _load_dcc_icon(version.dcc_app)
+            # Column 0: logo icon only
+            icon_item = QTableWidgetItem("")
+            try:
+                qicon = None
+                if getattr(version, 'dcc_app', None):
+                    qicon = _load_dcc_icon(version.dcc_app)
                 if qicon:
-                    version_item.setIcon(qicon)
+                    icon_item.setIcon(qicon)
                 else:
-                    version_item.setText(f"{version.get_dcc_app_icon()} {version.version}")
-            self.version_table.setItem(row, 0, version_item)
+                    # Fallback to emoji/text icon
+                    if hasattr(version, 'get_dcc_app_icon'):
+                        icon_item.setText(version.get_dcc_app_icon())
+            except Exception:
+                pass
+            icon_item.setFlags(Qt.ItemFlag.ItemIsSelectable | Qt.ItemFlag.ItemIsEnabled)
+            self.version_table.setItem(row, 0, icon_item)
+
+            # Column 1: Version text only
+            version_item = QTableWidgetItem(version.version)
+            self.version_table.setItem(row, 1, version_item)
             
             # User
-            self.version_table.setItem(row, 1, QTableWidgetItem(version.user))
+            self.version_table.setItem(row, 2, QTableWidgetItem(version.user))
             
             # Date
             date_str = version.date.split('T')[0] if 'T' in version.date else version.date
-            self.version_table.setItem(row, 2, QTableWidgetItem(date_str))
+            self.version_table.setItem(row, 3, QTableWidgetItem(date_str))
             
             # Comment
             comment_item = QTableWidgetItem(version.comment)
-            comment_item.setToolTip(version.comment)  # Show full comment on hover
-            self.version_table.setItem(row, 3, comment_item)
+            comment_item.setToolTip(version.comment)
+            self.version_table.setItem(row, 4, comment_item)
             
             # Status
             status_item = QTableWidgetItem(version.status)
-            # Color code status
             if version.status == "WIP":
-                status_item.setBackground(QColor(255, 193, 7, 50))  # Yellow
+                status_item.setBackground(QColor(255, 193, 7, 50))
             elif version.status == "Review":
-                status_item.setBackground(QColor(0, 123, 255, 50))  # Blue
+                status_item.setBackground(QColor(0, 123, 255, 50))
             elif version.status == "Approved":
-                status_item.setBackground(QColor(40, 167, 69, 50))  # Green
+                status_item.setBackground(QColor(40, 167, 69, 50))
             elif version.status == "Published":
-                status_item.setBackground(QColor(108, 117, 125, 50))  # Gray
-            self.version_table.setItem(row, 4, status_item)
-            
-            # No path column in the list view to keep it clean
+                status_item.setBackground(QColor(108, 117, 125, 50))
+            self.version_table.setItem(row, 5, status_item)
         
         # Auto-select first row if nothing selected
         if self.version_table.rowCount() > 0 and self.version_table.currentRow() < 0:
-            self.version_table.setCurrentCell(0, 0)
+            self.version_table.setCurrentCell(0, 1)
             self.on_version_selected()
         # Enable/disable buttons based on selection
         self.update_button_states()
