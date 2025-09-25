@@ -328,8 +328,12 @@ class ProjectManager:
         if not app:
             raise ValueError(f"DCC app '{dcc_app}' not found")
         
-        # Get existing versions to determine next version
-        existing_versions = [v.version for v in self.current_project.get_versions(entity_key)]
+        # Get existing versions for THIS DCC app only to determine next version
+        all_versions = self.current_project.get_versions(entity_key)
+        existing_versions = [
+            v.version for v in all_versions
+            if getattr(v, "dcc_app", None) == dcc_app
+        ]
         version_str = next_version(existing_versions)
         version_num = int(version_str[1:])  # Extract number from v001
         

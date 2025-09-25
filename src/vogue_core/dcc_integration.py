@@ -187,12 +187,23 @@ class DCCManager:
     def initialize_workfile(self, app_name: str, dest_path: str, preferred_extension: Optional[str] = None) -> bool:
         """Create a valid default workfile for the DCC so it opens externally.
 
-        Returns True on success. Uses the registered executable when needed.
+        Returns True on success. Uses preset files from 'dcc new apps' folder when available.
         """
         try:
             app = self.get_app(app_name)
             dest_path = str(Path(dest_path))
             os.makedirs(os.path.dirname(dest_path), exist_ok=True)
+
+            # First, try to use preset files from 'dcc new apps' folder
+            preset_path = self._get_preset_path(app_name, preferred_extension)
+            if preset_path and os.path.exists(preset_path):
+                try:
+                    shutil.copy2(preset_path, dest_path)
+                    self.logger.info(f"Created workfile from preset: {preset_path} -> {dest_path}")
+                    return True
+                except Exception as e:
+                    self.logger.warning(f"Failed to copy preset file {preset_path}: {e}")
+                    # Fall through to original initialization method
 
             # Maya: prefer batch save to ensure valid defaults; fallback to minimal ASCII
             if app_name == "maya":
@@ -392,6 +403,57 @@ class DCCManager:
 
     def get_last_error(self) -> str:
         return self.last_error
+    
+    def _get_preset_path(self, app_name: str, preferred_extension: Optional[str] = None) -> Optional[str]:
+        """Get the path to the preset file for a given DCC app.
+        
+        Args:
+            app_name: Name of the DCC application
+            preferred_extension: Preferred file extension (e.g., '.ma', '.mb')
+            
+        Returns:
+            Path to preset file if found, None otherwise
+        """
+        try:
+            # Get the path to the 'dcc new apps' folder
+            current_file = Path(__file__)
+            preset_dir = current_file.parent.parent / "vogue_app" / "dcc new apps"
+            
+            if not preset_dir.exists():
+                return None
+            
+            # Map DCC app names to their preset file names
+            preset_mapping = {
+                "maya": ["mayaAscii.ma", "mayaBinary.mb"],
+                "blender": ["blender.blend"],
+                "houdini": ["houdini.hip"],
+                "nuke": ["Nuke.nk"]
+            }
+            
+            app_name_lower = app_name.lower()
+            if app_name_lower not in preset_mapping:
+                return None
+            
+            # If preferred extension is specified, try to match it
+            if preferred_extension:
+                preferred_ext = preferred_extension.lower()
+                for preset_file in preset_mapping[app_name_lower]:
+                    if preset_file.lower().endswith(preferred_ext):
+                        preset_path = preset_dir / preset_file
+                        if preset_path.exists():
+                            return str(preset_path)
+            
+            # Fall back to first available preset file for this app
+            for preset_file in preset_mapping[app_name_lower]:
+                preset_path = preset_dir / preset_file
+                if preset_path.exists():
+                    return str(preset_path)
+            
+            return None
+            
+        except Exception as e:
+            self.logger.warning(f"Error getting preset path for {app_name}: {e}")
+            return None
     
     def create_workfile_path(self, app_name: str, entity_name: str, 
                            task_name: str, version: int, project_path: str) -> str:
