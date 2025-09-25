@@ -407,13 +407,26 @@ class ProjectManager:
         thumbnail_path = ""
         if os.path.exists(workfile_path):
             thumbnail_path = os.path.join(
-                self.current_project.path, 
-                "thumbnails", 
-                "versions", 
+                self.current_project.path,
+                "thumbnails",
+                "versions",
                 f"{os.path.splitext(os.path.basename(canonical_path))[0]}_thumb.png"
             )
             os.makedirs(os.path.dirname(thumbnail_path), exist_ok=True)
-            dcc_manager.generate_thumbnail(workfile_path, thumbnail_path)
+            try:
+                ok = dcc_manager.generate_thumbnail(workfile_path, thumbnail_path)
+            except Exception:
+                ok = False
+            # Ensure a visible preview even if DCC capture failed
+            if not ok or not os.path.exists(thumbnail_path):
+                try:
+                    dcc_manager._create_placeholder_thumbnail(workfile_path, thumbnail_path, (256, 256))  # type: ignore[attr-defined]
+                except Exception:
+                    try:
+                        from .thumbnails import create_placeholder_thumbnail
+                        create_placeholder_thumbnail(thumbnail_path, 256, 256)
+                    except Exception:
+                        pass
         
         # Create version object
         version_obj = Version(
@@ -436,6 +449,13 @@ class ProjectManager:
         self.save_project()
         
         self.logger.info(f"Created DCC version {version_str} for {entity_key} using {app.display_name}")
+        
+        # Open the DCC app with the new workfile as requested
+        try:
+            dcc_manager.launch_app(dcc_app, canonical_path, self.current_project.path)
+        except Exception:
+            # Non-fatal if launching fails
+            pass
         return version_obj
 
     def create_placeholder_version(
