@@ -53,6 +53,7 @@
         "date": "2025-09-22T10:49:37.029704",
         "comment": "se",
         "path": "D:\\project\\PrismLikeTool\\VogueProjects\\ssssj\\06_Scenes\\Assets\\Characters\\ghj\\ghj_v001.ma",
+        "thumbnail": "D:\\project\\PrismLikeTool\\VogueProjects\\ssssj\\thumbnails\\versions\\ghj_v001_thumb.png",
         "status": "WIP"
       },
       {
@@ -160,16 +161,6 @@
         "status": "WIP"
       },
       {
-        "version": "v022",
-        "user": "g",
-        "date": "2025-09-24T17:15:06.370930",
-        "comment": "retf",
-        "path": "D:\\project\\PrismLikeTool\\VogueProjects\\ssssj\\06_Scenes\\Assets\\Characters\\ghj\\ghj_v022.ma",
-        "task_name": "wrt",
-        "workfile_path": "D:/project/maya2/tony is gay.mb",
-        "status": "WIP"
-      },
-      {
         "version": "v021",
         "user": "User",
         "date": "2025-09-24T17:38:53.814947",
@@ -215,6 +206,18 @@
         "dcc_app": "blender",
         "task_name": "wrt",
         "workfile_path": "D:\\project\\PrismLikeTool\\VogueProjects\\ssssj\\06_Scenes\\Assets\\wrt\\ghj\\ghj_v018.blend",
+        "status": "WIP"
+      },
+      {
+        "version": "v023",
+        "user": "User",
+        "date": "2025-09-25T10:34:13.277480",
+        "comment": "",
+        "path": "D:\\project\\PrismLikeTool\\VogueProjects\\ssssj\\06_Scenes\\Assets\\wrt\\ghj\\ghj_v023.ma",
+        "thumbnail": "D:\\project\\PrismLikeTool\\VogueProjects\\ssssj\\thumbnails\\versions\\ghj_v023_thumb.png",
+        "dcc_app": "maya",
+        "task_name": "wrt",
+        "workfile_path": "D:\\project\\PrismLikeTool\\VogueProjects\\ssssj\\06_Scenes\\Assets\\wrt\\ghj\\ghj_v023.ma",
         "status": "WIP"
       }
     ]

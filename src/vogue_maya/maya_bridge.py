@@ -25,34 +25,40 @@ class MayaBridge:
         self._find_maya_python()
     
     def _find_maya_python(self):
-        """Find Maya's Python executable"""
-        maya_versions = ["2024", "2023", "2022", "2021", "2020"]
-        
-        for version in maya_versions:
-            # Windows paths
+        """Find Maya's Python executable (mayapy) with best-effort search."""
+        try:
+            maya_versions = ["2026", "2025", "2024", "2023", "2022", "2021", "2020"]
+            for version in maya_versions:
+                if sys.platform == "win32":
+                    python_paths = [
+                        f"C:\\Program Files\\Autodesk\\Maya{version}\\bin\\mayapy.exe",
+                        f"C:\\Program Files\\Autodesk\\Maya{version}\\bin\\mayapy.bat",
+                    ]
+                elif sys.platform == "darwin":
+                    python_paths = [
+                        f"/Applications/Autodesk/maya{version}/Maya.app/Contents/Frameworks/Python.framework/Versions/Current/bin/python",
+                    ]
+                else:
+                    python_paths = [
+                        f"/usr/autodesk/maya{version}/bin/mayapy",
+                    ]
+                for path in python_paths:
+                    if os.path.exists(path):
+                        self.maya_python_path = path
+                        self.logger.info(f"Found Maya Python at: {path}")
+                        return
+
+            # Fallback glob on Windows
+            import glob
             if sys.platform == "win32":
-                python_paths = [
-                    f"C:\\Program Files\\Autodesk\\Maya{version}\\bin\\mayapy.exe",
-                    f"C:\\Program Files\\Autodesk\\Maya{version}\\bin\\mayapy.bat"
-                ]
-            # macOS paths
-            elif sys.platform == "darwin":
-                python_paths = [
-                    f"/Applications/Autodesk/maya{version}/Maya.app/Contents/Frameworks/Python.framework/Versions/Current/bin/python"
-                ]
-            # Linux paths
-        else:
-                python_paths = [
-                    f"/usr/autodesk/maya{version}/bin/mayapy"
-                ]
-            
-            for path in python_paths:
-                if os.path.exists(path):
-                    self.maya_python_path = path
-                    self.logger.info(f"Found Maya Python at: {path}")
-                    return
-        
-        self.logger.warning("Maya Python not found")
+                for path in sorted(glob.glob(r"C:\\Program Files\\Autodesk\\Maya*\\bin\\mayapy.exe"), reverse=True):
+                    if os.path.exists(path):
+                        self.maya_python_path = path
+                        self.logger.info(f"Found Maya Python via glob at: {path}")
+                        return
+            self.logger.warning("Maya Python not found")
+        except Exception as e:
+            self.logger.warning(f"Maya Python detection error: {e}")
     
     def is_available(self) -> bool:
         """Check if Maya is available"""
@@ -92,7 +98,7 @@ class MayaBridge:
             
         except subprocess.TimeoutExpired:
             raise RuntimeError("Maya script timed out")
-    except Exception as e:
+        except Exception as e:
             raise RuntimeError(f"Failed to create Maya workfile: {e}")
     
     def _generate_workfile_script(self, workfile_path: str, project_path: str) -> str:
@@ -141,8 +147,7 @@ try:
     cmds.file(save=True, type='mayaAscii')
     
     print("SUCCESS: Workfile created successfully")
-        
-    except Exception as e:
+except Exception as e:
     print(f"ERROR: {{e}}")
     sys.exit(1)
 '''
@@ -210,17 +215,16 @@ except Exception as e:
             
             if result.returncode == 0:
                 return json.loads(result.stdout)
-        else:
+            else:
                 return {"error": result.stderr}
-        
-    except Exception as e:
+        except Exception as e:
             return {"error": str(e)}
     
     def generate_thumbnail(self, workfile_path: str, output_path: str, 
                           size: tuple = (256, 256)) -> bool:
         """Generate thumbnail for Maya scene"""
         if not self.is_available():
-        return False
+            return False
 
         maya_script = f'''
 import maya.cmds as cmds
@@ -254,8 +258,8 @@ try:
         output_dir = os.path.dirname('{output_path}')
         os.makedirs(output_dir, exist_ok=True)
         
-        # Use Maya's playblast for thumbnail
-        cmds.playblast(
+        # Use Maya's playblast for thumbnail (capture output path)
+        _pb_path = cmds.playblast(
             format='image',
             filename='{output_path}',
             sequenceTime=False,
@@ -266,15 +270,26 @@ try:
             width={size[0]},
             height={size[1]},
             percent=100,
-            quality=70
+            quality=70,
+            compression='png',
+            forceOverwrite=True,
+            completeFilename=True
         )
+        try:
+            gen_path = _pb_path if isinstance(_pb_path, str) else str(_pb_path)
+            if gen_path and gen_path != '{output_path}' and os.path.exists(gen_path):
+                import shutil, os as _os
+                try:
+                    shutil.move(gen_path, '{output_path}')
+                except Exception:
+                    _os.replace(gen_path, '{output_path}')
+        except Exception:
+            pass
         
         print("SUCCESS: Thumbnail generated")
-        
     else:
         print("ERROR: File not found")
-        
-    except Exception as e:
+except Exception as e:
     print(f"ERROR: {{e}}")
 '''
         
@@ -295,9 +310,9 @@ try:
     def launch_maya(self, workfile_path: str = None, project_path: str = None) -> bool:
         """Launch Maya with optional workfile"""
         if not self.is_available():
-        return False
-    
-    try:
+            return False
+        
+        try:
             # Find Maya executable
             maya_exe = self.maya_python_path.replace("mayapy", "maya")
             if not os.path.exists(maya_exe):
@@ -319,11 +334,10 @@ try:
             # Launch Maya
             subprocess.Popen(cmd)
             self.logger.info(f"Launched Maya: {' '.join(cmd)}")
-        return True
-        
-    except Exception as e:
+            return True
+        except Exception as e:
             self.logger.error(f"Failed to launch Maya: {e}")
-        return False
+            return False
 
     def validate_workfile(self, workfile_path: str) -> Dict[str, Any]:
         """Validate Maya workfile"""

@@ -2681,6 +2681,27 @@ class PrismRightPanel(PrismStyleWidget):
         """)
         preview_layout.addWidget(self.asset_preview_label)
 
+        # Preview actions (refresh, open)
+        actions_row = QHBoxLayout()
+        actions_row.setContentsMargins(0, 0, 0, 0)
+        actions_row.setSpacing(6)
+        self.preview_refresh_btn = QPushButton("Refresh Preview")
+        self.preview_refresh_btn.setProperty("class", "secondary")
+        self.preview_refresh_btn.clicked.connect(self.refresh_asset_preview)
+        actions_row.addWidget(self.preview_refresh_btn)
+        actions_row.addStretch(1)
+        preview_layout.addLayout(actions_row)
+
+    def refresh_asset_preview(self):
+        """Delegate refresh to the VersionManager (selection owner)."""
+        try:
+            win = self.window()
+            vm = getattr(win, 'version_manager', None)
+            if vm and hasattr(vm, 'refresh_asset_preview'):
+                vm.refresh_asset_preview()
+        except Exception:
+            pass
+
     def setup_asset_details(self):
         """Setup asset details section like Ayon"""
         self.asset_details_widget = QWidget()
@@ -3646,6 +3667,65 @@ class VersionManager(PrismStyleWidget):
             preview = getattr(browser, 'asset_preview_label', None)
             if preview is None:
                 return
+            # If no thumbnail yet, try to generate one from the version/workfile path
+            if (not getattr(version, 'thumbnail', None) or not os.path.exists(getattr(version, 'thumbnail', ''))):
+                try:
+                    from vogue_core.dcc_integration import dcc_manager as _dcc
+                    from vogue_core.manager import ProjectManager  # type: ignore
+                except Exception:
+                    _dcc = None
+                # Determine a source path
+                source_path = getattr(version, 'workfile_path', '') or getattr(version, 'path', '')
+                if source_path and os.path.exists(source_path) and _dcc is not None:
+                    # Build thumbnail path under project thumbnails/versions similar to manager
+                    try:
+                        controller = get_current_controller()
+                    except Exception:
+                        controller = None
+                    project_path = getattr(getattr(controller, 'manager', None), 'current_project', None)
+                    project_path = getattr(project_path, 'path', None)
+                    if project_path:
+                        thumb_dir = os.path.join(project_path, "thumbnails", "versions")
+                        os.makedirs(thumb_dir, exist_ok=True)
+                        base_name = os.path.splitext(os.path.basename(source_path))[0]
+                        thumb_path = os.path.join(thumb_dir, f"{base_name}_thumb.png")
+                        try:
+                            _dcc.generate_thumbnail(source_path, thumb_path)
+                            if os.path.exists(thumb_path):
+                                version.thumbnail = thumb_path
+                                # Persist change if possible
+                                try:
+                                    if controller and getattr(controller, 'manager', None):
+                                        controller.manager.save_project()
+                                except Exception:
+                                    pass
+                        except Exception:
+                            pass
+
+                # Last-resort: try to use a nearby image from the same directory as preview
+                if (not getattr(version, 'thumbnail', None) or not os.path.exists(getattr(version, 'thumbnail', ''))):
+                    try:
+                        src_dir = os.path.dirname(source_path) if source_path else None
+                        candidate = None
+                        if src_dir and os.path.isdir(src_dir):
+                            exts = {'.png', '.jpg', '.jpeg', '.bmp', '.tif', '.tiff'}
+                            files = [f for f in os.listdir(src_dir) if os.path.splitext(f)[1].lower() in exts]
+                            if files:
+                                files = [os.path.join(src_dir, f) for f in files]
+                                candidate = max(files, key=lambda p: os.path.getmtime(p))
+                        if candidate:
+                            pix = QPixmap(candidate).scaled(
+                                max(120, preview.width()-20),
+                                max(120, preview.height()-20),
+                                Qt.AspectRatioMode.KeepAspectRatio,
+                                Qt.TransformationMode.SmoothTransformation
+                            )
+                            preview.setPixmap(pix)
+                            preview.setText("")
+                            return
+                    except Exception:
+                        pass
+
             if getattr(version, 'thumbnail', None) and os.path.exists(version.thumbnail):
                 pix = QPixmap(version.thumbnail).scaled(
                     max(120, preview.width()-20),
@@ -3684,6 +3764,35 @@ class VersionManager(PrismStyleWidget):
                 type_lbl2.setText("Dummy")
         except Exception:
             return
+
+    def refresh_asset_preview(self):
+        """Manually regenerate and reload the preview thumbnail for current selection."""
+        try:
+            # Determine selected version from VersionManager if available
+            win = self.window()
+            vm = getattr(win, 'version_manager', None)
+            version = None
+            if vm and getattr(vm, 'current_versions', None):
+                row = -1
+                if getattr(vm, 'version_table', None) and vm.version_table.isVisible():
+                    row = vm.version_table.currentRow()
+                elif getattr(vm, 'version_cards', None) and vm.version_cards.isVisible():
+                    row = vm.version_cards.currentRow()
+                if row >= 0 and row < len(vm.current_versions):
+                    version = vm.current_versions[row]
+            if version is None:
+                return
+            # Clear existing so _update_right_preview will try generating
+            if getattr(version, 'thumbnail', None) and isinstance(version.thumbnail, str):
+                try:
+                    if os.path.isfile(version.thumbnail):
+                        os.remove(version.thumbnail)
+                except Exception:
+                    pass
+                version.thumbnail = None
+            self._update_right_preview(version)
+        except Exception:
+            pass
     
     def update_version_info(self):
         """Update version info panel with selected version"""
