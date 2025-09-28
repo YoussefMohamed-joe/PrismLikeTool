@@ -27,6 +27,7 @@ class ProjectManager:
     def __init__(self):
         self.current_project: Optional[Project] = None
         self.logger = get_logger("ProjectManager")
+        self._dcc_manager = None
     
     def create_project(self, name: str, parent_dir: str, fps: int = 24, resolution: List[int] = None) -> Project:
         """
@@ -57,6 +58,9 @@ class ProjectManager:
         # Create project object
         project = pipeline_to_project(pipeline_data)
         self.current_project = project
+        
+        # Initialize DCC manager with project path for thumbnail generation
+        self._initialize_dcc_manager(str(project_path))
         
         self.logger.info(f"Created new project: {name} at {project_path}")
         return project
@@ -94,6 +98,9 @@ class ProjectManager:
         # Create project object
         project = pipeline_to_project(pipeline_data)
         self.current_project = project
+        
+        # Initialize DCC manager with project path for thumbnail generation
+        self._initialize_dcc_manager(str(proj_path.parent if proj_path.is_file() else proj_path))
         
         self.logger.info(f"Loaded project: {project.name} from {pipeline_path}")
         return project
@@ -403,30 +410,58 @@ class ProjectManager:
         if os.path.abspath(workfile_path) != os.path.abspath(canonical_path):
             copy_version_file(workfile_path, canonical_path)
         
-        # Generate thumbnail
+        # Generate enhanced thumbnail with viewport capture
         thumbnail_path = ""
         if os.path.exists(workfile_path):
-            thumbnail_path = os.path.join(
-                self.current_project.path,
-                "thumbnails",
-                "versions",
-                f"{os.path.splitext(os.path.basename(canonical_path))[0]}_thumb.png"
-            )
-            os.makedirs(os.path.dirname(thumbnail_path), exist_ok=True)
             try:
-                ok = dcc_manager.generate_thumbnail(workfile_path, thumbnail_path)
-            except Exception:
-                ok = False
-            # Ensure a visible preview even if DCC capture failed
-            if not ok or not os.path.exists(thumbnail_path):
-                try:
-                    dcc_manager._create_placeholder_thumbnail(workfile_path, thumbnail_path, (256, 256))  # type: ignore[attr-defined]
-                except Exception:
+                # Use enhanced thumbnail generation with DCC viewport capture
+                if self._dcc_manager:
+                    # Determine entity type from entity_key
+                    entity_type = "shot" if "/" in entity_key else "asset"
+                    thumbnail_path = self.generate_enhanced_thumbnail(
+                        workfile_path, 
+                        entity_type=entity_type, 
+                        entity_name=entity_key, 
+                        task_name=task_name
+                    )
+                
+                # Fallback to basic thumbnail generation if enhanced fails
+                if not thumbnail_path or not os.path.exists(thumbnail_path):
+                    thumbnail_path = os.path.join(
+                        self.current_project.path,
+                        "thumbnails",
+                        "versions",
+                        f"{os.path.splitext(os.path.basename(canonical_path))[0]}_thumb.png"
+                    )
+                    os.makedirs(os.path.dirname(thumbnail_path), exist_ok=True)
                     try:
-                        from .thumbnails import create_placeholder_thumbnail
-                        create_placeholder_thumbnail(thumbnail_path, 256, 256)
+                        ok = dcc_manager.generate_thumbnail(workfile_path, thumbnail_path)
                     except Exception:
-                        pass
+                        ok = False
+                    # Ensure a visible preview even if DCC capture failed
+                    if not ok or not os.path.exists(thumbnail_path):
+                        try:
+                            dcc_manager._create_placeholder_thumbnail(workfile_path, thumbnail_path, (256, 256))  # type: ignore[attr-defined]
+                        except Exception:
+                            try:
+                                from .thumbnails import create_placeholder_thumbnail
+                                create_placeholder_thumbnail(thumbnail_path, 256, 256)
+                            except Exception:
+                                pass
+            except Exception as e:
+                self.logger.warning(f"Enhanced thumbnail generation failed: {e}")
+                # Fallback to basic thumbnail
+                thumbnail_path = os.path.join(
+                    self.current_project.path,
+                    "thumbnails",
+                    "versions",
+                    f"{os.path.splitext(os.path.basename(canonical_path))[0]}_thumb.png"
+                )
+                os.makedirs(os.path.dirname(thumbnail_path), exist_ok=True)
+                try:
+                    dcc_manager.generate_thumbnail(workfile_path, thumbnail_path)
+                except Exception:
+                    pass
         
         # Create version object
         version_obj = Version(
@@ -600,11 +635,29 @@ class ProjectManager:
         # keep using the provided dcc_app (may be None) and no workfile.
 
         # Launch the DCC app with whatever best information we have
-        return dcc_manager.launch_app(
+        success = dcc_manager.launch_app(
             resolved_app or dcc_app,
             workfile_path,
             self.current_project.path
         )
+        
+        # Generate launch screenshot if successful
+        if success and self._dcc_manager:
+            try:
+                app_name = resolved_app or dcc_app
+                if app_name:
+                    # Generate launch screenshot in a separate thread to avoid blocking
+                    import threading
+                    def generate_screenshot():
+                        self.generate_launch_screenshot(app_name)
+                    
+                    thread = threading.Thread(target=generate_screenshot)
+                    thread.daemon = True
+                    thread.start()
+            except Exception as e:
+                self.logger.warning(f"Failed to generate launch screenshot: {e}")
+        
+        return success
     
     def get_dcc_apps(self) -> List[Dict[str, Any]]:
         """Get list of available DCC applications"""
@@ -615,7 +668,7 @@ class ProjectManager:
                 "display_name": app.display_name,
                 "executable_path": app.executable_path,
                 "file_extensions": app.file_extensions,
-                "icon": app.get_dcc_app_icon()
+                "icon": app.icon_path or "📁"
             }
             for app in apps
         ]
@@ -702,3 +755,36 @@ class ProjectManager:
             return asset_or_shot.key
         else:
             raise ValueError("Expected Asset or Shot object")
+    
+    def _initialize_dcc_manager(self, project_path: str):
+        """Initialize DCC manager with project path for thumbnail generation"""
+        try:
+            from .dcc_integration import DCCManager
+            self._dcc_manager = DCCManager(project_path)
+            self.logger.info(f"DCC manager initialized for project: {project_path}")
+        except Exception as e:
+            self.logger.warning(f"Failed to initialize DCC manager: {e}")
+            self._dcc_manager = None
+    
+    def generate_launch_screenshot(self, app_name: str) -> Optional[str]:
+        """Generate screenshot when launching DCC application"""
+        if not self._dcc_manager:
+            self.logger.warning("DCC manager not initialized")
+            return None
+        
+        return self._dcc_manager.generate_launch_screenshot(app_name)
+    
+    def generate_enhanced_thumbnail(self, file_path: str, entity_type: str = "asset", 
+                                  entity_name: str = "", task_name: str = "") -> Optional[str]:
+        """Generate enhanced thumbnail for DCC file with viewport capture"""
+        if not self._dcc_manager:
+            self.logger.warning("DCC manager not initialized")
+            return None
+        
+        return self._dcc_manager.generate_enhanced_thumbnail(file_path, entity_type, entity_name, task_name)
+    
+    def stop_thumbnail_generation(self):
+        """Stop thumbnail generation and file watching"""
+        if self._dcc_manager:
+            self._dcc_manager.stop_thumbnail_generation()
+            self.logger.info("Thumbnail generation stopped")

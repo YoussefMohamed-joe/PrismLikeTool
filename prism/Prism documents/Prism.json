@@ -1,0 +1,188 @@
+{
+    "globals": {
+        "current project": "\\\\cg\\films\\Darwish\\CG\\Darwish_CG\\00_Pipeline\\pipeline.json",
+        "showonstartup": true,
+        "check_import_versions": true,
+        "checkframerange": true,
+        "username": "ymohamed",
+        "autosave": true,
+        "send_error_reports": true,
+        "mediaPlayerPath": "",
+        "mediaPlayerName": "",
+        "checkForUpdates": 7,
+        "highdpi": false,
+        "debug_mode": false,
+        "username_abbreviation": "ymo",
+        "mediaPlayerFramePattern": false,
+        "useMediaThumbnails": true,
+        "capture_viewport": true,
+        "standalone_stylesheet": "Blue Moon",
+        "sockets_enabled": false,
+        "checkframeranges": true
+    },
+    "nuke": {
+        "usenukex": false,
+        "nukeVersion": "Default",
+        "useRelativePaths": false
+    },
+    "blender": {
+        "autosaverender": false,
+        "autosaveperproject": false,
+        "autosavepath": "\\"
+    },
+    "browser": {
+        "closeafterload": true,
+        "closeafterloadsa": false,
+        "current": "Assets",
+        "assetsVisible": true,
+        "shotsVisible": true,
+        "filesVisible": false,
+        "recentVisible": true,
+        "rendervisible": true,
+        "assetsOrder": 0,
+        "shotsOrder": 1,
+        "filesOrder": 2,
+        "recentOrder": 3,
+        "assetSorting": [
+            1,
+            1
+        ],
+        "shotSorting": [
+            1,
+            1
+        ],
+        "fileSorting": [
+            1,
+            1
+        ],
+        "autoplaypreview": false,
+        "showmaxassets": true,
+        "showmayaassets": true,
+        "showhouassets": true,
+        "shownukeassets": true,
+        "showblenderassets": true,
+        "showmaxshots": true,
+        "showmayashots": true,
+        "showhoushots": true,
+        "shownukeshots": true,
+        "showblendershots": true,
+        "showEntityPreviews": true,
+        "currentProjectTab": "Scenefiles",
+        "windowSize": [
+            1300,
+            843
+        ],
+        "selectedContext": {
+            "asset": "LongShip",
+            "asset_path": "Vehicles\\Boats\\LongShip",
+            "paths": [
+                "\\\\cg\\films\\Darwish\\CG\\Darwish_CG\\03_Production\\Assets\\Vehicles\\Boats\\LongShip"
+            ],
+            "type": "asset",
+            "department": "mod",
+            "task": "Umbrella",
+            "filename": ""
+        },
+        "scenefileSorting": [
+            1,
+            1
+        ],
+        "expandedAssets_WladElNasaba": [
+            "\\\\cg\\series\\WladElNasaba\\03_Production\\Assets\\Characters",
+            "\\\\cg\\series\\WladElNasaba\\03_Production\\Assets\\Environment",
+            "\\\\cg\\series\\WladElNasaba\\03_Production\\Assets\\Prop",
+            "\\\\cg\\series\\WladElNasaba\\03_Production\\Assets\\Vegetation"
+        ],
+        "expandedSequences_WladElNasaba": [
+            "E09-_sequence"
+        ],
+        "showAssetSearch": false,
+        "showShotSearch": false,
+        "sceneFilter": {
+            "Blender": true,
+            "Houdini": true,
+            "Maya": true,
+            "Nuke": true,
+            "Photoshop": true,
+            "PureRef": true,
+            "Other": true
+        },
+        "scenefileLayout": "items",
+        "autoUpdateRenders": true,
+        "previewDisabled": false,
+        "expandedAssets_Darwish_CG": [
+            "\\\\cg\\films\\Darwish\\CG\\Darwish_CG\\03_Production\\Assets\\Build",
+            "\\\\cg\\films\\Darwish\\CG\\Darwish_CG\\03_Production\\Assets\\Build\\Buildings",
+            "\\\\cg\\films\\Darwish\\CG\\Darwish_CG\\03_Production\\Assets\\Build\\Buildings\\DownTown",
+            "\\\\cg\\films\\Darwish\\CG\\Darwish_CG\\03_Production\\Assets\\Build\\Buildings\\Harbour",
+            "\\\\cg\\films\\Darwish\\CG\\Darwish_CG\\03_Production\\Assets\\Build\\Buildings\\Harbour\\Admin_Buildings",
+            "\\\\cg\\films\\Darwish\\CG\\Darwish_CG\\03_Production\\Assets\\Props",
+            "\\\\cg\\films\\Darwish\\CG\\Darwish_CG\\03_Production\\Assets\\Vehicles",
+            "\\\\cg\\films\\Darwish\\CG\\Darwish_CG\\03_Production\\Assets\\Vehicles\\Boats"
+        ],
+        "expandedSequences_Darwish_CG": [
+            "ExplosionHip_V002rar-_sequence",
+            "Reel_001_SC_014A-_sequence",
+            "Reel_001_SC_016A-_sequence",
+            "Reel_001_SC_119_120_121-_sequence"
+        ]
+    },
+    "localfiles": {},
+    "recent_projects": [
+        {
+            "configPath": "\\\\cg\\films\\Darwish\\CG\\Darwish_CG\\00_Pipeline\\pipeline.json",
+            "name": "Darwish_CG",
+            "date": 1757255564.2716877
+        },
+        {
+            "configPath": "\\\\cg\\series\\WladElNasaba\\00_Pipeline\\pipeline.json",
+            "name": "WladElNasaba",
+            "date": 1756729190.462385
+        }
+    ],
+    "environmentVariables": {},
+    "plugins": {
+        "inactive": []
+    },
+    "dccoverrides": {
+        "Blender_path": "C:/Program Files/Blender Foundation/Blender 3.6\\blender.exe",
+        "Houdini_path": "C:\\Program Files\\Side Effects Software\\Houdini 20.5.522\\bin\\houdini.exe",
+        "Maya_path": "C:\\Program Files\\Autodesk\\Maya2023\\bin\\maya.exe",
+        "Nuke_path": "C:\\Program Files\\Nuke11.2v2\\Nuke11.2.exe",
+        "Blender_override": false,
+        "Houdini_override": false,
+        "Maya_override": false,
+        "Nuke_override": false,
+        "PureRef_override": false,
+        "PureRef_path": ""
+    },
+    "pureref": {
+        "initialized": true
+    },
+    "useLocalFiles": {
+        "WladElNasaba": "inherit",
+        "Darwish_CG": "inherit"
+    },
+    "houdini": {
+        "openInManual": false
+    },
+    "maya": {
+        "saveSceneType": ".ma",
+        "setMayaProject": true,
+        "addProjectPluginPaths": false
+    },
+    "stateManager": {
+        "versionUpSceneOnPublish": true
+    },
+    "recent_files_WladElNasaba": [
+        "//cg/series/WladElNasaba/03_Production/Assets/Build/Windmill/Scenefiles/animation/Anim/Windmill_Anim_v0009.ma",
+        "//cg/series/WladElNasaba/03_Production/Shots/E06/Sc_020_shot010/Scenefiles/MM/Tracking/E06-Sc_020_shot010_Tracking_v0001.ma",
+        "//cg/series/WladElNasaba/03_Production/Shots/E06/Sc_030_shot050/Scenefiles/lgt/Lighting/E06-Sc_030_shot050_Lighting_v0004.ma",
+        "//cg/series/WladElNasaba/03_Production/Shots/E02/Sc_Chase_shot020/Scenefiles/lgt/Lighting/E02-Sc_Chase_shot020_Lighting_v0001.ma",
+        "//cg/series/WladElNasaba/03_Production/Assets/Vehicles/Lanser_Shark/Scenefiles/modeling/Modeling/Lanser_Shark_Modeling_v0001.ma",
+        "//cg/series/WladElNasaba/03_Production/Shots/E06/Sc_019_shot010/Scenefiles/lgt/Lighting/E06-Sc_019_shot010_Lighting_v0004.ma"
+    ],
+    "recent_files_Darwish_CG": [
+        "//cg/films/Darwish/CG/Darwish_CG/03_Production/Shots/Reel_001_SC_Boat/SH0260/Scenefiles/lgt/Lighting/Reel_001_SC_Boat-SH0260_Lighting_v0004.mb"
+    ]
+}

@@ -1,0 +1,32 @@
+{
+    "plugins": [
+        {
+            "path": "C:\\Program Files\\Prism2\\Plugins\\Apps\\PureRef"
+        },
+        {
+            "path": "C:\\Program Files\\Prism2\\Plugins\\Apps\\Photoshop"
+        },
+        {
+            "path": "C:\\Program Files\\Prism2\\Plugins\\Apps\\Nuke"
+        },
+        {
+            "path": "C:\\Program Files\\Prism2\\Plugins\\Apps\\Maya"
+        },
+        {
+            "path": "C:\\Program Files\\Prism2\\Plugins\\Apps\\Houdini"
+        },
+        {
+            "path": "C:\\Program Files\\Prism2\\Plugins\\Apps\\Deadline"
+        },
+        {
+            "path": "C:\\Program Files\\Prism2\\Plugins\\Apps\\Blender"
+        },
+        {
+            "path": "C:\\ProgramData\\Prism2\\plugins\\Hub"
+        },
+        {
+            "path": "C:\\ProgramData\\Prism2\\plugins\\PrismInternals"
+        }
+    ],
+    "searchPaths": []
+}

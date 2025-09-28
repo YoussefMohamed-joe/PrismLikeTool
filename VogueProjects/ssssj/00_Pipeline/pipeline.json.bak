@@ -219,6 +219,18 @@
         "task_name": "wrt",
         "workfile_path": "D:\\project\\PrismLikeTool\\VogueProjects\\ssssj\\06_Scenes\\Assets\\wrt\\ghj\\ghj_v023.ma",
         "status": "WIP"
+      },
+      {
+        "version": "v024",
+        "user": "User",
+        "date": "2025-09-28T07:19:31.300468",
+        "comment": "",
+        "path": "D:\\project\\PrismLikeTool\\VogueProjects\\ssssj\\06_Scenes\\Assets\\wrt\\ghj\\ghj_v024.ma",
+        "thumbnail": "D:\\project\\PrismLikeTool\\VogueProjects\\ssssj\\thumbnails\\versions\\ghj_v024_thumb.png",
+        "dcc_app": "maya",
+        "task_name": "wrt",
+        "workfile_path": "D:\\project\\PrismLikeTool\\VogueProjects\\ssssj\\06_Scenes\\Assets\\wrt\\ghj\\ghj_v024.ma",
+        "status": "WIP"
       }
     ]
   }

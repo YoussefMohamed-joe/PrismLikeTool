@@ -17,6 +17,7 @@ import tempfile
 
 from .models import Version, Project
 from .logging_utils import get_logger
+from .thumbnail_generator import ThumbnailGenerator, ThumbnailConfig
 
 
 @dataclass
@@ -52,10 +53,17 @@ class DCCApp:
 class DCCManager:
     """Manages DCC application integrations"""
     
-    def __init__(self):
+    def __init__(self, project_path: str = None):
         self.logger = get_logger("DCCManager")
         self.apps: Dict[str, DCCApp] = {}
         self.last_error: str = ""
+        self.project_path = project_path
+        self.thumbnail_generator = None
+        
+        # Initialize thumbnail generator if project path is provided
+        if project_path:
+            self.thumbnail_generator = ThumbnailGenerator(project_path)
+        
         # First load user-defined paths if present, then auto-detect missing
         self._load_from_settings()
         self._detect_applications()
@@ -599,6 +607,37 @@ class DCCManager:
             "dcc_app": app_map.get(ext, "unknown"),
             "extension": ext
         }
+    
+    def generate_launch_screenshot(self, app_name: str) -> Optional[str]:
+        """Generate screenshot when launching DCC application"""
+        if not self.thumbnail_generator:
+            self.logger.warning("Thumbnail generator not initialized")
+            return None
+        
+        return self.thumbnail_generator.generate_launch_screenshot(app_name)
+    
+    def generate_enhanced_thumbnail(self, file_path: str, entity_type: str = "asset", 
+                                  entity_name: str = "", task_name: str = "") -> Optional[str]:
+        """Generate enhanced thumbnail for DCC file with viewport capture"""
+        if not self.thumbnail_generator:
+            self.logger.warning("Thumbnail generator not initialized")
+            return None
+        
+        return self.thumbnail_generator.generate_dcc_thumbnail(file_path, entity_type, entity_name, task_name)
+    
+    def set_project_path(self, project_path: str):
+        """Set project path and initialize thumbnail generator"""
+        self.project_path = project_path
+        if self.thumbnail_generator:
+            self.thumbnail_generator.stop_watching()
+        self.thumbnail_generator = ThumbnailGenerator(project_path)
+        self.logger.info(f"Thumbnail generator initialized for project: {project_path}")
+    
+    def stop_thumbnail_generation(self):
+        """Stop thumbnail generation and file watching"""
+        if self.thumbnail_generator:
+            self.thumbnail_generator.stop_watching()
+            self.logger.info("Thumbnail generation stopped")
 
 
 # Global DCC manager instance

@@ -37,6 +37,9 @@ class VogueController(PrismMainWindow):
         # Connect signals after UI is set up
         self.setup_connections()
         
+        # Setup thumbnail preview integration
+        self.setup_thumbnail_integration()
+        
         # Setup asset tree context menu
         self.setup_asset_tree_context_menu()
         
@@ -2044,3 +2047,144 @@ class VogueController(PrismMainWindow):
                         # Reload departments display
                         self.project_browser.load_entity_departments(self.project_browser.current_entity, "Shot")
                         self.logger.info(f"Removed {len(departments_to_remove)} departments from shot '{self.project_browser.current_entity}': {', '.join(departments_to_remove)}")
+    
+    def setup_thumbnail_integration(self):
+        """Setup thumbnail preview integration"""
+        try:
+            # Connect right panel thumbnail preview signals
+            if hasattr(self.right_panel, 'thumbnail_preview_widget'):
+                self.right_panel.thumbnail_preview_widget.thumbnail_clicked.connect(self.on_thumbnail_clicked)
+                self.right_panel.thumbnail_preview_widget.thumbnail_double_clicked.connect(self.on_thumbnail_double_clicked)
+                self.right_panel.thumbnail_preview_widget.generate_thumbnail_requested.connect(self.on_generate_thumbnail_requested)
+                
+                # Set project path for Prism-style previews
+                if self.manager.current_project:
+                    self.right_panel.thumbnail_preview_widget.set_project_path(self.manager.current_project.path)
+                
+                self.logger.info("Thumbnail preview integration setup complete")
+        except Exception as e:
+            self.logger.warning(f"Failed to setup thumbnail integration: {e}")
+    
+    def on_thumbnail_clicked(self, file_path: str):
+        """Handle thumbnail click - select in tree"""
+        try:
+            # Find and select the file in the appropriate tree
+            if hasattr(self, 'version_manager') and hasattr(self.version_manager, 'select_file'):
+                self.version_manager.select_file(file_path)
+        except Exception as e:
+            self.logger.warning(f"Failed to select file in tree: {e}")
+    
+    def on_thumbnail_double_clicked(self, file_path: str):
+        """Handle thumbnail double-click - open file or launch DCC app"""
+        try:
+            # Try to launch DCC app with the file
+            if self.manager.current_project:
+                # Determine DCC app from file extension
+                from vogue_core.dcc_integration import dcc_manager
+                file_info = dcc_manager.get_file_info(file_path)
+                dcc_app = file_info.get('dcc_app', 'unknown')
+                
+                if dcc_app != 'unknown':
+                    success = self.manager.launch_dcc_app(dcc_app, workfile_path=file_path)
+                    if success:
+                        self.logger.info(f"Launched {dcc_app} with file: {file_path}")
+                    else:
+                        self.logger.warning(f"Failed to launch {dcc_app} with file: {file_path}")
+                else:
+                    # Try to open with default application
+                    import subprocess
+                    import platform
+                    
+                    if platform.system() == "Windows":
+                        os.startfile(file_path)
+                    elif platform.system() == "Darwin":  # macOS
+                        subprocess.run(["open", file_path])
+                    else:  # Linux
+                        subprocess.run(["xdg-open", file_path])
+        except Exception as e:
+            self.logger.error(f"Failed to handle thumbnail double-click: {e}")
+    
+    def on_generate_thumbnail_requested(self, file_path: str, entity_type: str, entity_name: str):
+        """Handle thumbnail generation request"""
+        try:
+            if self.manager.current_project:
+                # Generate enhanced thumbnail
+                thumbnail_path = self.manager.generate_enhanced_thumbnail(
+                    file_path, entity_type, entity_name
+                )
+                
+                if thumbnail_path and os.path.exists(thumbnail_path):
+                    self.logger.info(f"Generated thumbnail: {thumbnail_path}")
+                    
+                    # Update thumbnail preview if available
+                    if hasattr(self.right_panel, 'thumbnail_preview_widget'):
+                        self.right_panel.thumbnail_preview_widget.update_thumbnail(file_path, thumbnail_path)
+                else:
+                    self.logger.warning(f"Failed to generate thumbnail for: {file_path}")
+        except Exception as e:
+            self.logger.error(f"Failed to generate thumbnail: {e}")
+    
+    def load_project_thumbnails(self):
+        """Load all project thumbnails into the preview widget"""
+        try:
+            if not self.manager.current_project:
+                return
+            
+            thumbnails = []
+            project_path = self.manager.current_project.path
+            
+            # Scan for thumbnails in various locations
+            thumbnail_dirs = [
+                Path(project_path) / "thumbnails" / "versions",
+                Path(project_path) / "thumbnails" / "assets", 
+                Path(project_path) / "thumbnails" / "shots",
+                Path(project_path) / "00_Pipeline" / "Assetinfo",
+                Path(project_path) / "00_Pipeline" / "Shotinfo",
+            ]
+            
+            for thumb_dir in thumbnail_dirs:
+                if thumb_dir.exists():
+                    for thumb_file in thumb_dir.glob("*.png"):
+                        # Try to find corresponding source file
+                        source_file = self.find_source_file_for_thumbnail(thumb_file)
+                        if source_file:
+                            thumbnails.append({
+                                'file_path': source_file,
+                                'entity_type': 'asset' if 'Assetinfo' in str(thumb_dir) else 'shot',
+                                'entity_name': thumb_file.stem.replace('_preview', '').replace('_thumb', ''),
+                                'task_name': '',
+                                'thumbnail_path': str(thumb_file)
+                            })
+            
+            # Load thumbnails into preview widget
+            if hasattr(self.right_panel, 'load_thumbnails'):
+                self.right_panel.load_thumbnails(thumbnails)
+                
+        except Exception as e:
+            self.logger.error(f"Failed to load project thumbnails: {e}")
+    
+    def find_source_file_for_thumbnail(self, thumbnail_path: Path) -> str | None:
+        """Find the source file for a thumbnail"""
+        try:
+            # Look for corresponding source files in common locations
+            project_path = Path(self.manager.current_project.path)
+            thumb_name = thumbnail_path.stem.replace('_preview', '').replace('_thumb', '')
+            
+            # Search in workfiles and scenes directories
+            search_dirs = [
+                project_path / "workfiles",
+                project_path / "06_Scenes",
+                project_path / "01_Assets",
+                project_path / "02_Shots"
+            ]
+            
+            for search_dir in search_dirs:
+                if search_dir.exists():
+                    for source_file in search_dir.rglob("*"):
+                        if source_file.is_file() and source_file.stem == thumb_name:
+                            return str(source_file)
+            
+            return None
+        except Exception as e:
+            self.logger.warning(f"Failed to find source file for thumbnail {thumbnail_path}: {e}")
+            return None

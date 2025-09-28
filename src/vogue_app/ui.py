@@ -2536,6 +2536,10 @@ class PrismRightPanel(PrismStyleWidget):
         layout = QVBoxLayout(self)
         layout.setContentsMargins(5, 5, 5, 5)
         
+        # Thumbnail Preview section
+        self.setup_thumbnail_preview()
+        layout.addWidget(self.thumbnail_preview_widget)
+        
         # Asset Info section (full width since departments moved to left panel)
         self.setup_asset_info_widget()
         layout.addWidget(self.asset_info_widget)
@@ -2567,6 +2571,48 @@ class PrismRightPanel(PrismStyleWidget):
         # info_layout.addWidget(self.asset_actions_widget)
 
         info_layout.addStretch()
+
+    def setup_thumbnail_preview(self):
+        """Setup thumbnail preview widget"""
+        try:
+            from .thumbnail_preview import ThumbnailPreviewWidget
+            self.thumbnail_preview_widget = ThumbnailPreviewWidget()
+            
+            # Connect signals
+            self.thumbnail_preview_widget.thumbnail_clicked.connect(self.on_thumbnail_clicked)
+            self.thumbnail_preview_widget.thumbnail_double_clicked.connect(self.on_thumbnail_double_clicked)
+            self.thumbnail_preview_widget.generate_thumbnail_requested.connect(self.on_generate_thumbnail_requested)
+            
+        except ImportError as e:
+            # Fallback if thumbnail preview is not available
+            self.thumbnail_preview_widget = QLabel("Thumbnail Preview\n(Not Available)")
+            self.thumbnail_preview_widget.setAlignment(Qt.AlignmentFlag.AlignCenter)
+            self.thumbnail_preview_widget.setStyleSheet("color: #666; font-size: 12px;")
+    
+    def on_thumbnail_clicked(self, file_path: str):
+        """Handle thumbnail click"""
+        # This could be connected to show file details or select in tree
+        pass
+    
+    def on_thumbnail_double_clicked(self, file_path: str):
+        """Handle thumbnail double-click"""
+        # This could be connected to open file or launch DCC app
+        pass
+    
+    def on_generate_thumbnail_requested(self, file_path: str, entity_type: str, entity_name: str):
+        """Handle thumbnail generation request"""
+        # This would be connected to the main application's thumbnail generation
+        pass
+    
+    def load_thumbnails(self, thumbnails: list):
+        """Load thumbnails into the preview widget"""
+        if hasattr(self, 'thumbnail_preview_widget') and hasattr(self.thumbnail_preview_widget, 'load_thumbnails'):
+            self.thumbnail_preview_widget.load_thumbnails(thumbnails)
+    
+    def add_launch_screenshot(self, app_name: str, screenshot_path: str):
+        """Add launch screenshot to thumbnail preview"""
+        if hasattr(self, 'thumbnail_preview_widget') and hasattr(self.thumbnail_preview_widget, 'add_launch_screenshot'):
+            self.thumbnail_preview_widget.add_launch_screenshot(app_name, screenshot_path)
 
     def setup_asset_header(self):
         """Setup asset header with thumbnail and title like Ayon"""
