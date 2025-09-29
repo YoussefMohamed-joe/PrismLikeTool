@@ -1,4 +1,9 @@
 # -*- coding: utf-8 -*-
+"""
+Houdini Variables
+-----------------
+Static metadata and plugin variables for the Houdini app plugin.
+"""
 #
 ####################################################
 #

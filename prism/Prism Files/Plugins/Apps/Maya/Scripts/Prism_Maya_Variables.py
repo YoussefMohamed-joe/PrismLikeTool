@@ -1,4 +1,9 @@
 # -*- coding: utf-8 -*-
+"""
+Maya Variables
+--------------
+Static plugin metadata and variables for the Maya app plugin.
+"""
 #
 ####################################################
 #

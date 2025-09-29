@@ -1,4 +1,10 @@
 # -*- coding: utf-8 -*-
+"""
+SanityChecks module
+-------------------
+Validate environment and project state before performing operations (e.g.,
+export, publish, render) and provide user-readable diagnostics and fixes.
+"""
 #
 ####################################################
 #

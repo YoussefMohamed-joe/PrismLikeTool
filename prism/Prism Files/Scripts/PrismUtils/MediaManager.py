@@ -1,4 +1,10 @@
 # -*- coding: utf-8 -*-
+"""
+MediaManager module
+-------------------
+High-level media tasks such as thumbnails, icons, previews, and opening media
+in external players. Bridges project entities and UI widgets with media utils.
+"""
 #
 ####################################################
 #

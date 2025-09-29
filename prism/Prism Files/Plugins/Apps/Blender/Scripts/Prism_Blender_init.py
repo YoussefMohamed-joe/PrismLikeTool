@@ -1,4 +1,10 @@
 # -*- coding: utf-8 -*-
+"""
+Prism Blender App Plugin (init)
+-------------------------------
+Entry class for the Blender app plugin. Sets up plugin metadata, registers
+callbacks, and implements app-specific hooks used by Prism core and UIs.
+"""
 #
 ####################################################
 #

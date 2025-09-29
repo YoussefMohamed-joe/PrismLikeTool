@@ -1,4 +1,9 @@
 # -*- coding: utf-8 -*-
+"""
+Houdini Unloaded Init
+---------------------
+Placeholder for listing Houdini plugin in UIs when not activated.
+"""
 #
 ####################################################
 #

@@ -1,4 +1,10 @@
 # -*- coding: utf-8 -*-
+"""
+Houdini Functions
+-----------------
+App-specific scene, export, import, and renderer integrations for Houdini
+including implementation details for State Manager nodes.
+"""
 #
 ####################################################
 #

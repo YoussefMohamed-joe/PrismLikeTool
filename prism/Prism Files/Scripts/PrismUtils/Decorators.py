@@ -1,4 +1,11 @@
 # -*- coding: utf-8 -*-
+"""
+Decorators module
+-----------------
+Provides small decorators used across the codebase, such as `err_catcher` to
+wrap slot/callback functions and prevent exceptions from bubbling into the UI,
+logging errors instead.
+"""
 #
 ####################################################
 #

@@ -1,4 +1,9 @@
 # -*- coding: utf-8 -*-
+"""
+Nuke Unloaded Init
+------------------
+Placeholder for listing the Nuke plugin when not loaded.
+"""
 #
 ####################################################
 #

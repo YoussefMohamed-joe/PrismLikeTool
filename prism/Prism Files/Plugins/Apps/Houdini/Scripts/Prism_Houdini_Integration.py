@@ -1,4 +1,10 @@
 # -*- coding: utf-8 -*-
+"""
+Houdini Integration
+-------------------
+Install/uninstall the Prism pipeline integration into Houdini (menus, shelves,
+pythonrc/houdini.env edits). Called by the Integration manager via app plugin.
+"""
 #
 ####################################################
 #

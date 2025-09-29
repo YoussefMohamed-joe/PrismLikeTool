@@ -1,4 +1,10 @@
 # -*- coding: utf-8 -*-
+"""
+Blender Variables
+-----------------
+Static metadata and plugin variables required by the Prism plugin system,
+such as plugin name, supported platforms, scene formats, and UI capabilities.
+"""
 #
 ####################################################
 #

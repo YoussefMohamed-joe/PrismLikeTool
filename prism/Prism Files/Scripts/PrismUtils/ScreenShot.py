@@ -1,4 +1,10 @@
 # -*- coding: utf-8 -*-
+"""
+ScreenShot module
+-----------------
+Capture screenshots or viewport images to be attached to versions/products,
+supporting UI interactions and naming/location conventions.
+"""
 #
 ####################################################
 #

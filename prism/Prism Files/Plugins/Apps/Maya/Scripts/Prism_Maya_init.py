@@ -1,4 +1,10 @@
 # -*- coding: utf-8 -*-
+"""
+Prism Maya App Plugin (init)
+----------------------------
+Entry class for the Maya app plugin. Provides Prism integration hooks,
+metadata, and startup logic specific to Autodesk Maya.
+"""
 #
 ####################################################
 #

@@ -42,8 +42,17 @@ from qtpy.QtWidgets import *
 
 from PrismUtils.Decorators import err_catcher
 
+"""
+PathManager module
+------------------
+Centralized utilities for building and resolving project paths for scenes,
+renders, playblasts, and products. Also handles conversions between global,
+local, and custom export/render bases, and extracts version metadata.
+"""
+
 
 class PathManager(object):
+    """Resolve and convert pipeline paths and metadata for products/media."""
     def __init__(self, core):
         super(PathManager, self).__init__()
         self.core = core
@@ -61,6 +70,7 @@ class PathManager(object):
         ignoreEmpty=True,
         node=None,
     ):
+        """Compute output path for 2D renders/comps and manage render state."""
         fileName = self.core.getCurrentFileName()
         if self.core.fileInPipeline(filepath=fileName):
             fnameData = self.core.getScenefileData(fileName)
@@ -127,6 +137,7 @@ class PathManager(object):
 
     @err_catcher(name=__name__)
     def getMediaConversionOutputPath(self, context, inputpath, extension, addFramePadding=True):
+        """Return output template when converting media (playblast/render)."""
         if context.get("mediaType") == "playblasts":
             if context["type"] == "asset":
                 key = "playblastFilesAssets"
@@ -159,6 +170,7 @@ class PathManager(object):
     def getEntityPath(
         self, entity=None, step=None, category=None, reqEntity=None, location="global"
     ):
+        """Resolve path to an entity folder or department/category within it."""
         if entity.get("type") not in ["asset", "assetFolder", "shot", "sequence"]:
             return ""
 
@@ -210,6 +222,7 @@ class PathManager(object):
         user="",
         location=None,
     ):
+        """Build a scene filepath for the given entity/context fields."""
         user = user or self.core.user
         location = location or "global"
         context = entity.copy()
@@ -261,6 +274,7 @@ class PathManager(object):
 
     @err_catcher(name=__name__)
     def getCachePathData(self, cachePath, addPathData=True, validateModTime=False):
+        """Read versioninfo and path-derived metadata for a cache/product path."""
         if not cachePath:
             return {}
 
@@ -309,6 +323,7 @@ class PathManager(object):
 
     @err_catcher(name=__name__)
     def getMediaProductData(self, productPath, isFilepath=True, addPathData=True, mediaType="3drenders", validateModTime=False):
+        """Dispatch to playblast or render product metadata extraction."""
         if mediaType == "playblasts":
             return self.getPlayblastProductData(productPath, isFilepath=isFilepath, addPathData=addPathData, validateModTime=validateModTime)
         else:
@@ -316,6 +331,7 @@ class PathManager(object):
 
     @err_catcher(name=__name__)
     def getRenderProductData(self, productPath, isFilepath=True, addPathData=True, mediaType="3drenders", validateModTime=False, isVersionFolder=False):
+        """Load versioninfo and derive identifiers for a render product path."""
         productPath = os.path.normpath(productPath)
         if os.path.splitext(productPath)[1]:
             productConfig = self.core.mediaProducts.getMediaVersionInfoPathFromFilepath(productPath, mediaType=mediaType)
@@ -359,6 +375,7 @@ class PathManager(object):
 
     @err_catcher(name=__name__)
     def getPlayblastProductData(self, productPath, isFilepath=True, addPathData=True, validateModTime=False):
+        """Load versioninfo and path data for a playblast product path."""
         productPath = os.path.normpath(productPath)
         if os.path.splitext(productPath)[1]:
             productConfig = self.core.mediaProducts.getPlayblastVersionInfoPathFromFilepath(productPath)
@@ -383,6 +400,7 @@ class PathManager(object):
 
     @err_catcher(name=__name__)
     def requestPath(self, title="Select folder", startPath="", parent=None):
+        """Open a folder selection dialog when UI is available."""
         path = ""
         parent = parent or self.core.messageParent
         if self.core.uiAvailable:
@@ -403,6 +421,7 @@ class PathManager(object):
         fileFilter="All files (*.*)",
         saveDialog=True
     ):
+        """Open a file save/open dialog depending on `saveDialog`."""
         path = ""
         parent = parent or self.core.messageParent
         if self.core.uiAvailable:
@@ -415,6 +434,7 @@ class PathManager(object):
 
     @err_catcher(name=__name__)
     def convertExportPath(self, path, fromLocation, toLocation):
+        """Translate a product path between two named export base locations."""
         bases = self.getExportProductBasePaths()
         baseFrom = bases[fromLocation]
         baseTo = bases[toLocation]
@@ -430,6 +450,7 @@ class PathManager(object):
 
     @err_catcher(name=__name__)
     def addExportProductBasePath(self, location, path, configData=None):
+        """Add or update an export base path in project config."""
         exportPaths = self.getExportProductBasePaths(
             default=False, configData=configData
         )
@@ -445,6 +466,7 @@ class PathManager(object):
 
     @err_catcher(name=__name__)
     def addRenderProductBasePath(self, location, path, configData=None):
+        """Add or update a render base path in project config."""
         renderPaths = self.getRenderProductBasePaths(
             default=False, configData=configData
         )
@@ -460,6 +482,7 @@ class PathManager(object):
 
     @err_catcher(name=__name__)
     def removeExportProductBasePath(self, location, configData=None):
+        """Remove an export base path by location name."""
         exportPaths = self.getExportProductBasePaths(
             default=False, configData=configData
         )
@@ -474,6 +497,7 @@ class PathManager(object):
 
     @err_catcher(name=__name__)
     def removeRenderProductBasePath(self, location, configData=None):
+        """Remove a render base path by location name."""
         renderPaths = self.getRenderProductBasePaths(
             default=False, configData=configData
         )
@@ -488,6 +512,7 @@ class PathManager(object):
 
     @err_catcher(name=__name__)
     def getExportProductBasePaths(self, default=True, configPath=None, configData=None):
+        """Return ordered mapping of export base paths (global/local/custom)."""
         export_paths = OrderedDict([])
         if default:
             if hasattr(self.core, "projectPath"):
@@ -516,6 +541,7 @@ class PathManager(object):
 
     @err_catcher(name=__name__)
     def getRenderProductBasePaths(self, default=True, configPath=None, configData=None):
+        """Return ordered mapping of render base paths (global/local/custom)."""
         render_paths = OrderedDict([])
         if not self.core.projects.hasActiveProject():
             return render_paths
@@ -546,6 +572,7 @@ class PathManager(object):
 
     @err_catcher(name=__name__)
     def convertGlobalRenderPath(self, path, target="global"):
+        """Replace the project root in a global path with another base path."""
         path = os.path.normpath(path)
         basepaths = self.getRenderProductBasePaths()
         prjPath = os.path.normpath(self.core.projectPath)
@@ -554,6 +581,7 @@ class PathManager(object):
 
     @err_catcher(name=__name__)
     def replaceVersionInStr(self, inputStr, replacement):
+        """Replace all version tokens (e.g., v001) in a string with replacement."""
         versions = re.findall("v[0-9]{%s}" % self.core.versionPadding, inputStr)
         replacedStr = inputStr
         for version in versions:
@@ -563,6 +591,7 @@ class PathManager(object):
 
     @err_catcher(name=__name__)
     def getFrameFromFilename(self, filename):
+        """Extract frame number suffix with project frame padding from a name."""
         filename = os.path.basename(filename)
         base, ext = os.path.splitext(filename)
         match = re.search("[0-9]{%s}$" % self.core.framePadding, base)
@@ -574,6 +603,7 @@ class PathManager(object):
 
     @err_catcher(name=__name__)
     def getLocationFromPath(self, path):
+        """Return location name (global/local/custom) based on base path match."""
         if path.startswith(getattr(self.core, "projectPath", "")):
             return "global"
         elif self.core.useLocalFiles and path.startswith(self.core.localProjectPath):
@@ -599,6 +629,7 @@ class PathManager(object):
 
     @err_catcher(name=__name__)
     def getLocationPath(self, locationName):
+        """Resolve a location name to its base filesystem path."""
         if locationName == "global":
             return self.core.projectPath
         elif self.core.useLocalFiles and locationName == "local":
@@ -614,6 +645,7 @@ class PathManager(object):
 
     @err_catcher(name=__name__)
     def splitext(self, path):
+        """Like os.path.splitext but treat .bgeo.sc as a single extension."""
         if path.endswith(".bgeo.sc"):
             return [path[: -len(".bgeo.sc")], ".bgeo.sc"]
         else:
@@ -621,6 +653,7 @@ class PathManager(object):
 
     @err_catcher(name=__name__)
     def getEntityTypeFromPath(self, path):
+        """Heuristically determine entity type (asset/shot) from a path."""
         globalPath = self.core.convertPath(path, "global")
         globalPath = os.path.normpath(globalPath)
         globalPath = os.path.splitdrive(globalPath)[1]

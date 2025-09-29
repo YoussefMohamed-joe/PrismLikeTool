@@ -1,4 +1,11 @@
 # -*- coding: utf-8 -*-
+"""
+ConfigManager module
+--------------------
+Helpers to read/write Prism configuration in multiple formats (YAML/JSON/INI),
+with lightweight caching and convenience utilities for per-project and per-user
+configs. Provides `getProjectExtension`/`preferredExtension` and cache helpers.
+"""
 #
 ####################################################
 #

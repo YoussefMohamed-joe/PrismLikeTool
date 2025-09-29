@@ -1,4 +1,11 @@
 # -*- coding: utf-8 -*-
+"""
+ProjectWidgets module
+---------------------
+UI widgets focused on project-level views and operations (e.g., project
+browser panes, entity selectors, and editors). Relies on `ProjectEntities`
+and `Projects` for data.
+"""
 #
 ####################################################
 #

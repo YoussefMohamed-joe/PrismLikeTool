@@ -56,8 +56,35 @@ from qtpy.QtWidgets import *
 
 logger = logging.getLogger(__name__)
 
+"""
+PrismTray module
+----------------
+Provides a system tray icon and single-instance coordination for Prism.
+
+Key responsibilities:
+- Create and display a tray icon with context menu actions (Project Browser, Settings, open folders, restart, exit).
+- Enforce single-instance UX via a localhost Listener/Client message channel; a second invocation signals the running tray to open the Project Browser.
+- Bridge UI actions to core entry points (`core.projectBrowser()`, `core.prismSettings()`).
+
+Classes
+- PrismTray: Orchestrates the tray icon, menu, and action handlers.
+- ListenerThread: Background listener for inter-process messages (e.g., openProjectBrowser).
+- SenderThread: Lightweight connector for sending messages to an existing instance.
+
+Entrypoint behavior
+- When run as `__main__`, initializes a QApplication, checks tray availability and single-instance status, then launches the tray.
+"""
+
 
 class PrismTray:
+    """System tray controller for Prism.
+
+    Creates the tray icon and menu, wires actions to the core, and runs a
+    background listener to receive commands from secondary invocations.
+
+    Args:
+        core: Prism core object providing UI and project operations.
+    """
     def __init__(self, core):
         self.core = core
 
@@ -77,12 +104,19 @@ class PrismTray:
             )
 
     def startListener(self):
+        """Start background thread that listens for external commands."""
         self.listenerThread = ListenerThread()
         self.listenerThread.dataReceived.connect(self.onDataReceived)
         self.listenerThread.errored.connect(self.core.writeErrorLog)
         self.listenerThread.start()
 
     def onDataReceived(self, data):
+        """Handle messages from secondary processes.
+
+        Supported messages:
+        - "openProjectBrowser": Open the Project Browser window.
+        - "close": Exit the tray.
+        """
         logger.warning("received data: %s" % data)
         if data == "openProjectBrowser":
             self.startBrowser()
@@ -90,6 +124,7 @@ class PrismTray:
             self.exitTray()
 
     def createTrayIcon(self):
+        """Create tray icon and populate its context menu."""
         try:
             self.trayIconMenu = QMenu(self.core.messageParent)
             self.browserAction = QAction(
@@ -159,6 +194,7 @@ class PrismTray:
             )
 
     def iconActivated(self, reason):
+        """React to tray icon clicks (single/double/context)."""
         try:
             if reason == QSystemTrayIcon.Trigger:
                 self.browserStarted = False
@@ -194,6 +230,7 @@ class PrismTray:
         #   QMessageBox.critical(self.core.messageParent, "Unknown Error", "iconActivated - %s - %s - %s" % (str(e), exc_type, exc_tb.tb_lineno))
 
     def startBrowser(self):
+        """Open the Project Browser (debounced during launch)."""
         if self.launching:
             logger.debug("Launching in progress. Skipped opening Project Browser")
             return
@@ -243,6 +280,12 @@ class PrismTray:
             )
 
     def openFolder(self, path="", location=None):
+        """Open a folder in the OS explorer.
+
+        Args:
+            path: Absolute path override, if provided.
+            location: Named location ("Prism" or "Project") to resolve.
+        """
         if location == "Prism":
             path = self.core.prismRoot
         elif location == "Project":
@@ -260,6 +303,7 @@ class PrismTray:
         self.core.openFolder(path)
 
     def openSettings(self):
+        """Open Prism Settings dialog in-process."""
         self.core.prismSettings()
         return
 
@@ -303,6 +347,7 @@ class PrismTray:
             )
 
     def restartTray(self):
+        """Restart the tray process cleanly and exit current instance."""
         self.listenerThread.shutDown()
 
         pythonPath = self.core.getPythonPath(executable="Prism")
@@ -312,11 +357,13 @@ class PrismTray:
         sys.exit(0)
 
     def exitTray(self):
+        """Quit the tray application."""
         self.listenerThread.shutDown()
         qApp.quit()
 
 
 class ListenerThread(QThread):
+    """Local message listener for coordinating single-instance behavior."""
 
     dataReceived = Signal(object)
     errored = Signal(object)
@@ -325,6 +372,7 @@ class ListenerThread(QThread):
         super(ListenerThread, self).__init__()
 
     def run(self):
+        """Listen on localhost for simple string commands."""
         try:
             from multiprocessing.connection import Listener
 
@@ -355,6 +403,7 @@ class ListenerThread(QThread):
             self.errored.emit(traceback.format_exc())
 
     def shutDown(self):
+        """Close listener and end the thread."""
         if hasattr(self, "listener"):
             self.listener.close()
 
@@ -362,21 +411,25 @@ class ListenerThread(QThread):
 
 
 class SenderThread(QThread):
+    """Connector thread for sending commands to an existing tray instance."""
     def __init__(self, function=None):
         super(SenderThread, self).__init__()
         self.canceled = False
 
     def run(self):
+        """Connect to the listener on localhost and keep the client open."""
         from multiprocessing.connection import Client
         port = 7571
         address = ('localhost', port)
         self.conn = Client(address)
 
     def shutDown(self):
+        """Close client connection and end the thread."""
         self.conn.close()
         self.quit()
 
     def send(self, data):
+        """Send a small payload (string) to the running tray instance."""
         self.conn.send(data)
 
 

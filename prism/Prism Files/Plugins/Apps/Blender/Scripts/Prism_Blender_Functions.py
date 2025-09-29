@@ -1,4 +1,10 @@
 # -*- coding: utf-8 -*-
+"""
+Blender Functions
+-----------------
+App-specific implementations for scene IO, product export/import, playblasts,
+and UI glue for Blender. Called by Prism core and state manager nodes.
+"""
 #
 ####################################################
 #
@@ -127,6 +133,12 @@ class Prism_Blender_Functions(object):
 
     @err_catcher(name=__name__)
     def startup(self, origin):
+        """Initialize Prism within Blender session and set app styling.
+
+        On Linux, switch project based on environment or config. Ensures
+        autosave timer is started and sets a consistent window icon.
+        Returns False if Blender file context isn't ready.
+        """
         if platform.system() == "Linux":
             origin.timer.stop()
 
@@ -158,6 +170,7 @@ class Prism_Blender_Functions(object):
 
     @err_catcher(name=__name__)
     def autosaveEnabled(self, origin):
+        """Return True if Blender's autosave is enabled in preferences."""
         if bpy.app.version < (2, 80, 0):
             return bpy.context.user_preferences.filepaths.use_auto_save_temporary_files
         else:
@@ -165,11 +178,13 @@ class Prism_Blender_Functions(object):
 
     @err_catcher(name=__name__)
     def sceneOpen(self, origin):
+        """Restart autosave timer after opening a scene if needed."""
         if self.core.shouldAutosaveTimerRun():
             origin.startAutosaveTimer()
 
     @err_catcher(name=__name__)
     def getCurrentFileName(self, origin, path=True):
+        """Return current scene file path or base name if path=False."""
         currentFileName = bpy.data.filepath
 
         if not path:
@@ -179,10 +194,12 @@ class Prism_Blender_Functions(object):
 
     @err_catcher(name=__name__)
     def getSceneExtension(self, origin):
+        """Return the default Blender scene file extension (e.g., .blend)."""
         return self.sceneFormats[0]
 
     @err_catcher(name=__name__)
     def saveScene(self, origin, filepath, details={}):
+        """Save the current Blender scene to the specified filepath."""
         filepath = os.path.normpath(filepath)
         if bpy.app.version < (4, 0, 0):
             return bpy.ops.wm.save_as_mainfile(self.getOverrideContext(origin), filepath=filepath)
@@ -192,6 +209,7 @@ class Prism_Blender_Functions(object):
 
     @err_catcher(name=__name__)
     def getImportPaths(self, origin):
+        """Return list of Prism-imported scene paths stored in scene custom props."""
         if "PrismImports" not in bpy.context.scene:
             return False
         else:
@@ -199,6 +217,7 @@ class Prism_Blender_Functions(object):
 
     @err_catcher(name=__name__)
     def getFrameRange(self, origin):
+        """Return [start, end] frame range from the scene."""
         startframe = bpy.context.scene.frame_start
         endframe = bpy.context.scene.frame_end
 
@@ -206,11 +225,13 @@ class Prism_Blender_Functions(object):
 
     @err_catcher(name=__name__)
     def getCurrentFrame(self):
+        """Return current frame number from the scene."""
         currentFrame = bpy.context.scene.frame_current
         return currentFrame
 
     @err_catcher(name=__name__)
     def setFrameRange(self, origin, startFrame, endFrame):
+        """Set scene frame range and focus the dopesheet to show it."""
         bpy.context.scene.frame_start = int(startFrame)
         bpy.context.scene.frame_end = int(endFrame)
         bpy.context.scene.frame_current = int(startFrame)
@@ -227,12 +248,14 @@ class Prism_Blender_Functions(object):
 
     @err_catcher(name=__name__)
     def getFPS(self, origin):
+        """Return frames-per-second as a float (fps/fps_base)."""
         intFps = bpy.context.scene.render.fps
         baseFps = bpy.context.scene.render.fps_base
         return round(intFps / baseFps, 2)
 
     @err_catcher(name=__name__)
     def setFPS(self, origin, fps):
+        """Set scene fps, adjusting fps_base if non-integer fps requested."""
         if int(fps) == fps:
             bpy.context.scene.render.fps = int(fps)
         else:
@@ -242,12 +265,14 @@ class Prism_Blender_Functions(object):
 
     @err_catcher(name=__name__)
     def getResolution(self):
+        """Return [width, height] render resolution in pixels."""
         width = bpy.context.scene.render.resolution_x
         height = bpy.context.scene.render.resolution_y
         return [width, height]
 
     @err_catcher(name=__name__)
     def setResolution(self, width=None, height=None):
+        """Set render resolution width/height if provided."""
         if width:
             bpy.context.scene.render.resolution_x = width
         if height:
@@ -255,15 +280,18 @@ class Prism_Blender_Functions(object):
 
     @err_catcher(name=__name__)
     def getAppVersion(self, origin):
+        """Return Blender version string (e.g., '4.0')."""
         return bpy.app.version_string.split()[0]
 
     @err_catcher(name=__name__)
     def onProjectBrowserStartup(self, origin):
+        """Adjust UI colors on older Blender versions for better contrast."""
         if bpy.app.version < (2, 80, 0):
             origin.publicColor = QColor(50, 100, 170)
 
     @err_catcher(name=__name__)
     def openScene(self, origin, filepath, force=False):
+        """Open a .blend scene file and handle version compatibility warnings."""
         if not filepath.endswith(".blend"):
             return False
 
@@ -285,10 +313,12 @@ class Prism_Blender_Functions(object):
 
     @err_catcher(name=__name__)
     def onUserSettingsOpen(self, origin):
+        """Slightly enlarge the User Settings dialog for Blender."""
         origin.resize(origin.width(), origin.height() + 60)
 
     @err_catcher(name=__name__)
     def getGroups(self):
+        """Return Blender groups/collections depending on version."""
         if bpy.app.version < (2, 80, 0):
             return bpy.data.groups
         else:
@@ -296,6 +326,7 @@ class Prism_Blender_Functions(object):
 
     @err_catcher(name=__name__)
     def createGroups(self, name):
+        """Create a collection/group by name, handling API differences."""
         if bpy.app.version < (2, 80, 0):
             return bpy.ops.group.create(self.getOverrideContext(), name=name)
         else:
@@ -311,6 +342,7 @@ class Prism_Blender_Functions(object):
 
     @err_catcher(name=__name__)
     def getSelectObject(self, obj):
+        """Return selection state of an object (API-agnostic)."""
         if bpy.app.version < (2, 80, 0):
             return obj.select
         else:
@@ -318,11 +350,13 @@ class Prism_Blender_Functions(object):
 
     @err_catcher(name=__name__)
     def selectObjects(self, objs, select=True, quiet=False):
+        """Select or deselect a list of objects."""
         for obj in objs:
             self.selectObject(obj, select=select, quiet=quiet)
 
     @err_catcher(name=__name__)
     def selectObject(self, obj, select=True, quiet=False):
+        """Select an object and set active, handling view layer membership."""
         if bpy.app.version < (2, 80, 0):
             obj.select = select
             bpy.context.scene.objects.active = obj

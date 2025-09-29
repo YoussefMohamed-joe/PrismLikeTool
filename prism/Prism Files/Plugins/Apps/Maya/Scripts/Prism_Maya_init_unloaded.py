@@ -1,4 +1,9 @@
 # -*- coding: utf-8 -*-
+"""
+Maya Unloaded Init
+------------------
+Minimal placeholder object for listing the Maya plugin when not loaded.
+"""
 #
 ####################################################
 #

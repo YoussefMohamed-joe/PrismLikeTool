@@ -1,4 +1,11 @@
 # -*- coding: utf-8 -*-
+"""
+Lockfile module
+---------------
+Simple file-based locking utilities to coordinate exclusive operations
+between processes (e.g., preventing concurrent writes to config files
+or versioninfo files).
+"""
 #
 ####################################################
 #

@@ -1,4 +1,10 @@
 # -*- coding: utf-8 -*-
+"""
+Nuke Functions
+--------------
+App-specific scene IO and media operations for Nuke (Read/Write nodes,
+rendering, and integration points used by Prism tools).
+"""
 #
 ####################################################
 #

@@ -1,4 +1,10 @@
 # -*- coding: utf-8 -*-
+"""
+Blender Integration
+-------------------
+Install/uninstall logic for Prism integration into Blender (menus, scripts,
+and startup hooks). Delegated by `Integration` via the app plugin.
+"""
 #
 ####################################################
 #

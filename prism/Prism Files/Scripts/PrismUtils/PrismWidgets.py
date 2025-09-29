@@ -1,4 +1,11 @@
 # -*- coding: utf-8 -*-
+"""
+PrismWidgets module
+-------------------
+Custom PySide/PyQt widgets and UI helpers used across Prism dialogs and tools.
+Often integrates with `core` services and provides convenience signals and UI
+patterns used by Project/State/Media/Product browsers.
+"""
 #
 ####################################################
 #

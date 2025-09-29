@@ -1,4 +1,11 @@
 # -*- coding: utf-8 -*-
+"""
+ProjectEntities module
+----------------------
+Entity modeling and queries for assets, sequences, shots, and tasks. Provides
+helpers to compute identifiers, versions, and relationships used across
+project browsers and path resolution.
+"""
 #
 ####################################################
 #

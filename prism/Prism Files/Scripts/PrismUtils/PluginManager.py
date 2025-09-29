@@ -47,8 +47,22 @@ from PrismUtils.Decorators import err_catcher
 
 logger = logging.getLogger(__name__)
 
+"""
+PluginManager module
+--------------------
+Responsible for discovering, loading, unloading, and reloading Prism plugins.
+
+Concepts:
+- App plugins: DCC integrations (e.g., Maya, Blender) providing scene IO, UI hooks.
+- Custom plugins: Feature extensions that add functionality or UI.
+- Unloaded plugins: Present but not active (autoload disabled or errors).
+
+Also provides optional monkey-patching support for plugins to override core methods in a controlled way.
+"""
+
 
 class PluginManager(object):
+    """Manage plugin lifecycle and metadata resolution for Prism."""
     def __init__(self, core):
         super(PluginManager, self).__init__()
         self.core = core
@@ -57,6 +71,7 @@ class PluginManager(object):
 
     @err_catcher(name=__name__)
     def initializePlugins(self, appPlugin):
+        """Load primary app plugin and all other plugins, then start core."""
         self.core.unloadedAppPlugins = {}
         self.core.customPlugins = {}
         self.core.unloadedPlugins = {}
@@ -105,6 +120,7 @@ class PluginManager(object):
 
     @err_catcher(name=__name__)
     def getPluginDirs(self, includeDefaults=True, includeEnv=True, includeConfig=True, enabledOnly=True):
+        """Collect plugin base paths and search paths from defaults/env/config."""
         result = {"pluginPaths": [], "searchPaths": []}
         if includeDefaults:
             result["searchPaths"] = self.core.pluginDirs[:]
@@ -136,6 +152,7 @@ class PluginManager(object):
 
     @err_catcher(name=__name__)
     def setPluginPathEnabled(self, path, enabled):
+        """Enable/disable a specific plugin path in user config."""
         userPluginDirs = self.core.getConfig(config="PluginPaths") or {}
         if not userPluginDirs.get("plugins"):
             return False
@@ -152,6 +169,7 @@ class PluginManager(object):
 
     @err_catcher(name=__name__)
     def setPluginSearchPathEnabled(self, path, enabled):
+        """Enable/disable a specific plugin search path in user config."""
         userPluginDirs = self.core.getConfig(config="PluginPaths") or {}
         if not userPluginDirs.get("plugins"):
             return False
@@ -168,6 +186,7 @@ class PluginManager(object):
 
     @err_catcher(name=__name__)
     def getPluginPath(self, location="root", pluginType="", path="", pluginName=""):
+        """Resolve a plugin filesystem path for a given location/type/name."""
         if location == "root":
             pluginPath = os.path.abspath(
                 os.path.join(__file__, os.pardir, os.pardir, os.pardir, "Plugins")
@@ -196,16 +215,19 @@ class PluginManager(object):
 
     @err_catcher(name=__name__)
     def getUserPluginPath(self):
+        """Return user plugin directory near the user config file."""
         pluginPath = os.path.join(os.path.dirname(self.core.userini), "plugins")
         return pluginPath
 
     @err_catcher(name=__name__)
     def getComputerPluginPath(self):
+        """Return machine-wide plugin directory in Prism data directory."""
         pluginPath = os.path.join(self.core.getPrismDataDir(), "plugins")
         return pluginPath
 
     @err_catcher(name=__name__)
     def getDefaultPluginPath(self):
+        """Return default install target for new plugins (env/user/computer)."""
         path = os.getenv("PRISM_DEFAULT_PLUGIN_PATH")
         if not path:
             path = self.core.getConfig("globals", "defaultPluginPath", config="user")
@@ -216,6 +238,7 @@ class PluginManager(object):
 
     @err_catcher(name=__name__)
     def getFallbackPluginPath(self):
+        """Return fallback location for plugins when defaults are unavailable."""
         path = os.getenv("PRISM_FALLBACK_PLUGIN_PATH")
         if not path:
             path = self.core.getConfig("globals", "fallbackPluginPath", config="user")
@@ -226,6 +249,7 @@ class PluginManager(object):
 
     @err_catcher(name=__name__)
     def loadAppPlugin(self, pluginName, pluginPath=None, startup=False):
+        """Import and instantiate an app plugin and prepare UI parents."""
         if self.core.splashScreen:
             self.core.splashScreen.setStatus("loading appPlugin %s..." % pluginName)
 
@@ -301,6 +325,7 @@ class PluginManager(object):
         force=True,
         ignore=None
     ):
+        """Load plugins from explicit paths and/or discover in directories."""
         ignore = ignore or []
         result = []
         foundPluginPaths = []
@@ -378,6 +403,7 @@ class PluginManager(object):
         recursive=True,
         pluginNames=None,
     ):
+        """Search for plugin folders containing _init modules."""
         result = []
 
         if pluginPaths:
@@ -427,6 +453,7 @@ class PluginManager(object):
 
     @err_catcher(name=__name__)
     def activatePlugin(self, path):
+        """Activate a previously unloaded plugin by path."""
         if os.path.basename(path) == "Scripts":
             path = os.path.dirname(path)
 
@@ -439,6 +466,7 @@ class PluginManager(object):
 
     @err_catcher(name=__name__)
     def loadPlugin(self, path=None, name=None, force=True, activate=None):
+        """Load a single plugin (folder or single-file plugin)."""
         if not path:
             if name:
                 path = self.searchPluginPath(name)
@@ -629,6 +657,7 @@ class PluginManager(object):
 
     @err_catcher(name=__name__)
     def loadPluginMetaData(self, path=None):
+        """Load only plugin metadata (Variables module) without activating."""
         if os.path.basename(path) == "Scripts":
             path = os.path.dirname(path)
 
@@ -685,6 +714,7 @@ class PluginManager(object):
 
     @err_catcher(name=__name__)
     def reloadPlugins(self, plugins=None):
+        """Reload a set of plugins including the current app plugin if needed."""
         appPlug = self.core.appPlugin.pluginName
 
         pluginDicts = [
@@ -707,6 +737,7 @@ class PluginManager(object):
 
     @err_catcher(name=__name__)
     def reloadPlugin(self, pluginName):
+        """Reload a single plugin by name."""
         appPlug = pluginName == self.core.appPlugin.pluginName
         if pluginName in self.core.unloadedPlugins:
             pluginPath = self.core.unloadedPlugins[pluginName].pluginPath
@@ -723,6 +754,7 @@ class PluginManager(object):
 
     @err_catcher(name=__name__)
     def reloadCustomPlugins(self):
+        """Force-reimport all custom plugins currently loaded."""
         for i in self.core.customPlugins:
             mods = [
                 "Prism_%s_init" % i,
@@ -740,6 +772,7 @@ class PluginManager(object):
 
     @err_catcher(name=__name__)
     def unloadProjectPlugins(self):
+        """Unload plugins that originate from the current project path."""
         pluginDicts = [
             self.core.unloadedAppPlugins,
             self.core.customPlugins,
@@ -755,6 +788,7 @@ class PluginManager(object):
 
     @err_catcher(name=__name__)
     def deactivatePlugin(self, pluginName):
+        """Deactivate (unload) a plugin and mark it as unloaded."""
         plugin = self.getPlugin(pluginName)
         pluginPath = getattr(plugin, "pluginPath", "")
         self.core.unloadedPlugins[pluginName] = UnloadedPlugin(self.core, pluginName, path=pluginPath, location=plugin.location)
@@ -763,6 +797,7 @@ class PluginManager(object):
 
     @err_catcher(name=__name__)
     def getNotAutoLoadPlugins(self, configOnly=False):
+        """Return list of plugins with autoload disabled (config/env)."""
         plugins = list(self.core.getConfig("plugins", "inactive", dft=[]))
         if not configOnly:
             plugins += self.ignoreAutoLoadPlugins
@@ -772,12 +807,14 @@ class PluginManager(object):
 
     @err_catcher(name=__name__)
     def getAutoLoadPlugin(self, pluginName):
+        """Return True if plugin should autoload according to config."""
         inactives = self.getNotAutoLoadPlugins(configOnly=True)
         autoload = pluginName not in inactives
         return autoload
 
     @err_catcher(name=__name__)
     def setAutoLoadPlugin(self, pluginName, autoload):
+        """Enable/disable autoload for a plugin and persist config."""
         inactives = self.getNotAutoLoadPlugins(configOnly=True)
         if autoload:
             if pluginName in inactives:
@@ -794,6 +831,7 @@ class PluginManager(object):
 
     @err_catcher(name=__name__)
     def unloadPlugin(self, pluginName=None, plugin=None):
+        """Unload a plugin and clean up imported modules and callbacks."""
         if not plugin:
             plugin = self.getPlugin(pluginName)
         elif not pluginName:
@@ -844,6 +882,7 @@ class PluginManager(object):
 
     @err_catcher(name=__name__)
     def unloadAppPlugin(self):
+        """Reset core app plugin and close dependent windows/dialogs."""
         self.core.appPlugin = None
 
         try:
@@ -874,10 +913,12 @@ class PluginManager(object):
 
     @err_catcher(name=__name__)
     def getPluginMetaData(self):
+        """Return cached metadata objects for discovered plugins."""
         return self.core.pluginMetaData
 
     @err_catcher(name=__name__)
     def getPluginNames(self):
+        """Return sorted list of available app plugin names (loaded/unloaded)."""
         pluginNames = list(self.core.unloadedAppPlugins.keys())
         pluginNames.append(self.core.appPlugin.pluginName)
 
@@ -885,6 +926,7 @@ class PluginManager(object):
 
     @err_catcher(name=__name__)
     def getPluginNameFromPath(self, path):
+        """Extract plugin name from a path to its folder, Scripts, or single .py file."""
         base = os.path.basename(path)
         if base == "Scripts":
             base = os.path.basename(os.path.dirname(path))
@@ -895,6 +937,7 @@ class PluginManager(object):
 
     @err_catcher(name=__name__)
     def getPluginSceneFormats(self):
+        """Return list of file formats supported by loaded/unloaded app plugins."""
         pluginFormats = list(self.core.appPlugin.sceneFormats)
 
         for i in self.core.unloadedAppPlugins.values():
@@ -904,6 +947,7 @@ class PluginManager(object):
 
     @err_catcher(name=__name__)
     def getPluginData(self, pluginName, data):
+        """Fetch an attribute from a (possibly unloaded) plugin by name."""
         if pluginName == self.core.appPlugin.pluginName:
             return getattr(self.core.appPlugin, data, None)
         else:
@@ -915,6 +959,7 @@ class PluginManager(object):
 
     @err_catcher(name=__name__)
     def getPlugin(self, pluginName, allowUnloaded=False):
+        """Return plugin object by name; optionally search unloaded plugins."""
         if self.core.appPlugin and pluginName == self.core.appPlugin.pluginName:
             return self.core.appPlugin
         else:
@@ -932,21 +977,25 @@ class PluginManager(object):
 
     @err_catcher(name=__name__)
     def isPluginLoaded(self, pluginName):
+        """True if a plugin is currently loaded (app/custom)."""
         loaded = bool(self.getPlugin(pluginName))
         return loaded
 
     @err_catcher(name=__name__)
     def getUnloadedPlugins(self):
+        """Return dictionary of UnloadedPlugin objects keyed by name."""
         return self.core.unloadedPlugins
 
     @err_catcher(name=__name__)
     def getUnloadedPlugin(self, pluginName):
+        """Return UnloadedPlugin by name if present."""
         for unloadedName in self.core.unloadedPlugins:
             if unloadedName == pluginName:
                 return self.core.unloadedPlugins[unloadedName]
 
     @err_catcher(name=__name__)
     def removeUnloadedPlugin(self, pluginName):
+        """Remove unloaded marker and enable autoload for the plugin."""
         if pluginName in self.core.unloadedPlugins:
             del self.core.unloadedPlugins[pluginName]
 
@@ -954,6 +1003,7 @@ class PluginManager(object):
 
     @err_catcher(name=__name__)
     def getLoadedPlugins(self):
+        """Grouped dict of loaded plugins: {"App": {...}, "Custom": {...}}."""
         appPlugs = {}
         if self.core.appPlugin:
             appPlugs[self.core.appPlugin.pluginName] = self.core.appPlugin
@@ -967,12 +1017,14 @@ class PluginManager(object):
 
     @err_catcher(name=__name__)
     def getPlugins(self):
+        """Like getLoadedPlugins but also includes inactive (unloaded)."""
         plugins = self.getLoadedPlugins()
         plugins["inactive"] = self.getUnloadedPlugins()
         return plugins
 
     @err_catcher(name=__name__)
     def registerRenderfarmPlugin(self, plugin):
+        """Add a renderfarm plugin to the registry (if not already present)."""
         if not plugin or plugin in self.renderfarmPlugins:
             return False
 
@@ -981,6 +1033,7 @@ class PluginManager(object):
 
     @err_catcher(name=__name__)
     def unregisterRenderfarmPlugin(self, plugin):
+        """Remove a renderfarm plugin from the registry."""
         if not plugin or plugin not in self.renderfarmPlugins:
             return False
 
@@ -989,10 +1042,12 @@ class PluginManager(object):
 
     @err_catcher(name=__name__)
     def getRenderfarmPlugins(self):
+        """Return list of registered renderfarm plugin instances."""
         return self.renderfarmPlugins
 
     @err_catcher(name=__name__)
     def getRenderfarmPlugin(self, name):
+        """Return a renderfarm plugin by name if registered."""
         plugins = [p for p in self.renderfarmPlugins if p.pluginName == name]
         if not plugins:
             return
@@ -1001,6 +1056,7 @@ class PluginManager(object):
 
     @err_catcher(name=__name__)
     def createPlugin(self, pluginName, pluginType, location="root", path=""):
+        """Create a plugin from the `PluginEmpty` template and open its folder."""
         presetPath = self.getPluginPath("root", pluginType)
         presetPath = os.path.join(presetPath, "PluginEmpty")
 
@@ -1037,6 +1093,7 @@ class PluginManager(object):
 
     @err_catcher(name=__name__)
     def addToPluginConfig(self, pluginPath=None, searchPath=None, idx=0):
+        """Add plugin or search path to user config at a specific index."""
         if pluginPath:
             pluginPath = os.path.normpath(pluginPath)
 
@@ -1070,6 +1127,7 @@ class PluginManager(object):
 
     @err_catcher(name=__name__)
     def removeFromPluginConfig(self, pluginPaths=None, searchPaths=None):
+        """Remove plugin/search paths from user config; return True if changed."""
         if pluginPaths:
             pluginPaths = [os.path.normpath(pluginPath) for pluginPath in pluginPaths]
 
@@ -1110,6 +1168,7 @@ class PluginManager(object):
 
     @err_catcher(name=__name__)
     def canPluginBeFound(self, pluginPath):
+        """Check if a plugin path is discoverable by enabled paths in config."""
         pluginPath = os.path.normpath(pluginPath)
         userPluginConfig = self.core.getConfig(config="PluginPaths") or {}
         if "plugins" in userPluginConfig:
@@ -1127,6 +1186,7 @@ class PluginManager(object):
 
     @err_catcher(name=__name__)
     def searchPluginPath(self, pluginName):
+        """Find full path to a plugin by name across config and defaults."""
         userPluginConfig = self.core.getConfig(config="PluginPaths") or {}
         if "plugins" in userPluginConfig:
             for path in userPluginConfig["plugins"]:
@@ -1160,6 +1220,7 @@ class PluginManager(object):
 
     @err_catcher(name=__name__)
     def getFunctionInfo(self, function):
+        """Return a stable identifier and owner class/module for a function."""
         functionId = "%s.%s" % (function.__module__, function.__name__)
         if sys.version[0] == "3":
             if hasattr(function, "__self__"):
@@ -1182,6 +1243,7 @@ class PluginManager(object):
 
     @err_catcher(name=__name__)
     def monkeyPatch(self, orig, new, plugin, quiet=False, force=False):
+        """Replace a function implementation while keeping an undo record."""
         functionInfo = self.getFunctionInfo(orig)
         functionId = functionInfo["id"]
         origClass = functionInfo["class"]
@@ -1213,6 +1275,7 @@ class PluginManager(object):
 
     @err_catcher(name=__name__)
     def unmonkeyPatchFunction(self, functionData):
+        """Restore an original function previously monkey-patched."""
         if sys.version[0] == "3":
             if hasattr(functionData["orig"], "__self__"):
                 origClass = functionData["orig"].__self__
@@ -1229,6 +1292,7 @@ class PluginManager(object):
 
     @err_catcher(name=__name__)
     def unmonkeyPatchPluginFunctions(self, plugin):
+        """Remove all patches introduced by a specific plugin."""
         funcs = []
         for func in self.monkeyPatchedFunctions:
             if self.monkeyPatchedFunctions[func]["plugin"] == plugin:
@@ -1239,6 +1303,7 @@ class PluginManager(object):
 
     @err_catcher(name=__name__)
     def isFunctionMonkeyPatched(self, function, plugin=None):
+        """Return True if function is currently patched (optionally by plugin)."""
         patch = self.getFunctionPatch(function)
         if not patch:
             return False
@@ -1253,6 +1318,7 @@ class PluginManager(object):
 
     @err_catcher(name=__name__)
     def getFunctionPatch(self, function, preferredPatchers=None):
+        """Return patch metadata for a function; prefer specific patchers if provided."""
         patches = []
         for f in self.monkeyPatchedFunctions.values():
             if f["new"] == function:
@@ -1273,6 +1339,7 @@ class PluginManager(object):
 
     @err_catcher(name=__name__)
     def callUnpatchedFunction(self, function, *args, **kwargs):
+        """Invoke the original implementation of a patched function."""
         patch = self.getFunctionPatch(function, preferredPatchers=kwargs.get("preferredPatchers"))
         if patch:
             if "preferredPatchers" in kwargs:
@@ -1287,6 +1354,7 @@ class PluginManager(object):
 
     @err_catcher(name=__name__)
     def installHub(self):
+        """Install Hub-related plugins by downloading and extracting zips."""
         updates = []
         self.installHubMsg = self.core.waitPopup(
             self.core, "Installing Hub - please wait..\n\n\n"
@@ -1315,6 +1383,7 @@ class PluginManager(object):
 
     @err_catcher(name=__name__)
     def downloadPlugin(self, plugin):
+        """Request download URL from Prism service and fetch plugin archive."""
         path = self.getDefaultPluginPath()
         data = {
             "key": plugin,
@@ -1370,6 +1439,7 @@ class PluginManager(object):
             return zippath
 
     def updatePlugins(self, pluginUpdates):
+        """Extract downloaded plugin archives and trigger post-install steps."""
         import importlib
         pluginNames = []
         basePath = ""
@@ -1392,6 +1462,7 @@ class PluginManager(object):
 
     @err_catcher(name=__name__)
     def removePlugin(self, pluginPath):
+        """Try to remove plugin folder; on failure, move to .delete for later."""
         bkpPath = self.backupPlugin(pluginPath)
         while os.path.exists(pluginPath):
             try:
@@ -1454,6 +1525,7 @@ class PluginManager(object):
 
     @err_catcher(name=__name__)
     def getNonExistentPath(self, path):
+        """Generate a non-conflicting path by appending incremental suffix."""
         newPath = path
         while os.path.exists(newPath):
             num = newPath.rsplit("_", 1)[-1]
@@ -1470,6 +1542,7 @@ class PluginManager(object):
 
     @err_catcher(name=__name__)
     def backupPlugin(self, pluginPath):
+        """Copy plugin folder to a .backup location prior to removal."""
         bkpPath = os.path.join(os.path.dirname(pluginPath), ".backup", os.path.basename(pluginPath))
         bkpPath = self.getNonExistentPath(bkpPath)
         bkpPathSub = os.path.join(bkpPath, os.path.basename(pluginPath))
@@ -1479,6 +1552,7 @@ class PluginManager(object):
 
     @err_catcher(name=__name__)
     def clearPluginBackup(self, backupPath):
+        """Delete backup folder tree (best-effort)."""
         try:
             shutil.rmtree(backupPath)
         except Exception as e:
@@ -1486,6 +1560,7 @@ class PluginManager(object):
 
     @err_catcher(name=__name__)
     def restorePluginFromBackup(self, backupPath):
+        """Copy files/folders back from backup to original location."""
         if not backupPath or not os.path.exists(backupPath):
             return
 
@@ -1513,6 +1588,7 @@ class PluginManager(object):
 
     @err_catcher(name=__name__)
     def postInstallPlugins(self, plugins, basepath, load=True):
+        """After installing plugins, ensure discoverability and offer integrations."""
         for pluginName in plugins:
             pluginPath = os.path.join(basepath, pluginName)
             if not self.core.plugins.canPluginBeFound(pluginPath):
@@ -1544,6 +1620,7 @@ class PluginManager(object):
 
     @err_catcher(name=__name__)
     def setupIntegrations(self, plugin):
+        """Open the installer to set up DCC integrations for a plugin."""
         installer = self.core.getInstaller([plugin])
         installer.installShortcuts = False
         installer.exec_()

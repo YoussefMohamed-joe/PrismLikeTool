@@ -1,4 +1,10 @@
 # -*- coding: utf-8 -*-
+"""
+Blender Unloaded Init
+---------------------
+Lightweight placeholder used when the Blender plugin is discovered but not
+activated. Exposes minimal metadata for UI lists without loading the plugin.
+"""
 #
 ####################################################
 #

@@ -44,6 +44,19 @@ from qtpy.QtWidgets import *
 
 from PrismUtils.Decorators import err_catcher
 
+"""
+Callbacks module
+----------------
+Registers and dispatches Prism-wide callback hooks that plugins and core
+components can use to react to lifecycle events (startup, settings open,
+tray actions, project changes, etc.).
+
+Typical pattern:
+- register(plugin, name, function)
+- unregisterPluginCallbacks(plugin)
+- callback(name, args=[...])
+"""
+
 
 logger = logging.getLogger(__name__)
 

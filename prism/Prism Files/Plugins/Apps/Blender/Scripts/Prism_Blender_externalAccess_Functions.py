@@ -1,4 +1,10 @@
 # -*- coding: utf-8 -*-
+"""
+Blender External Access Functions
+---------------------------------
+Optional API points to drive Prism operations from external tools or scripts
+when Blender hosts the session (e.g., remote triggering of exports).
+"""
 #
 ####################################################
 #

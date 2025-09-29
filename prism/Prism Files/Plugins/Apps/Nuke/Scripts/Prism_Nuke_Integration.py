@@ -1,4 +1,10 @@
 # -*- coding: utf-8 -*-
+"""
+Nuke Integration
+----------------
+Install menu items, Python init/menu scripts, and hooks to integrate Prism
+into Nuke, driven by the Integration manager via the app plugin.
+"""
 #
 ####################################################
 #

@@ -40,8 +40,19 @@ from qtpy.QtWidgets import *
 
 from PrismUtils.Decorators import err_catcher
 
+"""
+Integration module
+------------------
+Persist and manage paths where DCC integrations have been installed.
+
+Uses a YAML file in the user preferences directory to store a map of
+{ appName: [installPaths...] }, and delegates per-app install/uninstall
+steps to the corresponding app plugin.
+"""
+
 
 class Ingegration(object):
+    """Manage DCC integration install/uninstall bookkeeping."""
     def __init__(self, core):
         self.core = core
         prefDir = self.core.getUserPrefDir()
@@ -50,6 +61,7 @@ class Ingegration(object):
 
     @err_catcher(name=__name__)
     def removeIntegrationData(self, content=None, filepath=None, deleteEmpty=True, searchStrings=None):
+        """Strip Prism integration markers from a file, optionally delete if empty."""
         if isinstance(filepath, list):
             for f in filepath:
                 result = self._removeIntegrationData(content=content, filepath=f, deleteEmpty=deleteEmpty, searchStrings=searchStrings)
@@ -59,6 +71,7 @@ class Ingegration(object):
 
     @err_catcher(name=__name__)
     def _removeIntegrationData(self, content=None, filepath=None, deleteEmpty=True, searchStrings=None):
+        """Internal helper to remove integration blocks from a text file."""
         if content is None:
             if not os.path.exists(filepath):
                 return True
@@ -96,11 +109,13 @@ class Ingegration(object):
 
     @err_catcher(name=__name__)
     def getIntegrations(self):
+        """Return dict mapping app name to a list of install paths."""
         integrations = self.core.readYaml(path=self.installLocPath) or {}
         return integrations
 
     @err_catcher(name=__name__)
     def convertDeprecatedConfig(self):
+        """Migrate old INI-based install config to YAML format (idempotent)."""
         installConfigPath = os.path.splitext(self.installLocPath)[0] + ".ini"
 
         if not os.path.exists(installConfigPath):
@@ -127,24 +142,28 @@ class Ingegration(object):
 
     @err_catcher(name=__name__)
     def refreshAllIntegrations(self):
+        """Remove and re-add all integrations from stored paths."""
         intr = self.getIntegrations()
         self.removeIntegrations(intr)
         self.addIntegrations(intr)
 
     @err_catcher(name=__name__)
     def addAllIntegrations(self):
+        """Run installer to add integrations for all supported apps."""
         installer = self.core.getInstaller()
         installer.installShortcuts = False 
         installer.install(successPopup=False)
 
     @err_catcher(name=__name__)
     def addIntegrations(self, integrations, quiet=True):
+        """Add integrations for all entries in the provided mapping."""
         for app in integrations:
             for path in integrations[app]:
                 self.addIntegration(app, path, quiet=quiet)
 
     @err_catcher(name=__name__)
     def addIntegration(self, app, path=None, quiet=False):
+        """Add one integration path for a specific app and persist it."""
         if not path:
             path = self.requestIntegrationPath(app)
 
@@ -175,6 +194,7 @@ class Ingegration(object):
 
     @err_catcher(name=__name__)
     def requestIntegrationPath(self, app):
+        """Prompt user to select an integration folder for the app."""
         path = ""
         if self.core.uiAvailable:
             path = QFileDialog.getExistingDirectory(
@@ -187,11 +207,13 @@ class Ingegration(object):
 
     @err_catcher(name=__name__)
     def removeAllIntegrations(self):
+        """Remove all registered integrations for all apps."""
         intr = self.getIntegrations()
         return self.removeIntegrations(intr)
 
     @err_catcher(name=__name__)
     def removeIntegrations(self, integrations, quiet=True):
+        """Remove integrations for all entries in the provided mapping."""
         result = {}
         for app in integrations:
             for path in integrations[app]:
@@ -201,6 +223,7 @@ class Ingegration(object):
 
     @err_catcher(name=__name__)
     def removeIntegration(self, app, path, quiet=False):
+        """Remove one integration path for an app and update persisted map."""
         plugin = self.core.getPlugin(app)
         if not plugin:
             return

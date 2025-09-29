@@ -1,4 +1,10 @@
 # -*- coding: utf-8 -*-
+"""
+Users module
+------------
+User identity and preference helpers: current username, abbreviation, read-only
+status, environment refresh, and user-scoped configuration lookups.
+"""
 #
 ####################################################
 #

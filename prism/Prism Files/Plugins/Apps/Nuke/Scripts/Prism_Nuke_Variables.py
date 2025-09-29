@@ -1,4 +1,9 @@
 # -*- coding: utf-8 -*-
+"""
+Nuke Variables
+--------------
+Static plugin metadata and variables for the Nuke app plugin.
+"""
 #
 ####################################################
 #

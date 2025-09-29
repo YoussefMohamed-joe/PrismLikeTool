@@ -1,4 +1,10 @@
 # -*- coding: utf-8 -*-
+"""
+Prism Nuke App Plugin (init)
+----------------------------
+Entry class for the Nuke app plugin. Defines metadata and integration hooks
+for The Foundry Nuke within Prism.
+"""
 #
 ####################################################
 #

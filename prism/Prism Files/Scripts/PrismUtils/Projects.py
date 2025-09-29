@@ -1,4 +1,11 @@
 # -*- coding: utf-8 -*-
+"""
+Projects module
+---------------
+Project lifecycle and structure handling: creating/opening projects, resolving
+structure templates, reading/writing project config, and utility methods to
+interact with project paths (assets, shots, departments, products).
+"""
 #
 ####################################################
 #

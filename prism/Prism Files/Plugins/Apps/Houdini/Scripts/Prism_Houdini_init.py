@@ -1,4 +1,10 @@
 # -*- coding: utf-8 -*-
+"""
+Prism Houdini App Plugin (init)
+-------------------------------
+Entry class for the Houdini app plugin. Defines plugin metadata, registers
+callbacks, and provides Houdini-specific logic used by Prism.
+"""
 #
 ####################################################
 #

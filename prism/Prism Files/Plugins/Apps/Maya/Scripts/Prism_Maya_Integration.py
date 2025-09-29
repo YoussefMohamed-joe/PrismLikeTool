@@ -1,4 +1,10 @@
 # -*- coding: utf-8 -*-
+"""
+Maya Integration
+----------------
+Install menu/shelf scripts and startup hooks to integrate Prism into Maya.
+Invoked via the Integration manager through the app plugin.
+"""
 #
 ####################################################
 #

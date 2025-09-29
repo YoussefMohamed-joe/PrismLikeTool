@@ -1,4 +1,10 @@
 # -*- coding: utf-8 -*-
+"""
+Maya Functions
+--------------
+Scene IO, export/import, playblast, and UI glue implementation for Maya.
+Used by Prism core and the State Manager to perform DCC operations.
+"""
 #
 ####################################################
 #
@@ -81,6 +87,12 @@ class Prism_Maya_Functions(object):
 
     @err_catcher(name=__name__)
     def startup(self, origin):
+        """Initialize Prism in Maya UI session and register handlers.
+
+        Sets the Qt parent to Maya's main window, creates the Prism menu,
+        starts autosave timer, loads required plugins, and hooks scene open.
+        Returns False early if UI isn't ready yet on startup.
+        """
         if self.core.uiAvailable:
             if QApplication.instance() is None:
                 return False
@@ -131,6 +143,7 @@ class Prism_Maya_Functions(object):
 
     @err_catcher(name=__name__)
     def addMenu(self):
+        """Create the Prism menu in Maya's main window with common actions."""
         if cmds.about(batch=True):
             return
 
@@ -179,10 +192,12 @@ class Prism_Maya_Functions(object):
 
     @err_catcher(name=__name__)
     def autosaveEnabled(self, origin):
+        """Return True if Maya's built-in autosave is enabled."""
         return cmds.autoSave(q=True, enable=True)
 
     @err_catcher(name=__name__)
     def onProjectChanged(self, origin):
+        """Respond to Prism project changes by updating Maya project/env paths."""
         if self.core.getConfig("maya", "setMayaProject", dft=False):
             self.setMayaProject(self.core.projectPath)
 
@@ -191,6 +206,11 @@ class Prism_Maya_Functions(object):
 
     @err_catcher(name=__name__)
     def addProjectPaths(self):
+        """Add project-specific plugin/script/preset/shelf/icon paths to Maya.
+
+        Ensures folders exist, updates environment variables, loads shelves,
+        and appends the project script path to sys.path.
+        """
         mayaModPath = os.path.join(
             self.core.projects.getPipelineFolder(), "CustomModules", "Maya"
         )
@@ -238,6 +258,7 @@ class Prism_Maya_Functions(object):
 
     @err_catcher(name=__name__)
     def onShelfClickedImport(self):
+        """Shelf button handler: create and select an ImportFile state."""
         sm = self.core.getStateManager()
         state = sm.createState(
             "ImportFile",
@@ -249,6 +270,7 @@ class Prism_Maya_Functions(object):
 
     @err_catcher(name=__name__)
     def onShelfClickedExport(self, doubleclick=False):
+        """Shelf button: open Export dialog or auto-submit on double click."""
         sm = self.core.getStateManager()
         if not sm:
             return
@@ -286,6 +308,7 @@ class Prism_Maya_Functions(object):
 
     @err_catcher(name=__name__)
     def onShelfClickedPlayblast(self, doubleclick=False):
+        """Shelf button: open Playblast dialog or auto-submit on double click."""
         sm = self.core.getStateManager()
         if not sm:
             return
@@ -321,6 +344,7 @@ class Prism_Maya_Functions(object):
 
     @err_catcher(name=__name__)
     def onShelfClickedRender(self, doubleclick=False):
+        """Shelf button: open ImageRender dialog or auto-submit on double click."""
         sm = self.core.getStateManager()
         if not sm:
             return
@@ -356,6 +380,7 @@ class Prism_Maya_Functions(object):
 
     @err_catcher(name=__name__)
     def getDftStateParent(self, create=True):
+        """Find or create the 'Default States' folder in Export list."""
         sm = self.core.getStateManager()
         if not sm:
             return
@@ -381,6 +406,7 @@ class Prism_Maya_Functions(object):
 
     @err_catcher(name=__name__)
     def setMayaProject(self, path=None, default=False):
+        """Set Maya's current project directory to the given path or default."""
         if default:
             base = QDir.homePath()
             if platform.system() == "Windows":

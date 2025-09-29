@@ -55,8 +55,26 @@ from UserInterfacesPrism import UserSettings_ui
 
 logger = logging.getLogger(__name__)
 
+"""
+PrismSettings module
+--------------------
+Provides dialogs for user and project settings and a plugin management UI.
+
+Key responsibilities:
+- `PrismSettings` dialog: wraps tabs for user and project settings, applies/saves changes, and coordinates callbacks.
+- `UserSettings` dialog: user preferences, local paths, media player, UI stylesheets; manage plugins (load/unload/reload, autoload); manage DCC integrations.
+- Supporting dialogs: `CreatePluginDialog`, `AddProductPathDialog`, `EnvironmentWidget`, `ManagePluginPaths` for specialized tasks.
+
+Most interactions delegate to `core` services (projects, plugins, integration, media, users, paths).
+"""
+
 
 class PrismSettings(QDialog):
+    """Top-level Settings dialog that hosts User and Project tabs.
+
+    Args:
+        core: Prism core object used to query and persist configuration.
+    """
     def __init__(self, core):
         QDialog.__init__(self)
         self.core = core
@@ -77,6 +95,7 @@ class PrismSettings(QDialog):
 
     @err_catcher(name=__name__)
     def loadUI(self):
+        """Build the dialog UI and add settings tabs."""
         self.setWindowTitle("Prism Settings")
         self.tbw_settings = QTabWidget()
         self.tbw_settings.currentChanged.connect(self.tabChanged)
@@ -110,14 +129,17 @@ class PrismSettings(QDialog):
 
     @err_catcher(name=__name__)
     def saveSettings(self):
+        """Persist current tab settings to disk via the active tab widget."""
         self.tbw_settings.currentWidget().saveSettings()
 
     @err_catcher(name=__name__)
     def applySettings(self):
+        """Apply changes without closing the dialog."""
         self.tbw_settings.currentWidget().saveSettings(changeProject=False)
 
     @err_catcher(name=__name__)
     def addTab(self, name, widget, position=-1, icon=None):
+        """Insert a new tab widget into the settings view."""
         widget.setProperty("tabType", name)
         idx = self.tbw_settings.insertTab(position, widget, name)
         if icon:
@@ -127,10 +149,12 @@ class PrismSettings(QDialog):
 
     @err_catcher(name=__name__)
     def getCurrentSettingsType(self):
+        """Return the label of the current tab (e.g., "User", "Project")."""
         return self.tbw_settings.tabText(self.tbw_settings.currentIndex())
 
     @err_catcher(name=__name__)
     def getCurrentCategory(self):
+        """Return the current category name used by `UserSettings` sidebar."""
         return self.tbw_settings.currentWidget().getCurrentCategory()
 
     def sizeHint(self):
@@ -138,6 +162,7 @@ class PrismSettings(QDialog):
     
     @err_catcher(name=__name__)
     def getTabByName(self, tab):
+        """Find a tab widget by its displayed name."""
         for idx in range(self.tbw_settings.count()):
             name = self.tbw_settings.tabText(idx)
             if name == tab:
@@ -145,6 +170,7 @@ class PrismSettings(QDialog):
 
     @err_catcher(name=__name__)
     def navigate(self, data):
+        """Programmatically navigate to a tab and category."""
         if data.get("settingsType"):
             for idx in range(self.tbw_settings.count()):
                 if self.tbw_settings.tabText(idx) == data["settingsType"]:
@@ -158,12 +184,18 @@ class PrismSettings(QDialog):
 
     @err_catcher(name=__name__)
     def tabChanged(self, idx=None):
+        """Track activation of tabs to avoid heavy re-init."""
         curTab = self.tbw_settings.currentWidget()
         if curTab not in self.activeTabs:
             self.activeTabs.append(curTab)
 
 
 class UserSettings(QDialog, UserSettings_ui.Ui_dlg_UserSettings):
+    """User preference dialog and plugin/integration manager.
+
+    Handles username, local paths, media player, UI theme, environment vars,
+    plugin load/unload/autoload/search paths, and DCC integrations.
+    """
     def __init__(self, core):
         QDialog.__init__(self)
         self.setupUi(self)
@@ -202,6 +234,7 @@ class UserSettings(QDialog, UserSettings_ui.Ui_dlg_UserSettings):
 
     @err_catcher(name=__name__)
     def loadUI(self):
+        """Construct dynamic UI sections for integrations and plugins."""
         tabBar = self.tw_settings.findChild(QTabBar)
         tabBar.hide()
         self.tw_settings.currentChanged.connect(self.tabChanged)
@@ -562,6 +595,7 @@ class UserSettings(QDialog, UserSettings_ui.Ui_dlg_UserSettings):
 
     @err_catcher(name=__name__)
     def connectEvents(self):
+        """Wire up UI signals to their handlers."""
         self.e_username.textChanged.connect(lambda x: self.validate(self.e_username, x))
         self.e_abbreviation.textChanged.connect(
             lambda x: self.validate(self.e_abbreviation, x)
@@ -616,6 +650,7 @@ class UserSettings(QDialog, UserSettings_ui.Ui_dlg_UserSettings):
 
     @err_catcher(name=__name__)
     def validate(self, uiWidget, origText=None):
+        """Validate text fields and compute user abbreviation from name."""
         self.core.validateLineEdit(uiWidget, allowChars=[" "])
 
         if uiWidget != self.e_abbreviation:
@@ -626,6 +661,7 @@ class UserSettings(QDialog, UserSettings_ui.Ui_dlg_UserSettings):
 
     @err_catcher(name=__name__)
     def browse(self, bType="", getFile=False, windowTitle=None, uiEdit=None):
+        """Generic file/folder picker for various settings fields."""
         if bType == "local":
             windowTitle = "Select local project path"
             uiEdit = self.e_localPath
@@ -658,11 +694,13 @@ class UserSettings(QDialog, UserSettings_ui.Ui_dlg_UserSettings):
 
     @err_catcher(name=__name__)
     def orToggled(self, prog, state):
+        """Toggle executable override UI for a given plugin."""
         self.exOverridePlugins[prog]["le"].setEnabled(state)
         self.exOverridePlugins[prog]["b"].setEnabled(state)
 
     @err_catcher(name=__name__)
     def rclPluginList(self, pos=None):
+        """Right-click menu for plugin table (reload/load/unload/open)."""
         selPlugs = []
         for i in self.tw_plugins.selectedItems():
             if i.row() not in selPlugs:
@@ -694,6 +732,7 @@ class UserSettings(QDialog, UserSettings_ui.Ui_dlg_UserSettings):
 
     @err_catcher(name=__name__)
     def rclLoadPlugin(self, pos=None):
+        """Right-click menu on Load Plugin button to add a searchpath."""
         menu = QMenu(self)
         act_addPath = menu.addAction(
             "Add plugin searchpath...", self.addPluginSearchpath
@@ -702,12 +741,14 @@ class UserSettings(QDialog, UserSettings_ui.Ui_dlg_UserSettings):
 
     @err_catcher(name=__name__)
     def integrationAdd(self, prog):
+        """Add an integration install path for a DCC plugin."""
         result = self.core.integration.addIntegration(prog)
         if result:
             self.refreshIntegrations()
 
     @err_catcher(name=__name__)
     def integrationRemove(self, prog):
+        """Remove selected integration path for a DCC plugin."""
         items = self.integrationPlugins[prog]["lw"].selectedItems()
         if len(items) == 0:
             return
@@ -720,6 +761,7 @@ class UserSettings(QDialog, UserSettings_ui.Ui_dlg_UserSettings):
 
     @err_catcher(name=__name__)
     def rclEnvironment(self, pos):
+        """Context menu for environment variables table."""
         rcmenu = QMenu(self)
 
         exp = QAction("Add row", self)
@@ -740,6 +782,7 @@ class UserSettings(QDialog, UserSettings_ui.Ui_dlg_UserSettings):
 
     @err_catcher(name=__name__)
     def addEnvironmentRow(self):
+        """Append an editable key/value environment variable row."""
         count = self.tw_environment.rowCount()
         self.tw_environment.insertRow(count)
         item = QTableWidgetItem("< doubleclick to edit >")
@@ -749,10 +792,12 @@ class UserSettings(QDialog, UserSettings_ui.Ui_dlg_UserSettings):
 
     @err_catcher(name=__name__)
     def removeEnvironmentRow(self, idx):
+        """Delete an environment variable row by index."""
         self.tw_environment.removeRow(idx)
 
     @err_catcher(name=__name__)
     def makePersistent(self, idx):
+        """Persist an env var to the OS user profile (Windows setx)."""
         dft = "< doubleclick to edit >"
         key = self.tw_environment.item(idx, 0).text()
         if not key or key == dft:
@@ -778,16 +823,25 @@ class UserSettings(QDialog, UserSettings_ui.Ui_dlg_UserSettings):
 
     @err_catcher(name=__name__)
     def showEnvironment(self):
+        """Open read-only dialog showing current process environment."""
         self.w_env = EnvironmentWidget(self)
         self.w_env.show()
 
     @err_catcher(name=__name__)
     def changeProject(self):
+        """Open project selector and close settings."""
         self.core.projects.setProject()
         self.close()
 
     @err_catcher(name=__name__)
     def saveSettings(self, changeProject=True, configPath=None, export=False):
+        """Collect and persist user settings into config files.
+
+        Args:
+            changeProject: if True, may trigger project-wide changes (autosave, tray startup).
+            configPath: alternate path when exporting/importing settings.
+            export: if True, does not apply side effects (like restarting timers).
+        """
         if configPath is None:
             configPath = self.core.userini
 
@@ -865,10 +919,12 @@ class UserSettings(QDialog, UserSettings_ui.Ui_dlg_UserSettings):
 
     @err_catcher(name=__name__)
     def onTrayChanged(self, state):
+        """Mark that tray startup checkbox changed and needs applying."""
         self.trayChanged = True
 
     @err_catcher(name=__name__)
     def loadSettings(self, configPath=None):
+        """Load settings from config and populate UI widgets."""
         if configPath is None:
             configPath = self.core.userini
 
@@ -1044,6 +1100,7 @@ class UserSettings(QDialog, UserSettings_ui.Ui_dlg_UserSettings):
 
     @err_catcher(name=__name__)
     def keyPressedDialog(self, event):
+        """Prevent dialog accept on Return key while editing fields."""
         if event.key() == Qt.Key_Return:
             self.setFocus()
         else:
@@ -1053,6 +1110,7 @@ class UserSettings(QDialog, UserSettings_ui.Ui_dlg_UserSettings):
 
     @err_catcher(name=__name__)
     def getEnvironmentVariables(self):
+        """Read non-empty env var rows into a dict."""
         variables = {}
         dft = "< doubleclick to edit >"
         for idx in range(self.tw_environment.rowCount()):
@@ -1070,6 +1128,7 @@ class UserSettings(QDialog, UserSettings_ui.Ui_dlg_UserSettings):
 
     @err_catcher(name=__name__)
     def loadEnvironmant(self, variables):
+        """Populate environment table from a dict."""
         self.tw_environment.setRowCount(0)
         for idx, key in enumerate(sorted(variables)):
             self.tw_environment.insertRow(idx)
@@ -1082,6 +1141,7 @@ class UserSettings(QDialog, UserSettings_ui.Ui_dlg_UserSettings):
 
     @err_catcher(name=__name__)
     def contextMenuIntegration(self, pos, listwidget):
+        """Context menu for integration list (open/copy path)."""
         item = listwidget.itemFromIndex(listwidget.indexAt(pos))
         if not item:
             return
@@ -1101,6 +1161,7 @@ class UserSettings(QDialog, UserSettings_ui.Ui_dlg_UserSettings):
 
     @err_catcher(name=__name__)
     def refreshIntegrations(self):
+        """Refresh displayed integration paths from config."""
         integrations = self.core.integration.getIntegrations()
 
         for app in self.integrationPlugins:
@@ -1118,6 +1179,7 @@ class UserSettings(QDialog, UserSettings_ui.Ui_dlg_UserSettings):
 
     @err_catcher(name=__name__)
     def refreshPlugins(self):
+        """Refresh the plugin list table with loaded/inactive plugins."""
         self.tw_plugins.setRowCount(0)
         self.tw_plugins.setSortingEnabled(False)
         plugins = self.core.plugins.getPlugins()
@@ -1177,6 +1239,7 @@ class UserSettings(QDialog, UserSettings_ui.Ui_dlg_UserSettings):
 
     @err_catcher(name=__name__)
     def loadPlugins(self, plugins=None, selected=False, unload=False):
+        """Load/unload selected plugins and refresh UI/state as needed."""
         if plugins is None and selected:
             plugins = []
             for i in self.tw_plugins.selectedItems():
@@ -1222,11 +1285,13 @@ class UserSettings(QDialog, UserSettings_ui.Ui_dlg_UserSettings):
 
     @err_catcher(name=__name__)
     def managePluginsDlg(self, state=None):
+        """Open the Manage Plugin Paths dialog."""
         self.dlg_managePluginPaths = ManagePluginPaths(self)
         self.dlg_managePluginPaths.show()        
 
     @err_catcher(name=__name__)
     def loadExternalPlugin(self):
+        """Load a plugin from a selected directory and add to config."""
         startPath = getattr(
             self, "externalPluginStartPath", None
         ) or self.core.plugins.getPluginPath(location="root")
@@ -1259,6 +1324,7 @@ class UserSettings(QDialog, UserSettings_ui.Ui_dlg_UserSettings):
 
     @err_catcher(name=__name__)
     def reloadPlugins(self, plugins=None, selected=False):
+        """Reload selected plugins and re-open settings on Plugins tab."""
         if plugins is None and selected:
             plugins = []
             for i in self.tw_plugins.selectedItems():
@@ -1288,6 +1354,7 @@ class UserSettings(QDialog, UserSettings_ui.Ui_dlg_UserSettings):
 
     @err_catcher(name=__name__)
     def reload(self):
+        """Restart Settings window preserving current category selection."""
         tab = self.getCurrentCategory()
         prevVal = QApplication.instance().quitOnLastWindowClosed()
         QApplication.instance().setQuitOnLastWindowClosed(False)
@@ -1298,6 +1365,7 @@ class UserSettings(QDialog, UserSettings_ui.Ui_dlg_UserSettings):
 
     @err_catcher(name=__name__)
     def createPluginWindow(self):
+        """Open dialog to scaffold a new plugin from `PluginEmpty`."""
         dlg_plugin = CreatePluginDialog(self.core)
         action = dlg_plugin.exec_()
 
@@ -1316,6 +1384,7 @@ class UserSettings(QDialog, UserSettings_ui.Ui_dlg_UserSettings):
 
     @err_catcher(name=__name__)
     def createPlugin(self, pluginName, pluginType, location, path=""):
+        """Create, load, and register a new plugin skeleton."""
         pluginPath = self.core.createPlugin(
             pluginName, pluginType, location=location, path=path
         )
@@ -1338,6 +1407,7 @@ class UserSettings(QDialog, UserSettings_ui.Ui_dlg_UserSettings):
 
     @err_catcher(name=__name__)
     def addPluginSearchpath(self):
+        """Add a plugin search path and load available plugins from it."""
         startPath = getattr(
             self, "externalPluginStartPath", None
         ) or self.core.plugins.getPluginPath(location="root")
@@ -1368,6 +1438,7 @@ class UserSettings(QDialog, UserSettings_ui.Ui_dlg_UserSettings):
 
     @err_catcher(name=__name__)
     def openPluginFolder(self):
+        """Open selected plugin folder in explorer."""
         for i in self.tw_plugins.selectedItems():
             if i.column() != 0:
                 continue
@@ -1377,6 +1448,7 @@ class UserSettings(QDialog, UserSettings_ui.Ui_dlg_UserSettings):
 
     @err_catcher(name=__name__)
     def refreshStyleSheets(self):
+        """Populate stylesheet selector from registered themes."""
         self.cb_styleSheet.blockSignals(True)
         self.cb_styleSheet.clear()
         sheets = self.core.getRegisteredStyleSheets()
@@ -1387,6 +1459,7 @@ class UserSettings(QDialog, UserSettings_ui.Ui_dlg_UserSettings):
 
     @err_catcher(name=__name__)
     def onStyleSheetChanged(self, idx):
+        """Apply selected stylesheet in Standalone mode and refresh icons."""
         if self.core.appPlugin.pluginName == "Standalone":
             sheet = self.cb_styleSheet.currentData()
             self.core.setActiveStyleSheet(sheet["name"])
@@ -1394,6 +1467,7 @@ class UserSettings(QDialog, UserSettings_ui.Ui_dlg_UserSettings):
 
     @err_catcher(name=__name__)
     def startTray(self):
+        """Launch PrismTray in a separate process for current OS."""
         if platform.system() == "Windows":
             slavePath = os.path.join(self.core.prismRoot, "Scripts", "PrismTray.py")
             pythonPath = os.path.join(self.core.prismLibs, self.core.pythonVersion, "Prism.exe")
@@ -1413,6 +1487,7 @@ class UserSettings(QDialog, UserSettings_ui.Ui_dlg_UserSettings):
 
     @err_catcher(name=__name__)
     def onImportSettingsClicked(self):
+        """Load user settings from selected config file into UI."""
         path = self.core.paths.requestFilepath(
             title="Load user settings",
             startPath=self.core.userini,
@@ -1428,6 +1503,7 @@ class UserSettings(QDialog, UserSettings_ui.Ui_dlg_UserSettings):
 
     @err_catcher(name=__name__)
     def onExportSettingsClicked(self):
+        """Export current user settings to a chosen config file."""
         path = self.core.paths.requestFilepath(
             title="Save user settings",
             startPath=self.core.userini,
@@ -1450,6 +1526,7 @@ class UserSettings(QDialog, UserSettings_ui.Ui_dlg_UserSettings):
 
 
 class CreatePluginDialog(QDialog):
+    """Dialog to scaffold a new Prism plugin and choose its location."""
     def __init__(self, core):
         QDialog.__init__(self)
         self.core = core
@@ -1461,6 +1538,7 @@ class CreatePluginDialog(QDialog):
 
     @err_catcher(name=__name__)
     def setupUi(self):
+        """Build the dialog UI controls."""
         self.core.parentWindow(self)
         self.setWindowTitle("Create Plugin")
         self.lo_main = QVBoxLayout()
@@ -1518,6 +1596,7 @@ class CreatePluginDialog(QDialog):
 
     @err_catcher(name=__name__)
     def connectEvents(self):
+        """Wire inputs to validators and change handlers."""
         self.e_name.textChanged.connect(lambda x: self.validate(self.e_name, x))
         self.e_path.textChanged.connect(lambda x: self.validate(self.e_path, x))
         self.cb_type.activated.connect(lambda x: self.refreshPath())
@@ -1538,6 +1617,7 @@ class CreatePluginDialog(QDialog):
 
     @err_catcher(name=__name__)
     def browse(self):
+        """Browse for a custom plugin folder path."""
         windowTitle = "Select plugin location"
         selectedPath = QFileDialog.getExistingDirectory(
             self, windowTitle, self.e_path.text()
@@ -1548,6 +1628,7 @@ class CreatePluginDialog(QDialog):
 
     @err_catcher(name=__name__)
     def validate(self, uiWidget, origText=None):
+        """Validate name/path fields and update preview path."""
         if uiWidget == self.e_name:
             allowChars = ["_"]
         else:
@@ -1561,6 +1642,7 @@ class CreatePluginDialog(QDialog):
 
     @err_catcher(name=__name__)
     def refreshPath(self):
+        """Compute target path preview based on type/location/name."""
         pluginType = self.cb_type.currentText()
         if self.cb_location.currentText() == "Computer":
             path = self.core.plugins.getComputerPluginPath()
@@ -1595,6 +1677,7 @@ class AddProductPathDialog(QDialog):
 
     @err_catcher(name=__name__)
     def setupUi(self, parent=None):
+        """Build the dialog UI to add an additional base path."""
         self.core.parentWindow(self, parent)
         self.setWindowTitle("Add additional %s location" % self.pathType)
         self.lo_main = QVBoxLayout()
@@ -1630,6 +1713,7 @@ class AddProductPathDialog(QDialog):
 
     @err_catcher(name=__name__)
     def connectEvents(self):
+        """Hook up validators and browse button."""
         self.e_name.textChanged.connect(lambda x: self.validate(self.e_name, x))
         self.e_path.textChanged.connect(lambda x: self.validate(self.e_path, x))
         self.b_browse.clicked.connect(self.browse)
@@ -1639,6 +1723,7 @@ class AddProductPathDialog(QDialog):
 
     @err_catcher(name=__name__)
     def browse(self):
+        """Prompt for a filesystem location to add."""
         windowTitle = "Select %s location" % self.pathType
         selectedPath = QFileDialog.getExistingDirectory(
             self, windowTitle, self.e_path.text()
@@ -1649,6 +1734,7 @@ class AddProductPathDialog(QDialog):
 
     @err_catcher(name=__name__)
     def validate(self, uiWidget, origText=None):
+        """Validate input fields (name/path)."""
         if uiWidget == self.e_name:
             allowChars = ["_", " "]
         else:
@@ -1658,6 +1744,7 @@ class AddProductPathDialog(QDialog):
 
     @err_catcher(name=__name__)
     def addPath(self):
+        """Add the path to project config and close."""
         location = self.e_name.text()
         path = self.e_path.text()
 
@@ -1679,6 +1766,7 @@ class AddProductPathDialog(QDialog):
 
 
 class EnvironmentWidget(QDialog):
+    """Read-only view of current process environment variables."""
     def __init__(self, parent):
         super(EnvironmentWidget, self).__init__()
         self.parent = parent
@@ -1691,6 +1779,7 @@ class EnvironmentWidget(QDialog):
         return QSize(1000, 700)
 
     def setupUi(self):
+        """Initialize table view for environment key/value pairs."""
         self.setWindowTitle("Current Environment")
         self.lo_main = QVBoxLayout()
         self.setLayout(self.lo_main)
@@ -1705,6 +1794,7 @@ class EnvironmentWidget(QDialog):
         self.lo_main.addWidget(self.tw_environment)
 
     def refreshEnvironment(self):
+        """Populate the table from os.environ."""
         self.tw_environment.setRowCount(0)
         for idx, key in enumerate(sorted(os.environ)):
             self.tw_environment.insertRow(idx)
@@ -1717,6 +1807,7 @@ class EnvironmentWidget(QDialog):
 
 
 class HelpLabel(QLabel):
+    """Label that shows a tooltip on hover with contextual help text."""
 
     signalEntered = Signal(object)
 
@@ -1732,6 +1823,7 @@ class HelpLabel(QLabel):
 
 
 class ManagePluginPaths(QDialog):
+    """Dialog to enable/disable and add/remove plugin paths and search paths."""
     def __init__(self, parent):
         super(ManagePluginPaths, self).__init__()
         self.parent = parent
@@ -1745,6 +1837,7 @@ class ManagePluginPaths(QDialog):
 
     @err_catcher(name=__name__)
     def setupUi(self):
+        """Build UI with two tables: plugin paths and search paths."""
         self.setWindowTitle("Manage Plugin Paths")
         self.lo_main = QVBoxLayout()
         self.setLayout(self.lo_main)
@@ -1856,6 +1949,7 @@ class ManagePluginPaths(QDialog):
 
     @err_catcher(name=__name__)
     def refresh(self):
+        """Reload path lists from config and update tables."""
         self.tw_paths.setRowCount(0)
         paths = self.getPluginPaths()
         for idx, path in enumerate(paths):
@@ -1890,6 +1984,7 @@ class ManagePluginPaths(QDialog):
 
     @err_catcher(name=__name__)
     def getPluginPaths(self):
+        """Return plugin paths with enabled/editable flags for table."""
         pluginPaths = []
         paths = self.core.plugins.getPluginDirs(includeEnv=True, includeDefaults=False, includeConfig=False, enabledOnly=False)["pluginPaths"]
         pluginPaths += [{"enabled": True, "path": p, "editable": False} for p in paths]
@@ -1899,6 +1994,7 @@ class ManagePluginPaths(QDialog):
 
     @err_catcher(name=__name__)
     def getPluginSearchPaths(self):
+        """Return search paths with enabled/editable flags for table."""
         searchPaths = []
         paths = self.core.plugins.getPluginDirs(includeEnv=False, includeConfig=False)["searchPaths"]
         searchPaths += [{"enabled": True, "path": p, "editable": False} for p in paths]
@@ -1910,6 +2006,7 @@ class ManagePluginPaths(QDialog):
 
     @err_catcher(name=__name__)
     def addPluginPath(self):
+        """Add and activate a plugin path, then refresh UI and settings."""
         startPath = getattr(
             self, "externalPluginStartPath", None
         ) or self.core.plugins.getPluginPath(location="root")
@@ -1944,6 +2041,7 @@ class ManagePluginPaths(QDialog):
 
     @err_catcher(name=__name__)
     def removePluginPaths(self):
+        """Remove selected plugin paths from config."""
         toRemove = []
         for item in self.tw_paths.selectedItems():
             if item.column() != 1:
@@ -1968,6 +2066,7 @@ class ManagePluginPaths(QDialog):
 
     @err_catcher(name=__name__)
     def addPluginSearchpath(self):
+        """Add a plugin search path and load available plugins."""
         startPath = getattr(
             self, "externalPluginStartPath", None
         ) or self.core.plugins.getPluginPath(location="root")
@@ -2000,6 +2099,7 @@ class ManagePluginPaths(QDialog):
 
     @err_catcher(name=__name__)
     def removePluginSearchpaths(self):
+        """Remove selected plugin search paths from config."""
         toRemove = []
         for item in self.tw_searchPaths.selectedItems():
             if item.column() != 1:
@@ -2024,6 +2124,7 @@ class ManagePluginPaths(QDialog):
 
     @err_catcher(name=__name__)
     def setSelectedPathsEnabled(self, enabled):
+        """Enable/disable selected plugin paths via checkbox column."""
         for item in self.tw_paths.selectedItems():
             if item.column() != 1:
                 continue
@@ -2033,6 +2134,7 @@ class ManagePluginPaths(QDialog):
 
     @err_catcher(name=__name__)
     def setSelectedSearchpathsEnabled(self, enabled):
+        """Enable/disable selected search paths via checkbox column."""
         for item in self.tw_searchPaths.selectedItems():
             if item.column() != 1:
                 continue
@@ -2042,6 +2144,7 @@ class ManagePluginPaths(QDialog):
 
     @err_catcher(name=__name__)
     def contextMenuPaths(self, pos):
+        """Context menu actions for plugin paths table."""
         items = self.tw_paths.selectedItems()
         items = [item for item in items if item.column() == 1]
         if not items:
@@ -2085,6 +2188,7 @@ class ManagePluginPaths(QDialog):
 
     @err_catcher(name=__name__)
     def contextMenuSearchpaths(self, pos):
+        """Context menu actions for search paths table."""
         items = self.tw_searchPaths.selectedItems()
         items = [item for item in items if item.column() == 1]
         if not items:
